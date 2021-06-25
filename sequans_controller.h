@@ -17,6 +17,10 @@ extern "C" {
 #define SEQUANS_CONTROLLER_RESPONSE_OK 0
 #define SEQUANS_CONTROLLER_RESPONSE_ERROR 1
 #define SEQUANS_CONTROLLER_BUFFER_OVERFLOW 2
+#define SEQUANS_CONTROLLER_RESPONSE_TIMEOUT 3
+
+#define SEQUANS_CONTROLLER_DEFAULT_FLUSH_RETRIES 5
+#define SEQUANS_CONTROLLER_DEFAULT_FLUSH_SLEEP_MS 2
 
 /**
  * @brief Sets up the pins for TX, RX, RTS and CTS of the USART interface
@@ -80,24 +84,40 @@ uint8_t sequansControllerReadByte(void);
  */
 uint8_t sequansControllerReadResponse(char *out_buffer, uint16_t buffer_size);
 
-// TODO/INPUT WANTED: This can cause some harm if called when there is nothing
-// in the buffer or no response is given, might want to have a safeguard for
-// this, some max read size
 /**
  * @brief Will read the response to flush out the receive buffer, but not place
  *        the read bytes anywhere. Returns whether an OK or ERROR was found in
- *        the resposne. Will block!
+ *        the response.
  *
- * This can be used where the response of a command is not interesting, but
+ * This can be used where the response of a command is of interest, but
  * where thebuffer has to be cleared for the next time a command is given. This
  * can also be used to check if the result from a command was a "OK" or "ERROR"
  * without placing the actual result anywhere. Will read the receive buffer
  * until an "OK\r\n" or "ERROR\r\n" is found, which is the termination sequence
- * for the LTE modem in ATV1 mode.
+ * for the LTE modem in ATV1 mode (or if amount of retries is passed).
+ *
+ * The retry behaviour will check if there is anything in the receive buffer, if
+ * not, the function will sleep and retry again until the amount of retries is
+ * passed.
+ *
+ * @param retries Amount of times to retry reading from the LTE module. This is
+ *                to prevent the function from blocking the rest of the program
+ *                if it is called while the LTE module is not expected to
+ *                transmit anything.
+ * @param sleep_us Amount of time to sleep in milliseconds between the retries.
  *
  * @return - LTE_CONTROLLER_RESPONSE_OK if termination was found to be "OK".
  *         - LTE_CONTROLLER_RESPONSE_ERROR if termination was found to be
  *           "ERROR".
+ *         - LTE_CONTROLLER_RESPONSE_TIMEOUT if we passed the retry amount
+ */
+uint8_t sequansControllerFlushResponseWithRetries(const uint8_t retries,
+                                                  const double sleep_ms);
+
+/**
+ * @brief See sequansControllerFlushResponseWithRetries(). Uses a default
+ *        retry value of SEQUANS_CONTROLLER_DEFAULT_FLUSH_RETRIES and sleep time
+ *        of SEQUANS_CONTROLLER_DEFAULT_FLUSH_SLEEP_MS.
  */
 uint8_t sequansControllerFlushResponse(void);
 

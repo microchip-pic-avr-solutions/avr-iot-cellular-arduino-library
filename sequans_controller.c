@@ -6,6 +6,7 @@
 #include <avr/io.h>
 #include <stddef.h>
 #include <string.h>
+#include <util/delay.h>
 
 #define TX_PIN PIN0_bm
 #define RX_PIN PIN1_bm
@@ -145,7 +146,6 @@ void sequansControllerInitialize(void) {
     PORTC.PIN6CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
 
     // Set reset low to reset the LTE modem
-    // TODO: check if it is pulled high after this
     PORTE.OUTCLR = RESET_PIN;
     PORTE.DIRSET = RESET_PIN;
 
@@ -222,6 +222,7 @@ uint8_t sequansControllerReadByte(void) {
 }
 
 uint8_t sequansControllerReadResponse(char *out_buffer, uint16_t buffer_size) {
+
     for (size_t i = 0; i < buffer_size; i++) {
         out_buffer[i] = sequansControllerReadByte();
 
@@ -260,7 +261,8 @@ uint8_t sequansControllerReadResponse(char *out_buffer, uint16_t buffer_size) {
     return SEQUANS_CONTROLLER_BUFFER_OVERFLOW;
 }
 
-uint8_t sequansControllerFlushResponse(void) {
+uint8_t sequansControllerFlushResponseWithRetries(const uint8_t retries,
+                                                  const double sleep_ms) {
 
     // We use the termination buffer to look for a "\r\n", which can indicate
     // termination. We set it to max size of the error termination so that we
@@ -273,17 +275,27 @@ uint8_t sequansControllerFlushResponse(void) {
     // Don't include null termination
     size_t termination_buffer_size = sizeof(termination_buffer) - 1;
 
-    // We will break out of the loop if we find the termination sequence.
-    while (true) {
+    uint8_t retry_count = 0;
+
+    // We will break out of the loop if we find the termination sequence
+    // or if we pass the retry count.
+    while (retry_count < retries) {
+
+        if (!sequansControllerIsRxReady()) {
+            retry_count++;
+            _delay_ms(sleep_ms);
+            continue;
+        }
 
         // Shift the buffer backwards
         for (size_t i = 0; i < termination_buffer_size - 1; i++) {
             termination_buffer[i] = termination_buffer[i + 1];
         }
 
-        // Place new byte back in the buffer
         termination_buffer[termination_buffer_size - 1] =
             sequansControllerReadByte();
+        // Reset retry count when we get some data
+        retry_count = 0;
 
         if (termination_buffer[termination_buffer_size - 2] ==
                 CARRIAGE_RETURN &&
@@ -303,6 +315,14 @@ uint8_t sequansControllerFlushResponse(void) {
             }
         }
     }
+
+    return SEQUANS_CONTROLLER_RESPONSE_TIMEOUT;
+}
+
+uint8_t sequansControllerFlushResponse(void) {
+    return sequansControllerFlushResponseWithRetries(
+        SEQUANS_CONTROLLER_DEFAULT_FLUSH_RETRIES,
+        SEQUANS_CONTROLLER_DEFAULT_FLUSH_SLEEP_MS);
 }
 
 bool sequansControllerExtractValueFromCommandResponse(
