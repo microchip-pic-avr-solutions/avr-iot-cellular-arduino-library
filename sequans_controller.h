@@ -24,7 +24,7 @@ extern "C" {
 
 /**
  * @brief Sets up the pins for TX, RX, RTS and CTS of the USART interface
- * 	  towards the LTE module. Will also issue a RESET for the LTE module.
+ * towards the LTE module. Will also issue a RESET for the LTE module.
  */
 void sequansControllerInitialize(void);
 
@@ -45,13 +45,13 @@ bool sequansControllerIsTxDone(void);
 
 /**
  * @brief Send a byte to the LTE module, will block if the transmit buffer is
- * 	      full.
+ * full.
  */
 void sequansControllerSendByte(const uint8_t data);
 
 /**
  * @brief Writes an AT command in the form of a string to the LTE module, will
- * 	      block if the transmit buffer is full.
+ * block if the transmit buffer is full.
  *
  * @note A carrige return is not needed for the command.
  */
@@ -86,8 +86,8 @@ uint8_t sequansControllerReadResponse(char *out_buffer, uint16_t buffer_size);
 
 /**
  * @brief Will read the response to flush out the receive buffer, but not place
- *        the read bytes anywhere. Returns whether an OK or ERROR was found in
- *        the response.
+ * the read bytes anywhere. Returns whether an OK or ERROR was found in
+ * the response.
  *
  * This can be used where the response of a command is of interest, but
  * where thebuffer has to be cleared for the next time a command is given. This
@@ -101,9 +101,9 @@ uint8_t sequansControllerReadResponse(char *out_buffer, uint16_t buffer_size);
  * passed.
  *
  * @param retries Amount of times to retry reading from the LTE module. This is
- *                to prevent the function from blocking the rest of the program
- *                if it is called while the LTE module is not expected to
- *                transmit anything.
+ * to prevent the function from blocking the rest of the program if it is called
+ * while the LTE module is not expected to transmit anything.
+ *
  * @param sleep_us Amount of time to sleep in milliseconds between the retries.
  *
  * @return - LTE_CONTROLLER_RESPONSE_OK if termination was found to be "OK".
@@ -116,14 +116,14 @@ uint8_t sequansControllerFlushResponseWithRetries(const uint8_t retries,
 
 /**
  * @brief See sequansControllerFlushResponseWithRetries(). Uses a default
- *        retry value of SEQUANS_CONTROLLER_DEFAULT_FLUSH_RETRIES and sleep time
- *        of SEQUANS_CONTROLLER_DEFAULT_FLUSH_SLEEP_MS.
+ * retry value of SEQUANS_CONTROLLER_DEFAULT_FLUSH_RETRIES and sleep time
+ * of SEQUANS_CONTROLLER_DEFAULT_FLUSH_SLEEP_MS.
  */
 uint8_t sequansControllerFlushResponse(void);
 
 /**
  * @brief Searches for a value at one index in the response, which has a comma
- *        delimiter.
+ * delimiter.
  *
  * @param response The AT command response.
  * @param index Index of value to extract.

@@ -22,8 +22,8 @@ typedef struct {
  * @brief Sets up the HTTP client with a host and port.
  *
  * @param host Can either be a host name resolved with DNS or an actual server
- *             address in the form of "xxx.xxx.xxx.xxx".
- * @param port Port of the host, e.g. 80.
+ * address in the form of "xxx.xxx.xxx.xxx".
+ * @param port Port of the host, e.g. 80 or 443 (for HTTPS).
  * @param enable_tls Use HTTPS.
  */
 void httpClientConfigure(const char *host,
@@ -32,71 +32,48 @@ void httpClientConfigure(const char *host,
 
 /**
  * @brief Issues a post to the host configured. Will block until operation is
- *        done.
- *
- * @param endpoint Destination on host.
- * @param data Payload to send.
- *
- * @return Status of the operation.
+ * done.
  */
 HttpResponse httpClientPost(const char *endpoint, const char *data);
 
 /**
  * @brief Issues a put to the host configured. Will block until operation is
- *        done.
- *
- * @param endpoint Destination on host.
- * @param data Payload to send.
- *
- * @return Status of the operation.
+ * done.
  */
 HttpResponse httpClientPut(const char *endpoint, const char *data);
 
 /**
  * @brief Issues a get from the host configured. Will block until operation is
- *        done. The contents of the body after the get can be read using the
- *        httpClientReadResponseBody() function after.
- *
- * @param endpoint Destination on host.
- *
- * @return Status of the operation.
+ * done. The contents of the body after the get can be read using the
+ * httpClientReadResponseBody() function after.
  */
 HttpResponse httpClientGet(const char *endpoint);
 
 /**
  * @brief Issues a head from the host configured. Will block until operation is
- *        done.
- *
- * @param endpoint Destination on host.
- *
- * @return Status of the operation.
+ * done.
  */
 HttpResponse httpClientHead(const char *endpoint);
 
 /**
  * @brief Issues a delete from the host configured. Will block until operation
- *        is done.
- *
- * @param endpoint Destination on host.
- *
- * @return Status of the operation.
+ * is done.
  */
-
 HttpResponse httpClientDelete(const char *endpoint);
 
 /**
- * @brief Reads the body of a response after a HTTP call. The contents after the
- *        buffer size will be discarded, so passing the data size retrieved from
- *        the HttpResponse plus some space for termination of the response from
- *        LTE module is recommended to get the whole buffer if that is required.
- *        Use e.g. buffer_size = httpResponse.data_size + 32.
+ * @brief Reads the body of a response after a HTTP call. Note that the range
+ * for the buffer_size has to be between 64-1500. This is a limitation
+ * from the Sequans LTE module. So if the data is larger than that,
+ * multiple calls to this function has to be made.
  *
  * @param buffer Destination of the body.
- * @param buffer_size Max size of the buffer,
+ * @param buffer_size Has to be between 64-1500.
  *
- * @return true if successful read.
+ * @return bytes read from receive buffer. -1 indicates the buffer_size was
+ * outside the range allowed.
  */
-bool httpClientReadResponseBody(char *buffer, const uint32_t buffer_size);
+int16_t httpClientReadResponseBody(char *buffer, const uint32_t buffer_size);
 
 #ifdef __cplusplus
 }

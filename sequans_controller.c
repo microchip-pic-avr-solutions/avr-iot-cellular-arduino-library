@@ -101,8 +101,8 @@ ISR(USART1_RXC_vect) {
 
 /**
  * @brief Data register empty. Allows us to keep track of when the data has been
- *	  transmitted on the line and set up new data to be transmitted from the
- * 	  ring buffer.
+ * transmitted on the line and set up new data to be transmitted from the ring
+ * buffer.
  */
 ISR(USART1_DRE_vect) {
     if (tx_num_elements != 0) {
@@ -281,11 +281,14 @@ uint8_t sequansControllerFlushResponseWithRetries(const uint8_t retries,
     // or if we pass the retry count.
     while (retry_count < retries) {
 
+        // TODO: fix
+        /*
         if (!sequansControllerIsRxReady()) {
             retry_count++;
             _delay_ms(sleep_ms);
             continue;
         }
+        */
 
         // Shift the buffer backwards
         for (size_t i = 0; i < termination_buffer_size - 1; i++) {

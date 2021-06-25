@@ -21,7 +21,7 @@ void lteClientEnableRoaming(void);
 
 /**
  * @brief Will request connection to operation. The action will not happen
- *        instanteneously, so checking the connection status has to be done.
+ * instanteneously, so checking the connection status has to be done.
  */
 void lteClientConnectToOperator(void);
 
@@ -31,7 +31,7 @@ void lteClientDisconnectFromOperator(void);
 
 /**
  * @brief Will relay all messages back and forward between serial connected to
- *        host computer and the LTE module.
+ * host computer and the LTE module.
  */
 void lteClientStartDebugBridgeMode(void);
 

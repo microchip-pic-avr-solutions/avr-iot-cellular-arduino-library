@@ -38,11 +38,16 @@
 #define HTTP_RESPONSE_DATA_SIZE_INDEX 3
 #define HTTP_RESPONSE_DATA_SIZE_LENGTH 16
 
-#define AT_DEFAULT_COMMAND "AT"
+// These are limitations from the Sequans module, so the range of bytes we can
+// receive with one call to the read body AT command has to be between these
+// values. One thus has to call the function multiple times if the data size is
+// greater than the max size
+#define HTTP_BODY_BUFFER_MIN_SIZE 64
+#define HTTP_BODY_BUFFER_MAX_SIZE 1500
 
 /**
  * @brief Waits for the HTTP response (which can't be requested) puts it into a
- *        buffer.
+ * buffer.
  *
  * Since we can't query the response, and it will arrive as a single line of
  * string, we do the trick of sending a single AT command after we first see
@@ -63,7 +68,7 @@ static uint8_t waitAndRetrieveHttpResponse(char *buffer,
 
     // Send single AT command in order to receive an OK which will later will be
     // searched for as the termination in the HTTP response
-    sequansControllerSendCommand(AT_DEFAULT_COMMAND);
+    sequansControllerSendCommand("AT");
 
     // Read response will block until we read the OK and give us the HTTP
     // response
@@ -74,13 +79,11 @@ static uint8_t waitAndRetrieveHttpResponse(char *buffer,
 
 /**
  * @brief Generic method for sending data via HTTP, either with POST or PUT.
- *        Issues an AT command to the LTE modem.
+ * Issues an AT command to the LTE modem.
  *
  * @param endpoint Destination of payload, part after host name in URL.
  * @param data Payload to send.
  * @param method POST(0) or PUT(1).
- *
- * @return HTTP status code from the request.
  */
 static HttpResponse
 sendData(const char *endpoint, const char *data, const uint8_t method) {
@@ -138,6 +141,13 @@ sendData(const char *endpoint, const char *data, const uint8_t method) {
     return httpResponse;
 }
 
+/**
+ * @brief Generic method for retrieving data via HTTP, either with HEAD, GET or
+ * DELETE.
+ *
+ * @param endpoint Destination of retrieve, part after host name in URL.
+ * @param method GET(0), HEAD(1) or DELETE(2).
+ */
 static HttpResponse queryData(const char *endpoint, const uint8_t method) {
 
     HttpResponse httpResponse = {0, 0};
@@ -221,13 +231,22 @@ HttpResponse httpClientDelete(const char *endpoint) {
     return queryData(endpoint, HTTP_DELETE_METHOD);
 }
 
-bool httpClientReadResponseBody(char *buffer, const uint32_t buffer_size) {
+int16_t httpClientReadResponseBody(char *buffer, const uint32_t buffer_size) {
+
+    // Safeguard against the limitation in the Sequans AT command parameter
+    // for the response receive command.
+    if (buffer_size < HTTP_BODY_BUFFER_MIN_SIZE ||
+        buffer_size > HTTP_BODY_BUFFER_MAX_SIZE) {
+        return -1;
+    }
+
     // Clear the receive buffer to be ready for the response
     while (sequansControllerIsRxReady()) { sequansControllerFlushResponse(); }
 
     // We send the buffer size with the receive command so that we only
     // receive that. The rest will be flushed from the modem.
     char command[HTTP_RECEIVE_LENGTH] = "";
+
     sprintf(command, HTTP_RECEIVE, buffer_size);
     sequansControllerSendCommand(command);
 
@@ -245,12 +264,19 @@ bool httpClientReadResponseBody(char *buffer, const uint32_t buffer_size) {
         }
     }
 
-    // Now we are ready to receive the payload
-    if (sequansControllerReadResponse(buffer, buffer_size) !=
-        SEQUANS_CONTROLLER_RESPONSE_OK) {
+    // Now we are ready to receive the payload. We only check for error and not
+    // overflow in the receive buffer in comparison to our buffer as we know the
+    // size of what we want to receive
+    if (sequansControllerReadResponse(buffer, buffer_size) ==
+        SEQUANS_CONTROLLER_RESPONSE_ERROR) {
 
-        return false;
+        return 0;
     }
 
-    return true;
+    size_t response_length = strlen(buffer);
+
+    // Remove extra <CR><LF> from command response
+    memset(buffer + response_length - 2, 0, 2);
+
+    return response_length - 2;
 }
