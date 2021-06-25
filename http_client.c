@@ -7,14 +7,17 @@
 
 #include "sequans_controller.h"
 
-// We only use profile 0 to keep things simple
-// TODO/INPUT WANTED: Should we allow for more profiles?
-#define HTTP_CONFIGURE "AT+SQNHTTPCFG=0,\"%s\",%d"
+// We only use profile 0 to keep things simple we also stick with spId 1
+// TODO/INPUT WANTED: Should we allow for more profiles and different spId?
+#define HTTP_CONFIGURE "AT+SQNHTTPCFG=0,\"%s\",%u,0,\"\",\"\",%u,120,1,1"
 
-// This will support the max length of domain name of 127 characters as the
-// sequence with the port number of at max 5 digits is 24 characters. So
-// 24 + 127 + 1 (termination byte) = 152
-#define HTTP_CONFIGURE_SIZE 152
+// Command without any data in it (with parantheses): 36 bytes
+// Max length of doman name: 127 bytes
+// Max length of port number: 5 bytes (0-65535)
+// TLS enabled: 1 byte
+// Termination: 1 byte
+// This results in 36 + 127 + 5 + 1 + 1 = 170
+#define HTTP_CONFIGURE_SIZE 170
 
 #define HTTP_SEND "AT+SQNHTTPSND=0,%u,\"%s\",%u"
 #define HTTP_POST_METHOD 0
@@ -184,11 +187,13 @@ static HttpResponse queryData(const char *endpoint, const uint8_t method) {
     return httpResponse;
 }
 
-void httpClientConfigure(const char *host, uint16_t port) {
+void httpClientConfigure(const char *host,
+                         const uint16_t port,
+                         const bool enable_tls) {
 
     uint8_t result;
     char command[HTTP_CONFIGURE_SIZE] = "";
-    sprintf(command, HTTP_CONFIGURE, host, port);
+    sprintf(command, HTTP_CONFIGURE, host, port, enable_tls);
 
     do {
         sequansControllerSendCommand(command);

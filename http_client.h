@@ -24,8 +24,11 @@ typedef struct {
  * @param host Can either be a host name resolved with DNS or an actual server
  *             address in the form of "xxx.xxx.xxx.xxx".
  * @param port Port of the host, e.g. 80.
+ * @param enable_tls Use HTTPS.
  */
-void httpClientConfigure(const char *host, uint16_t port);
+void httpClientConfigure(const char *host,
+                         const uint16_t port,
+                         const bool enable_tls);
 
 /**
  * @brief Issues a post to the host configured. Will block until operation is
@@ -86,7 +89,7 @@ HttpResponse httpClientDelete(const char *endpoint);
  *        buffer size will be discarded, so passing the data size retrieved from
  *        the HttpResponse plus some space for termination of the response from
  *        LTE module is recommended to get the whole buffer if that is required.
- *        Use e.g. buffer_size = httpResponse.data_size + 32;
+ *        Use e.g. buffer_size = httpResponse.data_size + 32.
  *
  * @param buffer Destination of the body.
  * @param buffer_size Max size of the buffer,
