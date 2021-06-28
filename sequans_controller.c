@@ -281,14 +281,11 @@ uint8_t sequansControllerFlushResponseWithRetries(const uint8_t retries,
     // or if we pass the retry count.
     while (retry_count < retries) {
 
-        // TODO: fix
-        /*
         if (!sequansControllerIsRxReady()) {
             retry_count++;
             _delay_ms(sleep_ms);
             continue;
         }
-        */
 
         // Shift the buffer backwards
         for (size_t i = 0; i < termination_buffer_size - 1; i++) {
