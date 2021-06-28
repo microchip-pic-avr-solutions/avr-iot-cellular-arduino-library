@@ -4,6 +4,8 @@
 
 #include <string.h>
 
+#define CELL_STATUS_LED PIN_PG2
+
 #define INPUT_BUFFER_SIZE 128
 #define RESPONSE_BUFFER_SIZE 256
 
@@ -70,33 +72,52 @@ void debugBridgeUpdate(void) {
 }
 
 void testHttp() {
-    httpClientConfigure("ptsv2.com", 80);
+    /*
+    httpClientConfigure("www.ptsv2.com", 80, false);
     HttpResponse response =
         httpClientPost("/t/1rqc3-1624431962/post", "{\"hello\": \"world\"}");
     Serial5.print("POST completed with status code ");
     Serial5.print(response.status_code);
     Serial5.print(" and data size ");
     Serial5.println(response.data_size);
+    */
 
-    httpClientConfigure("google.com", 80);
-    response = httpClientHead("/");
+    httpClientConfigure("raw.githubusercontent.com", 443, true);
+    HttpResponse response;
 
-    Serial5.print("HEAD request to google.com. Status code is ");
+    do {
+        Serial5.println("Sending HEAD");
+        response = httpClientHead("/SpenceKonde/DxCore/master/.gitignore");
+    } while (response.status_code != 200);
+    Serial5.print("HEAD completed. Status code is ");
     Serial5.print(response.status_code);
     Serial5.print(" and data size is ");
     Serial5.println(response.data_size);
 
-    response = httpClientGet("/");
-
     if (response.status_code != 404 && response.status_code != 0) {
+
+        do {
+            Serial5.println("Performing GET");
+            response = httpClientGet("/SpenceKonde/DxCore/master/.gitignore");
+        } while (response.status_code != 200);
+
+        Serial5.print("GET completed. Status code is ");
+        Serial5.print(response.status_code);
+        Serial5.print(" and data size is ");
+        Serial5.println(response.data_size);
+
+        Serial5.println("Got GET response, retrieving data");
+
         // Add NULL termination
         char response_buffer[response.data_size + 1] = "";
-        uint8_t success = httpClientReadResponseBody(response_buffer,
-                                                     response.data_size + 32);
+        uint16_t bytes_read = httpClientReadResponseBody(response_buffer, 64);
 
-        if (success) {
+        if (bytes_read != 0) {
 
-            Serial5.print("GET request to google.com. Body is: ");
+            Serial5.print(
+                "Retrieving data completed successfully. Bytes read ");
+            Serial5.print(bytes_read);
+            Serial5.println(", body: ");
             Serial5.println(response_buffer);
         }
     }
@@ -104,6 +125,10 @@ void testHttp() {
 
 void setup() {
     Serial5.begin(115200);
+
+    // Pin is active low
+    pinMode(CELL_STATUS_LED, OUTPUT);
+    digitalWrite(CELL_STATUS_LED, HIGH);
 
     setupConnectionStatusTimer();
 
@@ -125,6 +150,9 @@ void loop() {
 
             if (new_connection_status != connected) {
                 connected = new_connection_status;
+
+                // Pin is active low
+                digitalWrite(CELL_STATUS_LED, connected ? LOW : HIGH);
                 Serial5.print("New connection status, connected: ");
                 Serial5.println(connected);
             }
