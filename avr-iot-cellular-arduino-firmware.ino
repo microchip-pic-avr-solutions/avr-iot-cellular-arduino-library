@@ -1,6 +1,7 @@
-#include "http_client.h"
-#include "lte_client.h"
-#include "sequans_controller.h"
+#include "src/ecc/ecc_controller.h"
+#include "src/lte/http_client.h"
+#include "src/lte/lte_client.h"
+#include "src/lte/sequans_controller.h"
 
 #include <string.h>
 
@@ -76,6 +77,7 @@ void testHttp() {
     httpClientConfigure("www.ptsv2.com", 80, false);
     HttpResponse response =
         httpClientPost("/t/1rqc3-1624431962/post", "{\"hello\": \"world\"}");
+
     Serial5.print("POST completed with status code ");
     Serial5.print(response.status_code);
     Serial5.print(" and data size ");
@@ -94,47 +96,55 @@ void testHttp() {
     Serial5.print(" and data size is ");
     Serial5.println(response.data_size);
 
-    if (response.status_code != 404 && response.status_code != 0) {
+    do {
+        Serial5.println("Performing GET");
+        response = httpClientGet("/SpenceKonde/DxCore/master/.gitignore");
+    } while (response.status_code != 200);
+    Serial5.print("GET completed. Status code is ");
+    Serial5.print(response.status_code);
+    Serial5.print(" and data size is ");
+    Serial5.println(response.data_size);
 
-        do {
-            Serial5.println("Performing GET");
-            response = httpClientGet("/SpenceKonde/DxCore/master/.gitignore");
-        } while (response.status_code != 200);
+    Serial5.println("Got GET response, retrieving data");
 
-        Serial5.print("GET completed. Status code is ");
-        Serial5.print(response.status_code);
-        Serial5.print(" and data size is ");
-        Serial5.println(response.data_size);
+    // Add NULL termination
+    char response_buffer[response.data_size + 1] = "";
+    uint16_t bytes_read = httpClientReadResponseBody(response_buffer, 64);
 
-        Serial5.println("Got GET response, retrieving data");
+    if (bytes_read != 0) {
 
-        // Add NULL termination
-        char response_buffer[response.data_size + 1] = "";
-        uint16_t bytes_read = httpClientReadResponseBody(response_buffer, 64);
-
-        if (bytes_read != 0) {
-
-            Serial5.print(
-                "Retrieving data completed successfully. Bytes read ");
-            Serial5.print(bytes_read);
-            Serial5.println(", body: ");
-            Serial5.println(response_buffer);
-        }
+        Serial5.print("Retrieving data completed successfully. Bytes read ");
+        Serial5.print(bytes_read);
+        Serial5.println(", body: ");
+        Serial5.println(response_buffer);
     }
+}
+
+void setupECC() {
+
+    uint8_t random_number[32];
+    eccControllerInitialize(random_number);
+
+    for (size_t i = 0; i < 32; i++) { Serial5.println(random_number[i]); }
 }
 
 void setup() {
     Serial5.begin(115200);
 
+    // setupECC();
+
     // Pin is active low
     pinMode(CELL_STATUS_LED, OUTPUT);
     digitalWrite(CELL_STATUS_LED, HIGH);
 
-    setupConnectionStatusTimer();
+    // setupConnectionStatusTimer();
 
     lteClientInitialize();
+
+    /*
     lteClientEnableRoaming();
     lteClientConnectToOperator();
+    */
 
     Serial5.println("---- Finished initializing ----");
 }
@@ -158,7 +168,7 @@ void loop() {
             }
 
             if (connected && !tested_http) {
-                testHttp();
+                // testHttp();
                 tested_http = true;
             }
 

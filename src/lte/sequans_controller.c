@@ -8,11 +8,11 @@
 #include <string.h>
 #include <util/delay.h>
 
-#define TX_PIN PIN0_bm
-#define RX_PIN PIN1_bm
-#define CTS_PIN PIN6_bm
-#define RTS_PIN PIN7_bm
-#define RESET_PIN PIN1_bm
+#define TX_PIN_bm PIN0_bm
+#define CTS_PIN_bm PIN6_bm
+#define RTS_PIN_bm PIN7_bm
+
+#define RESET_PIN_bm PIN1_bm
 
 // The LTE modem operates at this baud rate
 #define BAUD_RATE 115200
@@ -27,7 +27,7 @@
 #define TX_BUFFER_MASK (TX_BUFFER_SIZE - 1)
 
 // CTS, control line for the MCU sending the LTE module data
-#define sequansModuleIsReadyForData() (!(VPORTC.IN & CTS_PIN))
+#define sequansModuleIsReadyForData() (!(VPORTC.IN & CTS_PIN_bm))
 
 #define LINE_FEED 0xA
 #define CARRIAGE_RETURN 0xD
@@ -57,11 +57,11 @@ static void flowControlUpdate(void) {
 
     if (rx_num_elements < RX_BUFFER_ALMOST_FULL) {
         // Space for more data, assert RTS line (active low)
-        PORTC.OUTCLR = RTS_PIN;
+        PORTC.OUTCLR = RTS_PIN_bm;
     } else {
         // Buffer is filling up, tell the target to stop sending data
         // for now by  de-asserting RTS
-        PORTC.OUTSET = RTS_PIN;
+        PORTC.OUTSET = RTS_PIN_bm;
     }
 }
 
@@ -124,7 +124,7 @@ void sequansControllerInitialize(void) {
 
     // PIN SETUP
 
-    PORTC.DIRSET = TX_PIN;
+    PORTC.DIRSET = TX_PIN_bm;
     PORTC.PIN0CTRL |= PORT_PULLUPEN_bm;
 
     // Request to send (RTS) and clear to send (CTS) are the control lines
@@ -137,17 +137,17 @@ void sequansControllerInitialize(void) {
     // Both pins are active low.
 
     // We assert RTS high until we are ready to receive more data
-    PORTC.OUTSET = RTS_PIN;
-    PORTC.DIRSET = RTS_PIN;
+    PORTC.OUTSET = RTS_PIN_bm;
+    PORTC.DIRSET = RTS_PIN_bm;
 
     // Clear to send is input and we want interrupts on both edges to know
     // when the LTE modem has changed the state of the line.
-    PORTC.DIRCLR = CTS_PIN;
+    PORTC.DIRCLR = CTS_PIN_bm;
     PORTC.PIN6CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
 
     // Set reset low to reset the LTE modem
-    PORTE.OUTCLR = RESET_PIN;
-    PORTE.DIRSET = RESET_PIN;
+    PORTE.OUTCLR = RESET_PIN_bm;
+    PORTE.DIRSET = RESET_PIN_bm;
 
     // USART INTERFACE SETUP
 
