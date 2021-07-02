@@ -6,10 +6,6 @@
 #ifndef SEQUANS_CONTROLLER_H
 #define SEQUANS_CONTROLLER_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -121,9 +117,5 @@ bool sequansControllerExtractValueFromCommandResponse(char *response,
                                                       const uint8_t index,
                                                       char *buffer,
                                                       const size_t buffer_size);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

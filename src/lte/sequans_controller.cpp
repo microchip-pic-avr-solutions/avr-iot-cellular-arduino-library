@@ -1,7 +1,5 @@
 #include "sequans_controller.h"
 
-#define __DELAY_BACKWARD_COMPATIBLE__
-
 #include <avr/interrupt.h>
 #include <avr/io.h>
 #include <stddef.h>

@@ -5,10 +5,6 @@
 #ifndef HTTP_CLIENT_H
 #define HTTP_CLIENT_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -76,9 +72,5 @@ HttpResponse httpClientDelete(const char *endpoint);
  * outside the range allowed.
  */
 int16_t httpClientReadResponseBody(char *buffer, const uint32_t buffer_size);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

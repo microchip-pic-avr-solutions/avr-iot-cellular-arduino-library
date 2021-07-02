@@ -5,10 +5,6 @@
 #ifndef LTE_CLIENT_H
 #define LTE_CLIENT_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -46,9 +42,5 @@ bool lteClientRequestConnectionToOperator(void);
 bool lteClientDisconnectFromOperator(void);
 
 bool lteClientIsConnectedToOperator(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

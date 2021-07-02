@@ -1,7 +1,7 @@
 - Strings in progmem?
-- Lights for seeing that one is connected/sending data 
+- Lights for seeing that one is connected/sending data
     - Make status LED blink when we're trying to connect?
-- Different profiles in HTTP client? 
+- Different profiles in HTTP client?
 - Some hostnames still doesn't work...
 - Add URC registration callbacks
     - Have interrupt on RING?
@@ -10,3 +10,5 @@
 **For Spence:**
 - Want to use Serial from core for AT command interface, but need more control of interrupts for RXE due to "semaphore" lines used for flow control. Would be nice or we have to roll with our own solution.
 - Need extra flag for linking towards libcryptoauth.a, set as combine.extra_paths for the moment
+- Rewrite TwoWire::write(const uint8_t* data, size_t quantity) to check error.
+- Need to specify "utility/" infront of twi.h and twi_pins.h
