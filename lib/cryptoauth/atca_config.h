@@ -28,12 +28,6 @@
 #define ATCA_PLATFORM_MALLOC malloc
 #define ATCA_PLATFORM_FREE free
 
-#define F_CPU 24000000
-
-// TODO: Ask about this
-#define __DELAY_BACKWARD_COMPATIBLE__
-#include <util/delay.h>
-
 #define atca_delay_ms _delay_ms
 #define atca_delay_us _delay_us
 

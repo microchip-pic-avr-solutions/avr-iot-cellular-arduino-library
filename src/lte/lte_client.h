@@ -15,25 +15,37 @@ extern "C" {
 /**
  * @brief Initializes the LTE client and its controller interface.
  */
-void lteClientInitialize();
+void lteClientBegin(void);
 
-void lteClientEnableRoaming(void);
+/**
+ * @brief Disables the interface with the LTE module.
+ */
+void lteClientEnd(void);
+
+/**
+ * @return true if operation was successful.
+ */
+bool lteClientEnableRoaming(void);
+
+/**
+ * @return true if operation was successful.
+ */
+bool lteClientDisableRoaming(void);
 
 /**
  * @brief Will request connection to operation. The action will not happen
  * instanteneously, so checking the connection status has to be done.
+ *
+ * @return true if request was successful.
  */
-void lteClientConnectToOperator(void);
-
-bool lteClientIsConnectedToOperator(void);
-
-void lteClientDisconnectFromOperator(void);
+bool lteClientRequestConnectionToOperator(void);
 
 /**
- * @brief Will relay all messages back and forward between serial connected to
- * host computer and the LTE module.
+ * @return true if operation was successful.
  */
-void lteClientStartDebugBridgeMode(void);
+bool lteClientDisconnectFromOperator(void);
+
+bool lteClientIsConnectedToOperator(void);
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,6 @@
 #include "sequans_controller.h"
 
-#define __AVR_AVR128DB64__
+#define __DELAY_BACKWARD_COMPATIBLE__
 
 #include <avr/interrupt.h>
 #include <avr/io.h>
@@ -8,44 +8,38 @@
 #include <string.h>
 #include <util/delay.h>
 
-#define TX_PIN_bm PIN0_bm
-#define CTS_PIN_bm PIN6_bm
-#define RTS_PIN_bm PIN7_bm
+#include <Arduino.h>
+#include <UART.h>
+#include <pins_arduino.h>
 
-#define RESET_PIN_bm PIN1_bm
+#define TX_PIN        PIN_PC0
+#define CTS_PIN       PIN_PC6
+#define CTS_PIN_bm    PIN6_bm
+#define CTS_VPORT     VPORTC
+#define CTS_PORT_vect PORTC_PORT_vect
+#define CTS_INT_bm    PORT_INT6_bm
+#define RTS_PIN       PIN_PC7
+#define RESET_PIN     PIN_PE1
 
-// The LTE modem operates at this baud rate
-#define BAUD_RATE 115200
+#define SerialAT                 Serial1
+#define HWSERIALAT               USART1
+#define SEQUANS_MODULE_BAUD_RATE 115200
+#define RX_BUFFER_ALMOST_FULL    SERIAL_RX_BUFFER_SIZE - 2
 
-// Sizes for the circular buffers
-#define RX_BUFFER_SIZE 128
-#define TX_BUFFER_SIZE 64
-#define RX_BUFFER_ALMOST_FULL RX_BUFFER_SIZE - 2
-
-// Specifies the valid bits for the index in the buffers
-#define RX_BUFFER_MASK (RX_BUFFER_SIZE - 1)
-#define TX_BUFFER_MASK (TX_BUFFER_SIZE - 1)
-
-// CTS, control line for the MCU sending the LTE module data
-#define sequansModuleIsReadyForData() (!(VPORTC.IN & CTS_PIN_bm))
-
-#define LINE_FEED 0xA
-#define CARRIAGE_RETURN 0xD
-#define RESPONSE_DELIMITER ","
+#define LINE_FEED            0xA
+#define CARRIAGE_RETURN      0xD
+#define RESPONSE_DELIMITER   ","
 #define DATA_START_CHARACTER ':'
+
+#define SEQUANS_CONTROLLER_DEFAULT_RETRIES        5
+#define SEQUANS_CONTROLLER_DEFAULT_RETRY_SLEEP_MS 10
 
 static const char OK_TERMINATION[] = "OK\r\n";
 static const char ERROR_TERMINATION[] = "ERROR\r\n";
 
-static uint8_t rx_buffer[RX_BUFFER_SIZE];
-static volatile uint8_t rx_head_index = 0;
-static volatile uint8_t rx_tail_index = 0;
-static volatile uint8_t rx_num_elements = 0;
-
-static uint8_t tx_buffer[TX_BUFFER_SIZE];
-static volatile uint8_t tx_head_index = 0;
-static volatile uint8_t tx_tail_index = 0;
-static volatile uint8_t tx_num_elements = 0;
+static uint8_t number_of_retries = SEQUANS_CONTROLLER_DEFAULT_RETRIES;
+static double sleep_between_retries_ms =
+    SEQUANS_CONTROLLER_DEFAULT_RETRY_SLEEP_MS;
 
 /** @brief Flow control update for the UART interface with the LTE modules
  *
@@ -55,77 +49,50 @@ static volatile uint8_t tx_num_elements = 0;
  */
 static void flowControlUpdate(void) {
 
-    if (rx_num_elements < RX_BUFFER_ALMOST_FULL) {
+    if (SerialAT.available() < RX_BUFFER_ALMOST_FULL) {
         // Space for more data, assert RTS line (active low)
-        PORTC.OUTCLR = RTS_PIN_bm;
+        digitalWrite(RTS_PIN, LOW);
     } else {
         // Buffer is filling up, tell the target to stop sending data
-        // for now by  de-asserting RTS
-        PORTC.OUTSET = RTS_PIN_bm;
+        // for now by de-asserting RTS
+        digitalWrite(RTS_PIN, HIGH);
     }
 }
 
-// CTS interrupt (PC6)
-ISR(PORTC_PORT_vect) {
-    // Check if PIN6 was interrupted
-    if (VPORTC.INTFLAGS & PORT_INT6_bm) {
+ISR(CTS_PORT_vect) {
+    // Check if CTS pin was interrupted
+    if (CTS_VPORT.INTFLAGS & CTS_INT_bm) {
 
-        if (!sequansModuleIsReadyForData()) {
-            // CTS is not asserted so disable USART Data Register
+        if (CTS_VPORT.IN & CTS_PIN_bm) {
+            // CTS is not asserted (active low) so disable USART Data Register
             // Empty Interrupt where the logic is to send more data
-            USART1.CTRLA &= ~(1 << USART_DREIE_bp);
+            HWSERIALAT.CTRLA &= ~(1 << USART_DREIE_bp);
         } else {
             // CTS is asserted check if there is data to transmit
             // before we enable interrupt
-            if (tx_num_elements) {
-                USART1.CTRLA |= (1 << USART_DREIE_bp);
-            }
+            HWSERIALAT.CTRLA |= (1 << USART_DREIE_bp);
         }
     }
 
-    VPORTC.INTFLAGS = 0xff;
+    CTS_VPORT.INTFLAGS = 0xff;
 }
 
+/* TODO: Need to figure out a way to incorporate this into SerialAT
 // RX complete
 ISR(USART1_RXC_vect) {
-    uint8_t data = USART1.RXDATAL;
-
-    // We do an logical AND here as a means of allowing the index to wrap
-    // around since we have a circular buffer
-    rx_head_index = (rx_head_index + 1) & RX_BUFFER_MASK;
-    rx_buffer[rx_head_index] = data;
-    rx_num_elements++;
-
     flowControlUpdate();
+
+    // TODO: would want to do this and then call the interrupt handler in
+    // SerialAT
+    // _rx_complete_irq
 }
+*/
 
-/**
- * @brief Data register empty. Allows us to keep track of when the data has been
- * transmitted on the line and set up new data to be transmitted from the ring
- * buffer.
- */
-ISR(USART1_DRE_vect) {
-    if (tx_num_elements != 0) {
-        // We do an logical AND here as a means of allowing the index to
-        // wrap around since we have a circular buffer
-        tx_tail_index = (tx_tail_index + 1) & TX_BUFFER_MASK;
-
-        // Fill the transmit buffer since our ring buffer isn't empty
-        // yet
-        USART1.TXDATAL = tx_buffer[tx_tail_index];
-        tx_num_elements--;
-    } else {
-        // Disable TX interrupt until we want to send more data
-        USART1.CTRLA &= ~(1 << USART_DREIE_bp);
-    }
-}
-
-void sequansControllerInitialize(void) {
+void sequansControllerBegin(void) {
 
     // PIN SETUP
 
-    PORTC.DIRSET = TX_PIN_bm;
-    PORTC.PIN0CTRL |= PORT_PULLUPEN_bm;
+    pinConfigure(TX_PIN, PIN_DIR_OUTPUT | PIN_PULLUP_ON);
 
     // Request to send (RTS) and clear to send (CTS) are the control lines
     // on the UART line. From the configuration the MCU and the LTE modem is
@@ -137,94 +104,87 @@ void sequansControllerInitialize(void) {
     // Both pins are active low.
 
     // We assert RTS high until we are ready to receive more data
-    PORTC.OUTSET = RTS_PIN_bm;
-    PORTC.DIRSET = RTS_PIN_bm;
+    pinConfigure(RTS_PIN, PIN_DIR_OUTPUT);
+    digitalWrite(RTS_PIN, HIGH);
 
     // Clear to send is input and we want interrupts on both edges to know
     // when the LTE modem has changed the state of the line.
-    PORTC.DIRCLR = CTS_PIN_bm;
-    PORTC.PIN6CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    pinConfigure(CTS_PIN, PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INT_CHANGE);
 
     // Set reset low to reset the LTE modem
-    PORTE.OUTCLR = RESET_PIN_bm;
-    PORTE.DIRSET = RESET_PIN_bm;
+    pinConfigure(RESET_PIN, PIN_DIR_OUTPUT);
+    digitalWrite(RESET_PIN, LOW);
 
-    // USART INTERFACE SETUP
+    // SERIAL INTERFACE SETUP
 
-    // LTE modules has set baud rate of 115200 for its UART0 interface
-    USART1.BAUD =
-        (uint16_t)(((float)F_CPU * 64 / (16 * (float)BAUD_RATE)) + 0.5);
-
-    // Interrupt on receive completed
-    USART1.CTRLA = USART_RXCIE_bm;
-
-    USART1.CTRLB = USART_RXEN_bm | USART_TXEN_bm;
-
-    // LTE module interface requires 8 data bits with one stop bit
-    USART1.CTRLC = USART_CMODE_ASYNCHRONOUS_gc | USART_SBMODE_1BIT_gc |
-                   USART_CHSIZE_8BIT_gc;
-
-    sei();
+    SerialAT.begin(SEQUANS_MODULE_BAUD_RATE);
 
     flowControlUpdate();
 }
 
-bool sequansControllerIsTxReady(void) {
-    return (tx_num_elements != TX_BUFFER_SIZE);
+void sequansControllerEnd(void) {
+    SerialAT.end();
+    pinConfigure(CTS_PIN, 0);
 }
 
-bool sequansControllerIsRxReady(void) { return (rx_num_elements != 0); }
+void sequansControllerSetRetryConfiguration(const uint8_t num_retries,
+                                            const double sleep_ms) {
 
-bool sequansControllerIsTxDone(void) {
-    return (USART1.STATUS & USART_TXCIF_bm);
+    number_of_retries = num_retries;
+    sleep_between_retries_ms = sleep_ms;
 }
 
-void sequansControllerSendByte(const uint8_t data) {
-    while (!sequansControllerIsTxReady()) {}
+bool sequansControllerIsTxReady(void) { return SerialAT.availableForWrite(); }
 
-    tx_head_index = (tx_head_index + 1) & TX_BUFFER_MASK;
-    tx_buffer[tx_head_index] = data;
+bool sequansControllerIsRxReady(void) { return SerialAT.available(); }
 
-    cli();
-    tx_num_elements++;
-    sei();
+bool sequansControllerWriteByte(const uint8_t data) {
 
-    // Enable TX interrupt if CTS (active low) is asserted
-    // (i.e. device is ready for data)
-    if (sequansModuleIsReadyForData()) {
-        USART1.CTRLA |= (1 << USART_DREIE_bp);
+    uint8_t retry_count = 0;
+    while (!sequansControllerIsTxReady()) {
+        retry_count++;
+
+        if (retry_count == number_of_retries) {
+            return false;
+        }
+
+        _delay_ms(sleep_between_retries_ms);
     }
+
+    SerialAT.write(data);
+
+    return true;
 }
 
-void sequansControllerSendCommand(const char *command) {
+bool sequansControllerWriteCommand(const char *command) {
     const size_t length = strlen(command);
+
     for (size_t i = 0; i < length; i++) {
-        sequansControllerSendByte(command[i]);
+        if (!sequansControllerWriteByte(command[i])) {
+            return false;
+        }
     }
 
-    sequansControllerSendByte('\r');
+    return sequansControllerWriteByte('\r');
 }
 
-uint8_t sequansControllerReadByte(void) {
-    while (!sequansControllerIsRxReady()) {}
-
-    // Disable interrupts temporarily here to prevent being interleaved
-    // in the middle of updating the tail index
-    cli();
-    uint8_t next_tail_index = (rx_tail_index + 1) & RX_BUFFER_MASK;
-    rx_tail_index = next_tail_index;
-    rx_num_elements--;
-    sei();
-
+int16_t sequansControllerReadByte() {
     flowControlUpdate();
 
-    return rx_buffer[next_tail_index];
+    return SerialAT.read();
 }
 
-uint8_t sequansControllerReadResponse(char *out_buffer, uint16_t buffer_size) {
-
+ResponseResult sequansControllerReadResponse(char *out_buffer,
+                                             uint16_t buffer_size) {
+    int16_t value;
     for (size_t i = 0; i < buffer_size; i++) {
-        out_buffer[i] = sequansControllerReadByte();
+        value = sequansControllerReadByte();
+
+        if (value == -1) {
+            return SERIAL_READ_ERROR;
+        }
+
+        out_buffer[i] = (uint8_t)value;
 
         // For AT command responses from the LTE module, "OK\r\n" or
         // "ERROR\r\n" signifies the end of a response, so we look "\r\n".
@@ -239,7 +199,7 @@ uint8_t sequansControllerReadResponse(char *out_buffer, uint16_t buffer_size) {
                        0,
                        buffer_size - (ok_termination_index - out_buffer));
 
-                return SEQUANS_CONTROLLER_RESPONSE_OK;
+                return OK;
             }
 
             char *error_termination_index =
@@ -251,18 +211,17 @@ uint8_t sequansControllerReadResponse(char *out_buffer, uint16_t buffer_size) {
                        0,
                        buffer_size - (error_termination_index - out_buffer));
 
-                return SEQUANS_CONTROLLER_RESPONSE_ERROR;
+                return ERROR;
             }
         }
     }
 
     // Didn't find the end marker within the number of bytes given for the
     // response. Caller should increase the buffer size.
-    return SEQUANS_CONTROLLER_BUFFER_OVERFLOW;
+    return BUFFER_OVERFLOW;
 }
 
-uint8_t sequansControllerFlushResponseWithRetries(const uint8_t retries,
-                                                  const double sleep_ms) {
+ResponseResult sequansControllerFlushResponse(void) {
 
     // We use the termination buffer to look for a "\r\n", which can indicate
     // termination. We set it to max size of the error termination so that we
@@ -279,11 +238,11 @@ uint8_t sequansControllerFlushResponseWithRetries(const uint8_t retries,
 
     // We will break out of the loop if we find the termination sequence
     // or if we pass the retry count.
-    while (retry_count < retries) {
+    while (retry_count < number_of_retries) {
 
         if (!sequansControllerIsRxReady()) {
             retry_count++;
-            _delay_ms(sleep_ms);
+            _delay_ms(sleep_between_retries_ms);
             continue;
         }
 
@@ -304,25 +263,19 @@ uint8_t sequansControllerFlushResponseWithRetries(const uint8_t retries,
             char *ok_termination_index =
                 strstr(termination_buffer, OK_TERMINATION);
             if (ok_termination_index != NULL) {
-                return SEQUANS_CONTROLLER_RESPONSE_OK;
+                return OK;
             }
 
             char *error_termination_index =
                 strstr(termination_buffer, ERROR_TERMINATION);
 
             if (error_termination_index != NULL) {
-                return SEQUANS_CONTROLLER_RESPONSE_ERROR;
+                return ERROR;
             }
         }
     }
 
-    return SEQUANS_CONTROLLER_RESPONSE_TIMEOUT;
-}
-
-uint8_t sequansControllerFlushResponse(void) {
-    return sequansControllerFlushResponseWithRetries(
-        SEQUANS_CONTROLLER_DEFAULT_FLUSH_RETRIES,
-        SEQUANS_CONTROLLER_DEFAULT_FLUSH_SLEEP_MS);
+    return TIMEOUT;
 }
 
 bool sequansControllerExtractValueFromCommandResponse(

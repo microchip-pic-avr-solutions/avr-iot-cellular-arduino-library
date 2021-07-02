@@ -14,116 +14,101 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-#define SEQUANS_CONTROLLER_RESPONSE_OK 0
-#define SEQUANS_CONTROLLER_RESPONSE_ERROR 1
-#define SEQUANS_CONTROLLER_BUFFER_OVERFLOW 2
-#define SEQUANS_CONTROLLER_RESPONSE_TIMEOUT 3
-
-#define SEQUANS_CONTROLLER_DEFAULT_FLUSH_RETRIES 5
-#define SEQUANS_CONTROLLER_DEFAULT_FLUSH_SLEEP_MS 10
+typedef enum {
+    OK,
+    ERROR,
+    BUFFER_OVERFLOW,
+    TIMEOUT,
+    SERIAL_READ_ERROR
+} ResponseResult;
 
 /**
- * @brief Sets up the pins for TX, RX, RTS and CTS of the USART interface
+ * @brief Sets up the pins for TX, RX, RTS and CTS of the serial interface
  * towards the LTE module. Will also issue a RESET for the LTE module.
  */
-void sequansControllerInitialize(void);
+void sequansControllerBegin(void);
 
 /**
- * @return True when TX buffer is not full.
+ * @brief Disables interrupts used for the sequans module and closes the
+ * serial interface.
  */
+void sequansControllerEnd(void);
+
+/**
+ * @brief Specify for the methods which may fail how many times we ought to
+ * retry and sleep between the retries.
+ */
+void sequansControllerSetRetryConfiguration(const uint8_t num_retries,
+                                            const double sleep_ms);
+
 bool sequansControllerIsTxReady(void);
 
-/**
- * @return True when RX buffer is not full.
- */
 bool sequansControllerIsRxReady(void);
 
 /**
- * @return True when transmit has completed.
+ * @return true if write was successful.
  */
-bool sequansControllerIsTxDone(void);
+bool sequansControllerWriteByte(const uint8_t data);
 
 /**
- * @brief Send a byte to the LTE module, will block if the transmit buffer is
- * full.
- */
-void sequansControllerSendByte(const uint8_t data);
-
-/**
- * @brief Writes an AT command in the form of a string to the LTE module, will
- * block if the transmit buffer is full.
+ * @brief Writes an AT command in the form of a string to the LTE module,
+ * will block if the transmit buffer is full.
  *
  * @note A carrige return is not needed for the command.
+ *
+ * @return true if write was successful.
  */
-void sequansControllerSendCommand(const char *command);
+bool sequansControllerWriteCommand(const char *command);
 
 /**
- * @brief Reads a byte from the LTE UART interface. Will block.
+ * @return -1 if failed to read or read value if else.
  */
-uint8_t sequansControllerReadByte(void);
+int16_t sequansControllerReadByte(void);
 
 /**
- * @brief Reads a response after e.g. an AT command. Will block!
+ * @brief Reads a response after e.g. an AT command.
  *
  * @note This function requires that the modem is in ATV1 mode. Which is the
  * default mode.
  *
- * If the response won't fit into the buffer size specified, the function will
- * just return the buffer overflow error code specified in the defines in the
- * top of this file and the out_buffer will be filled up to buffer_size.
+ * If the response won't fit into the buffer size specified, the function
+ * will just return the buffer overflow error code specified in the defines
+ * in the top of this file and the out_buffer will be filled up to
+ * buffer_size.
  *
  * @param out_buffer Buffer to place the response.
  * @param buffer_size Max size of response bytes to read.
  *
- * @return - LTE_CONTROLLER_RESPONSE_OK if read was successfull and result
- *           was terminated by OK.
- *         - LTE_CONTROLLER_RESPONSE_ERROR if read was successfull but
- *           result was terminated by ERROR.
- *         - LTE_CONTROLLER_BUFFER_OVERFLOW if read resulted in buffer
- *           overflow.
+ * @return - OK if read was successfull and resultw as terminated by OK.
+ *         - ERROR if read was successfull but result was terminated by ERROR.
+ *         - OVERFLOW if read resulted in buffer overflow.
+ *         - SERIAL_READ_ERROR if an error occured in the serial interface
  */
-uint8_t sequansControllerReadResponse(char *out_buffer, uint16_t buffer_size);
+ResponseResult sequansControllerReadResponse(char *out_buffer,
+                                             uint16_t buffer_size);
 
 /**
- * @brief Will read the response to flush out the receive buffer, but not place
- * the read bytes anywhere. Returns whether an OK or ERROR was found in
- * the response.
+ * @brief Will read the response to flush out the receive buffer, but not
+ * place the read bytes anywhere. Returns whether an OK or ERROR was found
+ * in the response.
  *
  * This can be used where the response of a command is of interest, but
- * where thebuffer has to be cleared for the next time a command is given. This
- * can also be used to check if the result from a command was a "OK" or "ERROR"
- * without placing the actual result anywhere. Will read the receive buffer
- * until an "OK\r\n" or "ERROR\r\n" is found, which is the termination sequence
- * for the LTE modem in ATV1 mode (or if amount of retries is passed).
+ * where thebuffer has to be cleared for the next time a command is given.
+ * This can also be used to check if the result from a command was a "OK" or
+ * "ERROR" without placing the actual result anywhere. Will read the receive
+ * buffer until an "OK\r\n" or "ERROR\r\n" is found, which is the
+ * termination sequence for the LTE modem in ATV1 mode (or if amount of
+ * retries is passed).
  *
- * The retry behaviour will check if there is anything in the receive buffer, if
- * not, the function will sleep and retry again until the amount of retries is
- * passed.
- *
- * @param retries Amount of times to retry reading from the LTE module. This is
- * to prevent the function from blocking the rest of the program if it is called
- * while the LTE module is not expected to transmit anything.
- *
- * @param sleep_us Amount of time to sleep in milliseconds between the retries.
- *
- * @return - LTE_CONTROLLER_RESPONSE_OK if termination was found to be "OK".
- *         - LTE_CONTROLLER_RESPONSE_ERROR if termination was found to be
- *           "ERROR".
- *         - LTE_CONTROLLER_RESPONSE_TIMEOUT if we passed the retry amount
+ * @return - OK if termination was found to be "OK".
+ *         - ERROR if termination was found to be "ERROR".
+ *         - TIMEOUT if we passed the retry amount.
  */
-uint8_t sequansControllerFlushResponseWithRetries(const uint8_t retries,
-                                                  const double sleep_ms);
+ResponseResult sequansControllerFlushResponse(void);
 
 /**
- * @brief See sequansControllerFlushResponseWithRetries(). Uses a default
- * retry value of SEQUANS_CONTROLLER_DEFAULT_FLUSH_RETRIES and sleep time
- * of SEQUANS_CONTROLLER_DEFAULT_FLUSH_SLEEP_MS.
- */
-uint8_t sequansControllerFlushResponse(void);
-
-/**
- * @brief Searches for a value at one index in the response, which has a comma
- * delimiter.
+ * @brief Searches for a value at one index in the response, which has a
+ * comma delimiter.
  *
  * @param response The AT command response.
  * @param index Index of value to extract.

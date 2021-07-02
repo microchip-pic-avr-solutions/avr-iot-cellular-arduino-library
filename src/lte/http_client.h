@@ -25,8 +25,10 @@ typedef struct {
  * address in the form of "xxx.xxx.xxx.xxx".
  * @param port Port of the host, e.g. 80 or 443 (for HTTPS).
  * @param enable_tls Use HTTPS.
+ *
+ * @return True if operation was successful.
  */
-void httpClientConfigure(const char *host,
+bool httpClientConfigure(const char *host,
                          const uint16_t port,
                          const bool enable_tls);
 

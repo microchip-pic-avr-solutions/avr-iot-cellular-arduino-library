@@ -7,10 +7,10 @@
 
 #define CELL_STATUS_LED PIN_PG2
 
-#define INPUT_BUFFER_SIZE 128
+#define INPUT_BUFFER_SIZE    128
 #define RESPONSE_BUFFER_SIZE 256
 
-#define DEL_CHARACTER 127
+#define DEL_CHARACTER   127
 #define ENTER_CHARACTER 13
 
 static bool connected = false;
@@ -50,7 +50,7 @@ void debugBridgeUpdate(void) {
             break;
 
         case ENTER_CHARACTER:
-            sequansControllerSendCommand(input_buffer);
+            sequansControllerWriteCommand(input_buffer);
 
             // Reset buffer
             memset(input_buffer, 0, sizeof(input_buffer));
@@ -84,7 +84,11 @@ void testHttp() {
     Serial5.println(response.data_size);
     */
 
-    httpClientConfigure("raw.githubusercontent.com", 443, true);
+    if (!httpClientConfigure("raw.githubusercontent.com", 443, true)) {
+        Serial5.println("Failed to configure HTTP client");
+        return;
+    }
+
     HttpResponse response;
 
     do {
@@ -137,14 +141,11 @@ void setup() {
     pinMode(CELL_STATUS_LED, OUTPUT);
     digitalWrite(CELL_STATUS_LED, HIGH);
 
-    // setupConnectionStatusTimer();
+    setupConnectionStatusTimer();
 
-    lteClientInitialize();
-
-    /*
+    lteClientBegin();
     lteClientEnableRoaming();
-    lteClientConnectToOperator();
-    */
+    lteClientRequestConnectionToOperator();
 
     Serial5.println("---- Finished initializing ----");
 }
@@ -168,7 +169,7 @@ void loop() {
             }
 
             if (connected && !tested_http) {
-                // testHttp();
+                testHttp();
                 tested_http = true;
             }
 

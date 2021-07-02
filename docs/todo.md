@@ -3,14 +3,10 @@
     - Make status LED blink when we're trying to connect?
 - Different profiles in HTTP client? 
 - Some hostnames still doesn't work...
-- Add function for disabling roaming
-- Add timeouts for the functions which block
-- Move baud rate calculation to define
 - Add URC registration callbacks
     - Have interrupt on RING?
     - And register callbacks for functions?
-- Make cryptoauthlib into git submodule
-- Rewrite sequans controller to use the core
 
-
+**For Spence:**
+- Want to use Serial from core for AT command interface, but need more control of interrupts for RXE due to "semaphore" lines used for flow control. Would be nice or we have to roll with our own solution.
 - Need extra flag for linking towards libcryptoauth.a, set as combine.extra_paths for the moment
