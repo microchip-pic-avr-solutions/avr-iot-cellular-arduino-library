@@ -6,18 +6,18 @@ cmake_minimum_required(VERSION 3.1.0)
 set(CMAKE_SYSTEM_NAME Generic)
 
 # We don't want to compile a dynamic library
-set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
 
 # Force CMake to use avr-gcc/g++ and their related tools
-set(CMAKE_CXX_COMPILER /home/simengangstad/.arduino15/packages/DxCore/tools/avr-gcc/7.3.0-atmel3.6.1-azduino4b/bin/avr-g++)
-set(CMAKE_C_COMPILER /home/simengangstad/.arduino15/packages/DxCore/tools/avr-gcc/7.3.0-atmel3.6.1-azduino4b/bin/avr-gcc)
-set(CMAKE_ADDR2LINE /home/simengangstad/.arduino15/packages/DxCore/tools/avr-gcc/7.3.0-atmel3.6.1-azduino4b/bin/avr-addr2line)
-set(CMAKE_AR /home/simengangstad/.arduino15/packages/DxCore/tools/avr-gcc/7.3.0-atmel3.6.1-azduino4b/bin/avr-ar)
-set(CMAKE_LINKER /home/simengangstad/.arduino15/packages/DxCore/tools/avr-gcc/7.3.0-atmel3.6.1-azduino4b/bin/avr-ld)
-set(CMAKE_NM /home/simengangstad/.arduino15/packages/DxCore/tools/avr-gcc/7.3.0-atmel3.6.1-azduino4b/bin/avr-nm)
+set(CMAKE_CXX_COMPILER /usr/bin/avr-g++)
+set(CMAKE_C_COMPILER /usr/bin/avr-gcc)
+set(CMAKE_ADDR2LINE /usr/bin/avr-addr2line)
+set(CMAKE_AR /usr/bin/avr-ar)
+set(CMAKE_LINKER /usr/bin/avr-ld)
+set(CMAKE_NM /usr/bin/avr-nm)
 
-set(CMAKE_CXX_FLAGS "-fdata-sections -Os -Wl,--relax,--gc-sections -mmcu=avr128db64")
-set(CMAKE_C_FLAGS "-fdata-sections -Os -Wl,--relax,--gc-sections -mmcu=avr128db64")
+set(CMAKE_CXX_FLAGS "-fdata-sections -B ${CMAKE_CURRENT_SOURCE_DIR} -Os -Wl,--relax,--gc-sections -mmcu=avr128db64")
+set(CMAKE_C_FLAGS "-fdata-sections -B ${CMAKE_CURRENT_SOURCE_DIR} -Os -Wl,--relax,--gc-sections -mmcu=avr128db64")
 
 project(cryptoauth)
 
