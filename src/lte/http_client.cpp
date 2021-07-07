@@ -6,8 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+// TODO: temp, remove after use
+#include <Arduino.h>
+
 // We only use profile 0 to keep things simple we also stick with spId 1
-// TODO/INPUT WANTED: Should we allow for more profiles and different spId?
 #define HTTP_CONFIGURE "AT+SQNHTTPCFG=0,\"%s\",%u,0,\"\",\"\",%u,120,1,1"
 
 // Command without any data in it (with parantheses): 36 bytes
@@ -30,6 +32,7 @@
 
 #define HTTP_RECEIVE_LENGTH          32
 #define HTTP_RECEIVE_START_CHARACTER '<'
+#define HTTP_SEND_START_CHARACTER    '>'
 
 #define HTTP_RESPONSE_MAX_LENGTH         128
 #define HTTP_RESPONSE_STATUS_CODE_INDEX  1
@@ -77,11 +80,14 @@ static ResponseResult waitAndRetrieveHttpResponse(char *buffer,
  * Issues an AT command to the LTE modem.
  *
  * @param endpoint Destination of payload, part after host name in URL.
- * @param data Payload to send.
+ * @param buffer Payload to send.
+ * @param buffer_size Size of payload.
  * @param method POST(0) or PUT(1).
  */
-static HttpResponse
-sendData(const char *endpoint, const char *data, const uint8_t method) {
+static HttpResponse sendData(const char *endpoint,
+                             const uint8_t *buffer,
+                             const uint32_t buffer_size,
+                             const uint8_t method) {
 
     HttpResponse httpResponse = {0, 0};
 
@@ -89,16 +95,28 @@ sendData(const char *endpoint, const char *data, const uint8_t method) {
     while (sequansControllerIsRxReady()) { sequansControllerFlushResponse(); }
 
     // Setup and transmit SEND command before sending the data
-    const uint32_t data_lenth = strlen(data);
-    const uint32_t digits_in_data_length = trunc(log10(data_lenth)) + 1;
+    const uint32_t digits_in_data_length = trunc(log10(buffer_size)) + 1;
 
     char command[strlen(HTTP_SEND) + strlen(endpoint) + digits_in_data_length];
-    sprintf(command, HTTP_SEND, method, endpoint, data_lenth);
+    sprintf(command, HTTP_SEND, method, endpoint, buffer_size);
     sequansControllerWriteCommand(command);
 
+    // We receive one start bytes of the character '>', so we wait for
+    // it
+    while (!sequansControllerIsRxReady()) {}
+    while (sequansControllerReadByte() != HTTP_SEND_START_CHARACTER) {}
+
     // Now we deliver the payload
-    sequansControllerWriteCommand(data);
-    if (sequansControllerFlushResponse() != OK) {
+    sequansControllerWriteBytes(buffer, buffer_size);
+
+    // Wait until we get some valid response and we don't reach the timeout for
+    // the interface
+    ResponseResult response_result;
+    do {
+        response_result = sequansControllerFlushResponse();
+    } while (response_result == TIMEOUT);
+
+    if (response_result != OK) {
         return httpResponse;
     }
 
@@ -195,19 +213,25 @@ bool httpClientConfigure(const char *host,
                          const uint16_t port,
                          const bool enable_tls) {
 
+    sequansControllerFlushResponse();
+
     char command[HTTP_CONFIGURE_SIZE] = "";
-    sprintf(command, HTTP_CONFIGURE, host, port, enable_tls);
+    sprintf(command, HTTP_CONFIGURE, host, port, enable_tls ? 1 : 0);
     sequansControllerWriteCommand(command);
 
     return (sequansControllerFlushResponse() == OK);
 }
 
-HttpResponse httpClientPost(const char *endpoint, const char *data) {
-    return sendData(endpoint, data, HTTP_POST_METHOD);
+HttpResponse httpClientPost(const char *endpoint,
+                            const uint8_t *buffer,
+                            const uint32_t buffer_size) {
+    return sendData(endpoint, buffer, buffer_size, HTTP_POST_METHOD);
 }
 
-HttpResponse httpClientPut(const char *endpoint, const char *data) {
-    return sendData(endpoint, data, HTTP_PUT_METHOD);
+HttpResponse httpClientPut(const char *endpoint,
+                           const uint8_t *buffer,
+                           const uint32_t buffer_size) {
+    return sendData(endpoint, buffer, buffer_size, HTTP_PUT_METHOD);
 }
 
 HttpResponse httpClientGet(const char *endpoint) {
@@ -241,7 +265,8 @@ int16_t httpClientReadResponseBody(char *buffer, const uint32_t buffer_size) {
     sprintf(command, HTTP_RECEIVE, buffer_size);
     sequansControllerWriteCommand(command);
 
-    // We receive three start bytes of the character '<', so we wait for them
+    // We receive three start bytes of the character '<', so we wait for
+    // them
     uint8_t start_bytes = 3;
 
     // Wait for first byte in receive buffer
@@ -255,9 +280,9 @@ int16_t httpClientReadResponseBody(char *buffer, const uint32_t buffer_size) {
         }
     }
 
-    // Now we are ready to receive the payload. We only check for error and not
-    // overflow in the receive buffer in comparison to our buffer as we know the
-    // size of what we want to receive
+    // Now we are ready to receive the payload. We only check for error and
+    // not overflow in the receive buffer in comparison to our buffer as we
+    // know the size of what we want to receive
     if (sequansControllerReadResponse(buffer, buffer_size) == ERROR) {
 
         return 0;

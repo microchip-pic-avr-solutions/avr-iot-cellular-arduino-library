@@ -32,13 +32,17 @@ bool httpClientConfigure(const char *host,
  * @brief Issues a post to the host configured. Will block until operation is
  * done.
  */
-HttpResponse httpClientPost(const char *endpoint, const char *data);
+HttpResponse httpClientPost(const char *endpoint,
+                            const uint8_t *buffer,
+                            const uint32_t buffer_size);
 
 /**
  * @brief Issues a put to the host configured. Will block until operation is
  * done.
  */
-HttpResponse httpClientPut(const char *endpoint, const char *data);
+HttpResponse httpClientPut(const char *endpoint,
+                           const uint8_t *buffer,
+                           const uint32_t buffer_size);
 
 /**
  * @brief Issues a get from the host configured. Will block until operation is
