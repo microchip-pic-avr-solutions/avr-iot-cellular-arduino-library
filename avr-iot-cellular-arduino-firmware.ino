@@ -77,41 +77,44 @@ void debugBridgeUpdate(void) {
 }
 
 void testHttp() {
-    httpClientConfigure("www.ptsv2.com", 80, false);
-    HttpResponse response =
-        httpClientPost("/t/1rqc3-1624431962/post", "{\"hello\": \"world\"}");
 
-    Serial5.print("POST completed with status code ");
-    Serial5.print(response.status_code);
-    Serial5.print(" and data size ");
-    Serial5.println(response.data_size);
+    HttpResponse response;
+
+    // --- HTTP ---
+    if (!httpClientConfigure("www.ptsv2.com", 80, false)) {
+        Serial5.println("Failed to configure HTTP client");
+        return;
+    }
+
+    Serial5.println("Configured to HTTP");
+
+    const char *payload = "{\"hello\": \"world\"}";
+    response =
+        httpClientPost("/t/1rqc3-1624431962/post", payload, strlen(payload));
+
+    Serial5.printf("POST - status code: %d, data size: %d\r\n",
+                   response.status_code,
+                   response.data_size);
+
+    // --- HTTPS ---
 
     if (!httpClientConfigure("raw.githubusercontent.com", 443, true)) {
         Serial5.println("Failed to configure HTTP client");
         return;
     }
 
-    HttpResponse response;
+    Serial5.println("Configured to HTTPS");
 
-    do {
-        Serial5.println("Sending HEAD");
-        response = httpClientHead("/SpenceKonde/DxCore/master/.gitignore");
-    } while (response.status_code != 200);
-    Serial5.print("HEAD completed. Status code is ");
-    Serial5.print(response.status_code);
-    Serial5.print(" and data size is ");
-    Serial5.println(response.data_size);
+    response = httpClientHead("/SpenceKonde/DxCore/master/.gitignore");
 
-    do {
-        Serial5.println("Performing GET");
-        response = httpClientGet("/SpenceKonde/DxCore/master/.gitignore");
-    } while (response.status_code != 200);
-    Serial5.print("GET completed. Status code is ");
-    Serial5.print(response.status_code);
-    Serial5.print(" and data size is ");
-    Serial5.println(response.data_size);
+    Serial5.printf("HEAD - status code: %d, data size: %d\r\n",
+                   response.status_code,
+                   response.data_size);
 
-    Serial5.println("Got GET response, retrieving data");
+    response = httpClientGet("/SpenceKonde/DxCore/master/.gitignore");
+    Serial5.printf("GET - status code: %d, data size: %d\r\n",
+                   response.status_code,
+                   response.data_size);
 
     // Add NULL termination
     char response_buffer[response.data_size + 1] = "";
@@ -230,12 +233,10 @@ void loop() {
 
             // Pin is active low
             digitalWrite(CELL_STATUS_LED, connected ? LOW : HIGH);
-            Serial5.print("New connection status, connected: ");
-            Serial5.println(connected);
         }
 
         if (connected && !tested_functionality) {
-            // testHttp();
+            testHttp();
             // testMqtt();
             tested_functionality = true;
         }
