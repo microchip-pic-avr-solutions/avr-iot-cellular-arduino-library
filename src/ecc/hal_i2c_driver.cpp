@@ -7,18 +7,28 @@
  */
 #include "cryptoauthlib.h"
 
+// TODO: Temp, just for linting
+#define __AVR_AVR128DB64__
+
 #include <Arduino.h>
-#include <UART.h>
 #include <Wire.h>
 
 #define WireECC         Wire1
+#define SDA_PIN         PIN_PB2
+#define SCL_PIN         PIN_PB2
 #define AVR_I2C_ADDRESS 0x2
 
 ATCA_STATUS hal_i2c_init(ATCAIface iface, ATCAIfaceCfg *cfg) {
 
-    WireECC.usePullups();
-    WireECC.begin(cfg->atcai2c.address);
+    // TODO: This should be done with Wire1.swap(2) when it is implemented into
+    // the core
+    pinConfigure(SDA_PIN, PIN_PULLUP_ON);
+    pinConfigure(SCL_PIN, PIN_PULLUP_ON);
+    PORTMUX.TWIROUTEA =
+        (PORTMUX.TWIROUTEA & !PORTMUX_TWI1_gm) | PORTMUX_TWI1_ALT2_gc;
+
     WireECC.setClock(cfg->atcai2c.baud);
+    WireECC.begin();
 
     return ATCA_SUCCESS;
 }
@@ -42,10 +52,11 @@ ATCA_STATUS hal_i2c_send(ATCAIface iface,
         }
     }
 
-    if (WireECC.endTransmission() != txlength) {
-        return ATCA_TX_FAIL;
-    }
+    WireECC.endTransmission();
 
+    // The Wire interface blocks and checks the TWIx.MSTATUS flag for WIF, which
+    // give us the indication that the transmit was completed, so we return
+    // success here
     return ATCA_SUCCESS;
 }
 
@@ -54,17 +65,18 @@ ATCA_STATUS hal_i2c_receive(ATCAIface iface,
                             uint8_t *rxdata,
                             uint16_t *rxlength) {
 
-    *rxlength = Wire1.requestFrom(word_address, (size_t)(*rxlength));
+    delay(100);
 
-    if (*rxlength == 0) {
-        return ATCA_RX_FAIL;
-    }
+    // TODO: Somehow, the TWI driver gets into an infinite loop if we don't
+    // delay some here. This might be due to two operations happening quickly
+    // after each other. Two reads for example.
+    // This is really bad though :/
+    // delay(100);
+
+    *rxlength = Wire1.requestFrom(word_address, (size_t)(*rxlength));
 
     int value;
     size_t i = 0;
-
-    Serial5.print("Getting RX length: ");
-    Serial5.println(*rxlength);
 
     while (i < *rxlength) {
         value = Wire1.read();
