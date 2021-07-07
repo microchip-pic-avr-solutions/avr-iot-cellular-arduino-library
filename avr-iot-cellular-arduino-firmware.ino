@@ -1,8 +1,12 @@
 #include "src/ecc/ecc_controller.h"
 #include "src/lte/http_client.h"
 #include "src/lte/lte_client.h"
+#include "src/lte/mqtt_client.h"
 #include "src/lte/sequans_controller.h"
 
+#include "cryptoauthlib.h"
+
+#include <Wire.h>
 #include <string.h>
 
 #define CELL_STATUS_LED PIN_PG2
@@ -15,7 +19,7 @@
 
 static bool connected = false;
 static bool check_connection = false;
-static bool tested_http = false;
+static bool tested_functionality = false;
 
 void setupConnectionStatusTimer(void) {
     takeOverTCA0();
@@ -73,7 +77,6 @@ void debugBridgeUpdate(void) {
 }
 
 void testHttp() {
-    /*
     httpClientConfigure("www.ptsv2.com", 80, false);
     HttpResponse response =
         httpClientPost("/t/1rqc3-1624431962/post", "{\"hello\": \"world\"}");
@@ -82,7 +85,6 @@ void testHttp() {
     Serial5.print(response.status_code);
     Serial5.print(" and data size ");
     Serial5.println(response.data_size);
-    */
 
     if (!httpClientConfigure("raw.githubusercontent.com", 443, true)) {
         Serial5.println("Failed to configure HTTP client");
@@ -124,56 +126,120 @@ void testHttp() {
     }
 }
 
-void setupECC() {
+void testMqtt() {
 
-    uint8_t random_number[32];
-    eccControllerInitialize(random_number);
+    if (!mqttClientConfigure("testthingyiot", false)) {
+        Serial5.println("Failed to configure MQTT");
+        return;
+    }
 
-    for (size_t i = 0; i < 32; i++) { Serial5.println(random_number[i]); }
+    Serial5.println("Configured MQTT");
+
+    if (!mqttClientConnect("test.mosquitto.org", 1883)) {
+        Serial5.println("Failed to connect");
+        return;
+    }
+
+    Serial5.println("Connected to MQTT broker");
+
+    const char *message = "Hello";
+
+    if (!mqttClientPublish("iottest", 0, (uint8_t *)message, strlen(message))) {
+        Serial5.println("Failed to publish");
+        return;
+    }
+
+    Serial5.println("Published to MQTT broker");
+}
+
+void testECC() {
+    if (!eccControllerInitialize()) {
+        Serial5.println("ECC controller failed to initialize");
+        return;
+    }
+
+    uint8_t serial_number[ECC_SERIAL_NUMBER_LENGTH];
+
+    if (!eccControllerRetrieveSerialNumber((uint8_t *)serial_number)) {
+        Serial5.println("ECC controller failed to retrieve serial number");
+        return;
+    }
+
+    Serial5.print("Serial number: ");
+    for (size_t i = 0; i < sizeof(serial_number); i++) {
+        Serial5.print(serial_number[i], HEX);
+    }
+    // Should be: 01 23 43 6B DB 97 28 E5 01
+
+    Serial5.println();
+
+    uint8_t public_key[64];
+
+    if (!eccControllerRetrievePublicKey(0, &public_key[0])) {
+        return;
+    }
+
+    for (size_t i = 0; i < sizeof(public_key); i++) {
+        Serial5.print(public_key[i], HEX);
+    }
+
+    Serial5.println();
+
+    uint8_t message[ECC_SIGN_MESSSAGE_LENGTH];
+    sprintf(message, "Hello sign");
+    uint8_t signature[ECC_SIGN_MESSSAGE_LENGTH];
+
+    if (!eccControllerSignMessage(0, &message[0], &signature[0])) {
+        return;
+    }
+
+    for (size_t i = 0; i < sizeof(signature); i++) {
+        Serial5.print(signature[i], HEX);
+    }
+
+    Serial5.println();
 }
 
 void setup() {
     Serial5.begin(115200);
 
-    // setupECC();
+    Serial5.println("---- Starting initializing ----");
 
     // Pin is active low
     pinMode(CELL_STATUS_LED, OUTPUT);
     digitalWrite(CELL_STATUS_LED, HIGH);
 
     setupConnectionStatusTimer();
-
     lteClientBegin();
-    lteClientEnableRoaming();
-    lteClientRequestConnectionToOperator();
+
+    while (!lteClientRequestConnectionToOperator()) {}
 
     Serial5.println("---- Finished initializing ----");
 }
 
 void loop() {
 
-    while (1) {
-        debugBridgeUpdate();
+    debugBridgeUpdate();
 
-        if (check_connection) {
+    if (check_connection) {
 
-            bool new_connection_status = lteClientIsConnectedToOperator();
+        bool new_connection_status = lteClientIsConnectedToOperator();
 
-            if (new_connection_status != connected) {
-                connected = new_connection_status;
+        if (new_connection_status != connected) {
+            connected = new_connection_status;
 
-                // Pin is active low
-                digitalWrite(CELL_STATUS_LED, connected ? LOW : HIGH);
-                Serial5.print("New connection status, connected: ");
-                Serial5.println(connected);
-            }
-
-            if (connected && !tested_http) {
-                testHttp();
-                tested_http = true;
-            }
-
-            check_connection = false;
+            // Pin is active low
+            digitalWrite(CELL_STATUS_LED, connected ? LOW : HIGH);
+            Serial5.print("New connection status, connected: ");
+            Serial5.println(connected);
         }
+
+        if (connected && !tested_functionality) {
+            // testHttp();
+            // testMqtt();
+            tested_functionality = true;
+        }
+
+        check_connection = false;
     }
 }
