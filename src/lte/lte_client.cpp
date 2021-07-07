@@ -1,8 +1,6 @@
 #include "lte_client.h"
 #include "sequans_controller.h"
 
-#define AT_COMMAND_ENABLE_ROAMING    "AT!=\"EMM::SetRoamingSupport 0\""
-#define AT_COMMAND_DISABLE_ROAMING   "AT!=\"EMM::SetRoamingSupport 1\""
 #define AT_COMMAND_CONNECT           "AT+CFUN=1"
 #define AT_COMMAND_DISCONNECT        "AT+CFUN=0"
 #define AT_COMMAND_CONNECTION_STATUS "AT+CEREG?"
