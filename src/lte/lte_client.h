@@ -19,16 +19,6 @@ void lteClientBegin(void);
 void lteClientEnd(void);
 
 /**
- * @return true if operation was successful.
- */
-bool lteClientEnableRoaming(void);
-
-/**
- * @return true if operation was successful.
- */
-bool lteClientDisableRoaming(void);
-
-/**
  * @brief Will request connection to operation. The action will not happen
  * instanteneously, so checking the connection status has to be done.
  *

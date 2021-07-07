@@ -13,14 +13,9 @@
 #define STAT_REGISTERED_HOME_NETWORK '1'
 #define STAT_REGISTERED_ROAMING      '5'
 
-/**
- * For responses which consist of only an "OK" or "ERROR".
- */
-#define RESPONSE_DEFAULT_SIZE           16
 #define RESPONSE_CONNECTION_STATUS_SIZE 48
 
 static bool writeCommandWithShortResponse(const char *command) {
-    char buffer[RESPONSE_DEFAULT_SIZE];
     sequansControllerWriteCommand(command);
     return (sequansControllerFlushResponse() == OK);
 }
@@ -28,14 +23,6 @@ static bool writeCommandWithShortResponse(const char *command) {
 void lteClientBegin(void) { sequansControllerBegin(); }
 
 void lteClientEnd(void) { sequansControllerEnd(); }
-
-bool lteClientEnableRoaming(void) {
-    return writeCommandWithShortResponse(AT_COMMAND_ENABLE_ROAMING);
-}
-
-bool lteClientDisableRoaming(void) {
-    return writeCommandWithShortResponse(AT_COMMAND_DISABLE_ROAMING);
-}
 
 bool lteClientRequestConnectionToOperator(void) {
     return writeCommandWithShortResponse(AT_COMMAND_CONNECT);
@@ -46,9 +33,8 @@ bool lteClientDisconnectFromOperator(void) {
 }
 
 bool lteClientIsConnectedToOperator(void) {
-    if (!sequansControllerWriteCommand(AT_COMMAND_CONNECTION_STATUS)) {
-        return false;
-    }
+
+    sequansControllerWriteCommand(AT_COMMAND_CONNECTION_STATUS);
 
     char response[RESPONSE_CONNECTION_STATUS_SIZE];
     if (sequansControllerReadResponse(response,
