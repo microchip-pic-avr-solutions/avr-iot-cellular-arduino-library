@@ -47,10 +47,16 @@ bool sequansControllerIsRxReady(void);
 bool sequansControllerWriteByte(const uint8_t data);
 
 /**
- * @brief Writes an AT command in the form of a string to the LTE module,
- * will block if the transmit buffer is full.
+ * @brief Writes a data buffer to the LTE modem.
  *
- * @note A carrige return is not needed for the command.
+ * @return true if write was successful.
+ */
+bool sequansControllerWriteBytes(const uint8_t *data, const size_t buffer_size);
+
+/**
+ * @brief Writes an AT command in the form of a string to the LTE module.
+ *
+ * @note A carrige return is not needed for the command as it is appended.
  *
  * @return true if write was successful.
  */
