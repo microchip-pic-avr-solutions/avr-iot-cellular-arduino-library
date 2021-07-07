@@ -81,10 +81,8 @@ void testHttp() {
     HttpResponse response;
 
     // --- HTTP ---
-    if (!httpClientConfigure("www.ptsv2.com", 80, false)) {
-        Serial5.println("Failed to configure HTTP client");
-        return;
-    }
+
+    while (!httpClientConfigure("www.ptsv2.com", 80, false)) {}
 
     Serial5.println("Configured to HTTP");
 
@@ -98,10 +96,7 @@ void testHttp() {
 
     // --- HTTPS ---
 
-    if (!httpClientConfigure("raw.githubusercontent.com", 443, true)) {
-        Serial5.println("Failed to configure HTTP client");
-        return;
-    }
+    while (!httpClientConfigure("raw.githubusercontent.com", 443, true)) {}
 
     Serial5.println("Configured to HTTPS");
 
@@ -120,12 +115,12 @@ void testHttp() {
     char response_buffer[response.data_size + 1] = "";
     uint16_t bytes_read = httpClientReadResponseBody(response_buffer, 64);
 
-    if (bytes_read != 0) {
+    if (bytes_read > 0) {
 
-        Serial5.print("Retrieving data completed successfully. Bytes read ");
-        Serial5.print(bytes_read);
-        Serial5.println(", body: ");
-        Serial5.println(response_buffer);
+        Serial5.printf("Retrieving data completed successfully. Bytes read %d, "
+                       "body\r\n %s\r\n",
+                       bytes_read,
+                       response_buffer);
     }
 }
 
@@ -182,6 +177,7 @@ void testECC() {
         return;
     }
 
+    Serial5.print("Public key: ");
     for (size_t i = 0; i < sizeof(public_key); i++) {
         Serial5.print(public_key[i], HEX);
     }
@@ -195,6 +191,8 @@ void testECC() {
     if (!eccControllerSignMessage(0, &message[0], &signature[0])) {
         return;
     }
+
+    Serial5.print("Signed message: ");
 
     for (size_t i = 0; i < sizeof(signature); i++) {
         Serial5.print(signature[i], HEX);
@@ -217,6 +215,8 @@ void setup() {
 
     while (!lteClientRequestConnectionToOperator()) {}
 
+    // testECC();
+
     Serial5.println("---- Finished initializing ----");
 }
 
@@ -236,8 +236,8 @@ void loop() {
         }
 
         if (connected && !tested_functionality) {
-            testHttp();
-            // testMqtt();
+            // testHttp();
+            testMqtt();
             tested_functionality = true;
         }
 

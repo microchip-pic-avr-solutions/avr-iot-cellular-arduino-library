@@ -103,7 +103,6 @@ static HttpResponse sendData(const char *endpoint,
 
     // We receive one start bytes of the character '>', so we wait for
     // it
-    while (!sequansControllerIsRxReady()) {}
     while (sequansControllerReadByte() != HTTP_SEND_START_CHARACTER) {}
 
     // Now we deliver the payload
@@ -213,7 +212,7 @@ bool httpClientConfigure(const char *host,
                          const uint16_t port,
                          const bool enable_tls) {
 
-    sequansControllerFlushResponse();
+    while (sequansControllerIsRxReady()) { sequansControllerFlushResponse(); }
 
     char command[HTTP_CONFIGURE_SIZE] = "";
     sprintf(command, HTTP_CONFIGURE, host, port, enable_tls ? 1 : 0);

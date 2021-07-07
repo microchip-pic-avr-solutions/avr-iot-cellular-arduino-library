@@ -29,17 +29,12 @@
 #define DATA_START_CHARACTER ':'
 #define SPACE_CHARACTER      ' '
 
-#define SEQUANS_CONTROLLER_DEFAULT_RETRIES        5
-#define SEQUANS_CONTROLLER_DEFAULT_RETRY_SLEEP_MS 10
-
 static const char OK_TERMINATION[] = "OK\r\n";
 static const char ERROR_TERMINATION[] = "ERROR\r\n";
 
-static char URC_BUFFER[64];
-
-static uint8_t number_of_retries = SEQUANS_CONTROLLER_DEFAULT_RETRIES;
-static double sleep_between_retries_ms =
-    SEQUANS_CONTROLLER_DEFAULT_RETRY_SLEEP_MS;
+// Default values, can be overwritten
+static uint8_t number_of_retries = 5;
+static double sleep_between_retries_ms = 20;
 
 /** @brief Flow control update for the UART interface with the LTE modules
  *
@@ -71,17 +66,6 @@ ISR(PORTC_PORT_vect) {
             // before we enable interrupt
             HWSERIALAT.CTRLA |= (1 << USART_DREIE_bp);
         }
-
-        /*
-        else if (VPORTC.INTFLAGS & RING_INT_bm) {
-
-            // TODO: Makes the ISR quite fat :/
-            // TODO: Read URC
-            Serial5.print("Received URC: ");
-
-
-        }
-        */
     }
 
     VPORTC.INTFLAGS = 0xff;
@@ -124,13 +108,6 @@ void sequansControllerBegin(void) {
     // Set reset low to reset the LTE modem
     pinConfigure(RESET_PIN, PIN_DIR_OUTPUT);
     digitalWrite(RESET_PIN, LOW);
-
-    // We want to set up an interrupt on the RING0 pin which will be triggered
-    // when we receive an URC from the modem
-    //
-    // The polarity of it is inverted, so we add an interrupt on falling edge
-    // TODO: uncomment
-    // pinConfigure(RING_PIN, PIN_DIR_INPUT | PIN_INT_FALL);
 
     // SERIAL INTERFACE SETUP
 
@@ -211,7 +188,7 @@ ResponseResult sequansControllerReadResponse(char *out_buffer,
     for (size_t i = 0; i < buffer_size; i++) {
         if (!sequansControllerIsRxReady()) {
             retry_count++;
-            delay(sleep_between_retries_ms);
+            _delay_ms(sleep_between_retries_ms);
 
             i--;
 
@@ -325,20 +302,12 @@ bool sequansControllerExtractValueFromCommandResponse(
     char *buffer,
     const size_t buffer_size) {
 
-    // Find the last carriage return (if any)
-    char *response_end = strrchr(response, '\r');
-
-    // If not found, set end pointer to last character
-    if (response_end == NULL) {
-        response_end = response + strlen(response);
-    }
-
     // Using strtok further down in this function would modify the original
     // string, so we create a copy to the end index + 1 (because of
     // NULL termination).
-    const size_t response_size = (response_end - response) + 1;
+    const size_t response_size = strlen(response) + 1;
     char response_copy[response_size];
-    memcpy(response_copy, response, response_size);
+    strcpy(response_copy, response);
 
     // Find the first occurrence of the data start character and move pointer to
     // there
@@ -365,12 +334,11 @@ bool sequansControllerExtractValueFromCommandResponse(
         value_index++;
     }
 
-    // Remove any carriage return
-    char *value_end = strrchr(value, '\r');
+    char *first_carriage_return = strchr(value, '\r');
 
-    // If not found, set termination to the carriage return
+    // If found, set termination to the carriage return
     if (value != NULL) {
-        *value_end = 0;
+        *first_carriage_return = 0;
     }
 
     size_t value_length = strlen(value);

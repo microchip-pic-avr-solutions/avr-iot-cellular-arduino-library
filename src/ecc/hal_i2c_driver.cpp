@@ -7,28 +7,20 @@
  */
 #include "cryptoauthlib.h"
 
-// TODO: Temp, just for linting
-#define __AVR_AVR128DB64__
-
 #include <Arduino.h>
 #include <Wire.h>
-
-#define WireECC         Wire1
-#define SDA_PIN         PIN_PB2
-#define SCL_PIN         PIN_PB2
-#define AVR_I2C_ADDRESS 0x2
 
 ATCA_STATUS hal_i2c_init(ATCAIface iface, ATCAIfaceCfg *cfg) {
 
     // TODO: This should be done with Wire1.swap(2) when it is implemented into
     // the core
-    pinConfigure(SDA_PIN, PIN_PULLUP_ON);
-    pinConfigure(SCL_PIN, PIN_PULLUP_ON);
+    pinConfigure(PIN_WIRE1_SDA_PINSWAP_2, PIN_PULLUP_ON);
+    pinConfigure(PIN_WIRE1_SCL_PINSWAP_2, PIN_PULLUP_ON);
     PORTMUX.TWIROUTEA =
         (PORTMUX.TWIROUTEA & !PORTMUX_TWI1_gm) | PORTMUX_TWI1_ALT2_gc;
 
-    WireECC.setClock(cfg->atcai2c.baud);
-    WireECC.begin();
+    Wire1.setClock(cfg->atcai2c.baud);
+    Wire1.begin();
 
     return ATCA_SUCCESS;
 }
@@ -40,19 +32,19 @@ ATCA_STATUS hal_i2c_send(ATCAIface iface,
                          uint8_t *txdata,
                          int txlength) {
 
-    WireECC.beginTransmission(word_address);
+    Wire1.beginTransmission(word_address);
 
     // Custom implementation of writing n bytes since the one provided from the
     // Wire library doesn't take failing to send a single byte into
     // consideration
     size_t index = 0;
     while (index < txlength) {
-        if (WireECC.write(txdata[index])) {
+        if (Wire1.write(txdata[index])) {
             index++;
         }
     }
 
-    WireECC.endTransmission();
+    Wire1.endTransmission();
 
     // The Wire interface blocks and checks the TWIx.MSTATUS flag for WIF, which
     // give us the indication that the transmit was completed, so we return
@@ -65,13 +57,11 @@ ATCA_STATUS hal_i2c_receive(ATCAIface iface,
                             uint8_t *rxdata,
                             uint16_t *rxlength) {
 
-    delay(100);
-
     // TODO: Somehow, the TWI driver gets into an infinite loop if we don't
     // delay some here. This might be due to two operations happening quickly
     // after each other. Two reads for example.
     // This is really bad though :/
-    // delay(100);
+    atca_delay_ms(100);
 
     *rxlength = Wire1.requestFrom(word_address, (size_t)(*rxlength));
 

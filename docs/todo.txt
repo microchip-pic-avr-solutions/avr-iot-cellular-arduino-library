@@ -1,6 +1,3 @@
-- Add URC registration callbacks
-    - Have interrupt on RING?
-    - And register callbacks for functions?
 - There is some race condition with hal_i2c where the if we don't use enough time, it just halts. Need the delay for now
 - Some hostnames still doesn't work...
 - Remove functions which won't be used.
@@ -8,6 +5,8 @@
 - Strings in progmem?
 - Lights for seeing that one is connected/sending data
     - Make status LED blink when we're trying to connect?
+- Interrupts:
+    - Have some hashmap for sequans controller corresponding to sequence we want to look for and call some sort of callback?
 
 **For Spence:**
 - Want to use Serial from core for AT command interface, but need more control of interrupts for RXE due to "semaphore" lines used for flow control. Would be nice or we have to roll with our own solution.
