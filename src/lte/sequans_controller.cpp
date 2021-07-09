@@ -1,7 +1,5 @@
 #include "sequans_controller.h"
 
-#define __AVR_AVR128DB64__
-
 #include <avr/interrupt.h>
 #include <avr/io.h>
 #include <stddef.h>
@@ -16,7 +14,9 @@
 #define CTS_PIN_bm  PIN6_bm
 #define CTS_INT_bm  PORT_INT6_bm
 #define RING_INT_bm PORT_INT4_bm
+#define RTS_PORT    PORTC
 #define RTS_PIN     PIN_PC7
+#define RTS_PIN_bm  PIN7_bm
 #define RESET_PIN   PIN_PE1
 #define RING_PIN    PIN_PC4
 
@@ -24,12 +24,13 @@
 
 #define HWSERIALAT               USART1
 #define SEQUANS_MODULE_BAUD_RATE 115200
-#define RX_BUFFER_ALMOST_FULL    SERIAL_RX_BUFFER_SIZE - 2
 
 // Sizes for the circular buffers
 #define RX_BUFFER_SIZE        128
 #define TX_BUFFER_SIZE        64
 #define RX_BUFFER_ALMOST_FULL RX_BUFFER_SIZE - 2
+
+#define URC_BUFFER_SIZE 32
 
 // Specifies the valid bits for the index in the buffers
 #define RX_BUFFER_MASK (RX_BUFFER_SIZE - 1)
@@ -42,6 +43,8 @@
 #define CARRIAGE_RETURN      '\r'
 #define DATA_START_CHARACTER ':'
 #define SPACE_CHARACTER      ' '
+#define URC_START_CHARACTER  '+'
+#define URC_END_CHARACTER    ':'
 #define RESPONSE_DELIMITER   ","
 
 static const char OK_TERMINATION[] = "OK\r\n";
@@ -57,6 +60,15 @@ static volatile uint8_t tx_head_index = 0;
 static volatile uint8_t tx_tail_index = 0;
 static volatile uint8_t tx_num_elements = 0;
 
+// TODO: Not finished implementation yet
+// static uint8_t urc_buffer[URC_BUFFER_SIZE];
+// static uint8_t urc_buffer_length = 0;
+// static bool parsing_urc = false;
+// static char urc_lookup_table[8][URC_BUFFER_SIZE];
+// static uint8_t urc_lookup_table_length[8] = {5, 7, 0, 0, 0, 0, 0, 0};
+// void (*urc_callback[8])(void);
+// static uint8_t number_of_urc_callbacks;
+
 // Default values
 static uint8_t number_of_retries = 5;
 static double sleep_between_retries_ms = 20;
@@ -69,16 +81,19 @@ static double sleep_between_retries_ms = 20;
  */
 static void flowControlUpdate(void) {
 
+    // We prefer to not use arduino's digitalWrite here to reduce code in the
+    // ISR
     if (rx_num_elements < RX_BUFFER_ALMOST_FULL) {
         // Space for more data, assert RTS line (active low)
-        digitalWrite(RTS_PIN, LOW);
+        RTS_PORT.OUTCLR |= RTS_PIN_bm;
     } else {
         // Buffer is filling up, tell the target to stop sending data
         // for now by de-asserting RTS
-        digitalWrite(RTS_PIN, HIGH);
+        RTS_PORT.OUTSET |= RTS_PIN_bm;
     }
 }
 
+// For CTS interrupt
 ISR(PORTC_PORT_vect) {
     if (VPORTC.INTFLAGS & CTS_INT_bm) {
 
@@ -96,17 +111,6 @@ ISR(PORTC_PORT_vect) {
     VPORTC.INTFLAGS = 0xff;
 }
 
-/* TODO: Need to figure out a way to incorporate this into SerialAT
-// RX complete
-ISR(USART1_RXC_vect) {
-    flowControlUpdate();
-
-    // TODO: would want to do this and then call the interrupt handler in
-    // SerialAT
-    // _rx_complete_irq
-}
-*/
-
 // RX complete
 ISR(USART1_RXC_vect) {
     uint8_t data = USART1.RXDATAL;
@@ -116,6 +120,28 @@ ISR(USART1_RXC_vect) {
     rx_head_index = (rx_head_index + 1) & RX_BUFFER_MASK;
     rx_buffer[rx_head_index] = data;
     rx_num_elements++;
+
+    /*
+    // TODO: To interrupt or not to interrupt, ask Johan
+    if (data == URC_START_CHARACTER) {
+        parsing_urc = true;
+        urc_buffer_length = 0;
+    } else if (data == URC_END_CHARACTER) {
+        parsing_urc = false;
+
+        for (uint8_t i = 0; i < number_of_urc_callbacks; i++) {
+            if (urc_lookup_table_length[i] == urc_buffer_length) {
+                if (memcmp(
+                        urc_buffer, urc_lookup_table[i], urc_buffer_length)) {
+                    urc_callback[i]();
+                    break;
+                }
+            }
+        }
+    } else if (parsing_urc) {
+        urc_buffer[urc_buffer_length++] = data;
+    }
+    */
 
     flowControlUpdate();
 }
