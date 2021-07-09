@@ -5,8 +5,7 @@
 #include "src/lte/sequans_controller.h"
 
 #include "cryptoauthlib.h"
-
-#include <Wire.h>
+#include <Arduino.h>
 #include <string.h>
 
 #define CELL_STATUS_LED PIN_PG2
@@ -19,15 +18,10 @@
 
 static bool connected = false;
 static bool check_connection = false;
-static bool tested_functionality = false;
 
-void setupConnectionStatusTimer(void) {
-    takeOverTCA0();
-
-    TCA0.SINGLE.PER = 0xFFFF;
-    TCA0.SINGLE.INTCTRL = TCA_SINGLE_OVF_bm;
-    TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV1024_gc | TCA_SINGLE_ENABLE_bm;
-}
+void testHttp();
+void testMqtt();
+void testECC();
 
 ISR(TCA0_OVF_vect) {
     check_connection = true;
@@ -35,9 +29,6 @@ ISR(TCA0_OVF_vect) {
     TCA0.SINGLE.INTFLAGS = TCA_SINGLE_OVF_bm;
 }
 
-/**
- * @brief Relay bridge for AT commands and responses.
- */
 void debugBridgeUpdate(void) {
     static uint8_t character;
     static char input_buffer[INPUT_BUFFER_SIZE];
@@ -54,7 +45,16 @@ void debugBridgeUpdate(void) {
             break;
 
         case ENTER_CHARACTER:
-            sequansControllerWriteCommand(input_buffer);
+
+            if (memcmp(input_buffer, "http", 4) == 0) {
+                testHttp();
+            } else if (memcmp(input_buffer, "mqtt", 4) == 0) {
+                testMqtt();
+            } else if (memcmp(input_buffer, "ecc", 3) == 0) {
+                testECC();
+            } else {
+                sequansControllerWriteCommand(input_buffer);
+            }
 
             // Reset buffer
             memset(input_buffer, 0, sizeof(input_buffer));
@@ -78,6 +78,7 @@ void debugBridgeUpdate(void) {
 
 void testHttp() {
 
+    Serial5.println("---- Testing HTTP ----");
     HttpResponse response;
 
     // --- HTTP ---
@@ -86,7 +87,7 @@ void testHttp() {
 
     Serial5.println("Configured to HTTP");
 
-    const char *payload = "{\"hello\": \"world\"}";
+    const char *payload = "{\"hellothere\": \"generalkenobi\"}";
     response =
         httpClientPost("/t/1rqc3-1624431962/post", payload, strlen(payload));
 
@@ -126,6 +127,7 @@ void testHttp() {
 
 void testMqtt() {
 
+    Serial5.println("---- Testing MQTT ----");
     if (!mqttClientConfigure("testthingyiot", false)) {
         Serial5.println("Failed to configure MQTT");
         return;
@@ -151,6 +153,7 @@ void testMqtt() {
 }
 
 void testECC() {
+    Serial5.println("---- Testing ECC ----");
     if (!eccControllerInitialize()) {
         Serial5.println("ECC controller failed to initialize");
         return;
@@ -201,6 +204,14 @@ void testECC() {
     Serial5.println();
 }
 
+void setupConnectionStatusTimer(void) {
+    takeOverTCA0();
+
+    TCA0.SINGLE.PER = 0xFFFF;
+    TCA0.SINGLE.INTCTRL = TCA_SINGLE_OVF_bm;
+    TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV1024_gc | TCA_SINGLE_ENABLE_bm;
+}
+
 void setup() {
     Serial5.begin(115200);
 
@@ -214,8 +225,6 @@ void setup() {
     lteClientBegin();
 
     while (!lteClientRequestConnectionToOperator()) {}
-
-    // testECC();
 
     Serial5.println("---- Finished initializing ----");
 }
@@ -233,12 +242,6 @@ void loop() {
 
             // Pin is active low
             digitalWrite(CELL_STATUS_LED, connected ? LOW : HIGH);
-        }
-
-        if (connected && !tested_functionality) {
-            // testHttp();
-            testMqtt();
-            tested_functionality = true;
         }
 
         check_connection = false;
