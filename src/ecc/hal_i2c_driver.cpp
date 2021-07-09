@@ -12,13 +12,8 @@
 
 ATCA_STATUS hal_i2c_init(ATCAIface iface, ATCAIfaceCfg *cfg) {
 
-    // TODO: This should be done with Wire1.swap(2) when it is implemented into
-    // the core
-    pinConfigure(PIN_WIRE1_SDA_PINSWAP_2, PIN_PULLUP_ON);
-    pinConfigure(PIN_WIRE1_SCL_PINSWAP_2, PIN_PULLUP_ON);
-    PORTMUX.TWIROUTEA =
-        (PORTMUX.TWIROUTEA & !PORTMUX_TWI1_gm) | PORTMUX_TWI1_ALT2_gc;
-
+    Wire1.swap(2);
+    Wire1.usePullups();
     Wire1.setClock(cfg->atcai2c.baud);
     Wire1.begin();
 
