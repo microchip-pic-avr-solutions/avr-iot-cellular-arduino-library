@@ -7,6 +7,7 @@
     - Make status LED blink when we're trying to connect?
 - Interrupts:
     - Have some hashmap for sequans controller corresponding to sequence we want to look for and call some sort of callback?
+- Write that sequans controller is specified towards avr128db64
 
 **For Spence:**
 - Want to use Serial from core for AT command interface, but need more control of interrupts for RXE due to "semaphore" lines used for flow control. Would be nice or we have to roll with our own solution.
@@ -14,3 +15,4 @@
 - Rewrite TwoWire::write(const uint8_t* data, size_t quantity) to check error.
 - Need to specify "utility/" infront of twi.h and twi_pins.h
 - Need to define the different variants of pinswap for i2c somewhere. If not the pinswap for Wire fails.
+- I2C block on address = 0
