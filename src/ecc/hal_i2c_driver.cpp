@@ -13,7 +13,6 @@
 ATCA_STATUS hal_i2c_init(ATCAIface iface, ATCAIfaceCfg *cfg) {
 
     Wire1.swap(2);
-    Wire1.usePullups();
     Wire1.setClock(cfg->atcai2c.baud);
     Wire1.begin();
 

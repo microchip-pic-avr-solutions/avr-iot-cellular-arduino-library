@@ -54,12 +54,17 @@
 #define MQTT_DEFAULT_RESPONSE_LENGTH 48
 #define MQTT_CONNECT_RC_LENGTH       3
 
-bool mqttClientConfigure(const char *client_id, const bool use_tls) {
+bool MqttClient::begin(const char *client_id,
+                       const char *host,
+                       const uint16_t port,
+                       const bool use_tls) {
 
     while (sequansControllerIsRxReady()) { sequansControllerFlushResponse(); }
 
     // We have to make sure we are disconnected first
-    mqttClientDisconnect();
+    end();
+
+    // -- Configuration --
 
     // The sequans modem fails if we specify 0 as TLS, so we just have to have
     // two commands for this
@@ -73,12 +78,11 @@ bool mqttClientConfigure(const char *client_id, const bool use_tls) {
         sequansControllerWriteCommand(command);
     }
 
-    return (sequansControllerFlushResponse() == OK);
-}
+    if (sequansControllerFlushResponse() != OK) {
+        return false;
+    }
 
-bool mqttClientConnect(const char *host, const uint16_t port) {
-
-    while (sequansControllerIsRxReady()) { sequansControllerFlushResponse(); }
+    // -- Connection --
 
     char command[MQTT_CONNECT_LENGTH] = "";
     sprintf(command, MQTT_CONNECT, host, port);
@@ -89,7 +93,6 @@ bool mqttClientConnect(const char *host, const uint16_t port) {
     }
 
     // Now we wait for the URC
-    // TODO: use RING0?
     while (!sequansControllerIsRxReady()) {}
 
     // Write AT to get an "OK" response which we will search for
@@ -118,18 +121,17 @@ bool mqttClientConnect(const char *host, const uint16_t port) {
     return true;
 }
 
-bool mqttClientDisconnect(void) {
+bool MqttClient::end(void) {
     sequansControllerWriteCommand(MQTT_DISCONNECT);
     return (sequansControllerFlushResponse() == OK);
 }
 
-bool mqttClientPublish(const char *topic,
-                       const uint8_t qos,
-                       const uint8_t *buffer,
-                       const uint32_t buffer_size) {
+bool MqttClient::publish(const char *topic,
+                         const uint8_t qos,
+                         const uint8_t *buffer,
+                         const uint32_t buffer_size) {
 
     // Flush receive buffer if there
-    // TODO: URC
     while (sequansControllerIsRxReady()) { sequansControllerFlushResponse(); }
 
     const size_t digits_in_buffer_size = trunc(log10(buffer_size)) + 1;
@@ -147,7 +149,6 @@ bool mqttClientPublish(const char *topic,
     }
 
     // Wait until we receive the URC
-    // TODO: URC
     while (!sequansControllerIsRxReady()) {}
 
     sequansControllerWriteCommand("AT");
@@ -177,10 +178,9 @@ bool mqttClientPublish(const char *topic,
     return true;
 }
 
-bool mqttClientSubscribe(const char *topic, const uint8_t qos) {
+bool MqttClient::subscribe(const char *topic, const uint8_t qos) {
 
     // Flush receive buffer if there
-    // TODO: URC
     while (sequansControllerIsRxReady()) { sequansControllerFlushResponse(); }
 
     char command[MQTT_SUBSCRIBE_LENGTH] = "";
@@ -192,7 +192,6 @@ bool mqttClientSubscribe(const char *topic, const uint8_t qos) {
     }
 
     // Now we wait for the URC
-    // TODO: use RING0?
     while (!sequansControllerIsRxReady()) {}
 
     sequansControllerWriteCommand("AT");

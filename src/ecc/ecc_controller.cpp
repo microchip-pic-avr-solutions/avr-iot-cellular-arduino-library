@@ -13,7 +13,7 @@ bool eccControllerInitialize(void) {
                                              {
                                                  0x58,  // 7 bit address of ECC
                                                  2,     // Bus number
-                                                 100000 // Baud
+                                                 100000 // Baud rate
                                              },
                                              1560,
                                              20,

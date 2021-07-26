@@ -1,4 +1,4 @@
-#include "lte_client.h"
+#include "lte.h"
 #include "sequans_controller.h"
 
 #define AT_COMMAND_CONNECT           "AT+CFUN=1"
@@ -19,28 +19,25 @@ static bool writeCommandWithShortResponse(const char *command) {
     return (sequansControllerFlushResponse() == OK);
 }
 
-void lteClientBegin(void) {
+void LTEClass::begin(void) {
     sequansControllerBegin();
 
     // Since we want to handle URC synchronously, we disable this as they are
     // the only ones arriving at an irregular interval
     writeCommandWithShortResponse(AT_COMMAND_DISABLE_CEREG_URC);
     writeCommandWithShortResponse(AT_COMMAND_DISABLE_CERG_URC);
+
+    writeCommandWithShortResponse(AT_COMMAND_CONNECT);
 }
 
-void lteClientEnd(void) { sequansControllerEnd(); }
+void LTEClass::end(void) {
+    writeCommandWithShortResponse(AT_COMMAND_DISCONNECT);
 
-bool lteClientRequestConnectionToOperator(void) {
-    return writeCommandWithShortResponse(AT_COMMAND_CONNECT);
+    sequansControllerEnd();
 }
 
-bool lteClientDisconnectFromOperator(void) {
-    return writeCommandWithShortResponse(AT_COMMAND_DISCONNECT);
-}
+bool LTEClass::isConnectedToOperator(void) {
 
-bool lteClientIsConnectedToOperator(void) {
-
-    // TODO: necessary?
     while (sequansControllerIsRxReady()) { sequansControllerFlushResponse(); }
     sequansControllerWriteCommand(AT_COMMAND_CONNECTION_STATUS);
 
