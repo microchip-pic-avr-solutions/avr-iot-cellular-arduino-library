@@ -6,9 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// TODO: temp, remove after use
-#include <Arduino.h>
-
 // We only use profile 0 to keep things simple we also stick with spId 1
 #define HTTP_CONFIGURE "AT+SQNHTTPCFG=0,\"%s\",%u,0,\"\",\"\",%u,120,1,1"
 
@@ -66,9 +63,8 @@
  */
 static ResponseResult waitAndRetrieveHttpResponse(char *buffer,
                                                   const size_t buffer_size) {
-    // Wait until the receive buffer is filled with something from the HTTP
-    // response
-    while (!SequansController.isRxReady()) {}
+    // Wait until the receive buffer is filled with the URC
+    while (SequansController.readByte() != URC_START_CHARACTER) {}
 
     // Send single AT command in order to receive an OK which will later will be
     // searched for as the termination in the HTTP response

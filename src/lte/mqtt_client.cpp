@@ -7,7 +7,7 @@
 #include <string.h>
 
 #define MQTT_CONFIGURE      "AT+SQNSMQTTCFG=0,\"%s\""
-#define MQTT_CONFIGURE_TLS  "AT+SQNSMQTTCFG=0,\"%s\",\"\",\"\",%u"
+#define MQTT_CONFIGURE_TLS  "AT+SQNSMQTTCFG=0,\"%s\",\"\",\"\",1"
 #define MQTT_CONNECT        "AT+SQNSMQTTCONNECT=0,\"%s\",%u"
 #define MQTT_DISCONNECT     "AT+SQNSMQTTDISCONNECT=0"
 #define MQTT_PUBLISH        "AT+SQNSMQTTPUBLISH=0,\"%s\",0,%u"
@@ -21,9 +21,8 @@
 // Total: 84 bytes
 #define MQTT_CONFIGURE_LENGTH 84
 
-// Command without any data in it (with parantheses): 26 bytes
+// Command without any data in it (with parantheses): 27 bytes
 // Client ID: 64 bytes (this is imposed by this implementation)
-// Use TLS: 1 byte
 // Termination: 1 byte
 // Total: 92 bytes
 #define MQTT_CONFIGURE_TLS_LENGTH 92
@@ -68,6 +67,17 @@
 
 #define DEFAULT_RETRIES 5
 
+static bool retryCommand(const char *command, uint8_t retries) {
+    uint8_t retry_count = 0;
+
+    do {
+        SequansController.writeCommand(command);
+    } while (SequansController.flushResponse() != OK &&
+             retry_count++ < retries);
+
+    return retry_count < retries;
+}
+
 bool MqttClient::begin(const char *client_id,
                        const char *host,
                        const uint16_t port,
@@ -83,16 +93,19 @@ bool MqttClient::begin(const char *client_id,
     // two commands for this
     if (use_tls) {
         char command[MQTT_CONFIGURE_TLS_LENGTH] = "";
-        sprintf(command, MQTT_CONFIGURE_TLS, client_id, 1);
-        SequansController.writeCommand(command);
+        sprintf(command, MQTT_CONFIGURE_TLS, client_id);
+
+        if (!retryCommand(command, DEFAULT_RETRIES)) {
+            return false;
+        }
+
     } else {
         char command[MQTT_CONFIGURE_LENGTH] = "";
         sprintf(command, MQTT_CONFIGURE, client_id);
-        SequansController.writeCommand(command);
-    }
 
-    if (SequansController.flushResponse() != OK) {
-        return false;
+        if (!retryCommand(command, DEFAULT_RETRIES)) {
+            return false;
+        }
     }
 
     // -- Connection --
@@ -106,7 +119,8 @@ bool MqttClient::begin(const char *client_id,
     }
 
     // Now we wait for the URC
-    while (!SequansController.isRxReady()) {}
+    // TODO: Think we should have an URC callback on this
+    while (SequansController.readByte() != URC_START_CHARACTER) {}
 
     // Write AT to get an "OK" response which we will search for
     SequansController.writeCommand("AT");
@@ -115,6 +129,7 @@ bool MqttClient::begin(const char *client_id,
     if (SequansController.readResponse(connect_response,
                                        sizeof(connect_response)) != OK) {
 
+        Serial5.printf("Response failed: %s\r\n", connect_response);
         return false;
     }
 
@@ -137,15 +152,7 @@ bool MqttClient::begin(const char *client_id,
 
 bool MqttClient::end(void) {
     SequansController.unregisterCallback(MQTT_ON_MESSAGE_URC);
-
-    uint8_t retry_count = 0;
-
-    do {
-        SequansController.writeCommand(MQTT_DISCONNECT);
-    } while (SequansController.flushResponse() != OK &&
-             retry_count++ < DEFAULT_RETRIES);
-
-    return retry_count < DEFAULT_RETRIES;
+    return retryCommand(MQTT_DISCONNECT, DEFAULT_RETRIES);
 }
 
 bool MqttClient::publish(const char *topic,

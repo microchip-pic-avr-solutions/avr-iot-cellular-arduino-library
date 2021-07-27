@@ -15,6 +15,8 @@
 
 #define DATA_START_CHARACTER ':'
 
+#define URC_START_CHARACTER '+'
+
 typedef enum {
     OK,
     ERROR,

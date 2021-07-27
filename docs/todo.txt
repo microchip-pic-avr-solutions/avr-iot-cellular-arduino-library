@@ -3,6 +3,9 @@
 - Remove functions which won't be used.
 - Strings in progmem?
 - Write that sequans controller is specified towards avr128db64
+- MQTT QoS
+- Add a retry function in Sequans controller
+- Should we have callback for mqtt on connect and on disconnect? Are they even fired when we loose network? Ask Judd
 
 **For Spence:**
 - Need extra flag for linking towards libcryptoauth.a, set as compiler.extra_archive_paths for the moment

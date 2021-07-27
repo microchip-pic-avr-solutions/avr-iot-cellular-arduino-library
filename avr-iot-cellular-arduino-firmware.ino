@@ -23,11 +23,14 @@ void initializeMqttClient() {
 
     digitalWrite(ERROR_LED, HIGH);
 
-    if (mqtt_client.begin("test_id", "test.mosquitto.org", 1883, false)) {
+    if (mqtt_client.begin("iotthing",
+                          "a2o6d3azuiiax4-ats.iot.us-east-2.amazonaws.com",
+                          8883,
+                          true)) {
         Serial5.println("Connected to MQTT broker");
 
         mqtt_client.registerReceiveNotificationCallback(receive);
-        mqtt_client.subscribe("iottopic");
+        mqtt_client.subscribe("sdk/test/Python");
 
         digitalWrite(CONNECTION_LED, LOW);
     } else {
@@ -110,7 +113,7 @@ void loop() {
             Serial5.printf("I got the messsage: %s\r\n", (char *)buffer);
 
             // We publish a message back
-            publishMessage("returntopic", buffer);
+            publishMessage("heartbeat", buffer);
         } else {
             Serial5.printf("Failed to read message\r\n");
         }
