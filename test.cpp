@@ -1,12 +1,12 @@
 #include "test.h"
 
 #include <Arduino.h>
-#include <Wire.h>
-#include <cryptoauthlib.h>
+//#include <Wire.h>
+//#include <cryptoauthlib.h>
 #include <stdio.h>
 
-#include "src/ecc/ecc_controller.h"
-#include "src/lte/http_client.h"
+//#include "src/ecc/ecc_controller.h"
+//#include "src/lte/http_client.h"
 #include "src/lte/sequans_controller.h"
 
 #define DEL_CHARACTER   127
@@ -15,6 +15,7 @@
 #define INPUT_BUFFER_SIZE    128
 #define RESPONSE_BUFFER_SIZE 256
 
+/*
 void testTwi(void) {
     Wire1.begin();
 
@@ -139,6 +140,7 @@ void testEcc() {
     Serial5.println();
 }
 
+*/
 void debugBridgeUpdate(void) {
     static uint8_t character;
     static char input_buffer[INPUT_BUFFER_SIZE];
@@ -156,15 +158,17 @@ void debugBridgeUpdate(void) {
 
         case ENTER_CHARACTER:
 
+            /*
             if (memcmp(input_buffer, "http", 4) == 0) {
                 testHttp();
             } else if (memcmp(input_buffer, "ecc", 3) == 0) {
-                testEcc();
+                // testEcc();
             } else if (memcmp(input_buffer, "twi", 3) == 0) {
                 testTwi();
             } else {
-                SequansController.writeCommand(input_buffer);
-            }
+            */
+            SequansController.writeCommand(input_buffer);
+            //}
 
             // Reset buffer
             memset(input_buffer, 0, sizeof(input_buffer));
