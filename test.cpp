@@ -160,6 +160,8 @@ void debugBridgeUpdate(void) {
                 testHttp();
             } else if (memcmp(input_buffer, "ecc", 3) == 0) {
                 testEcc();
+            } else if (memcmp(input_buffer, "twi", 3) == 0) {
+                testTwi();
             } else {
                 SequansController.writeCommand(input_buffer);
             }
