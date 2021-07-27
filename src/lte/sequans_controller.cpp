@@ -30,7 +30,8 @@
 #define TX_BUFFER_SIZE        64
 #define RX_BUFFER_ALMOST_FULL RX_BUFFER_SIZE - 2
 
-#define URC_BUFFER_SIZE 32
+#define MAX_URC_CALLBACKS          8
+#define URC_IDENTIFIER_BUFFER_SIZE 24
 
 // Specifies the valid bits for the index in the buffers
 #define RX_BUFFER_MASK (RX_BUFFER_SIZE - 1)
@@ -39,13 +40,12 @@
 // CTS, control line for the MCU sending the LTE module data
 #define sequansModuleIsReadyForData() (!(VPORTC.IN & CTS_PIN_bm))
 
-#define LINE_FEED            '\n'
-#define CARRIAGE_RETURN      '\r'
-#define DATA_START_CHARACTER ':'
-#define SPACE_CHARACTER      ' '
-#define URC_START_CHARACTER  '+'
-#define URC_END_CHARACTER    ':'
-#define RESPONSE_DELIMITER   ","
+#define LINE_FEED                      '\n'
+#define CARRIAGE_RETURN                '\r'
+#define SPACE_CHARACTER                ' '
+#define URC_IDENTIFIER_START_CHARACTER '+'
+#define URC_IDENTIFIER_END_CHARACTER   ':'
+#define RESPONSE_DELIMITER             ","
 
 static const char OK_TERMINATION[] = "OK\r\n";
 static const char ERROR_TERMINATION[] = "ERROR\r\n";
@@ -60,18 +60,38 @@ static volatile uint8_t tx_head_index = 0;
 static volatile uint8_t tx_tail_index = 0;
 static volatile uint8_t tx_num_elements = 0;
 
-// TODO: Not finished implementation yet
-// static uint8_t urc_buffer[URC_BUFFER_SIZE];
-// static uint8_t urc_buffer_length = 0;
-// static bool parsing_urc = false;
-// static char urc_lookup_table[8][URC_BUFFER_SIZE];
-// static uint8_t urc_lookup_table_length[8] = {5, 7, 0, 0, 0, 0, 0, 0};
-// void (*urc_callback[8])(void);
-// static uint8_t number_of_urc_callbacks;
+// We keep two buffers for identifier and data so that data won't be overwritten
+// whilst we are looking for a new URC. In that way the data buffer will only be
+// overwritten if we find an URC we are looking for.
+static uint8_t urc_identifier_buffer[URC_IDENTIFIER_BUFFER_SIZE];
+static uint8_t urc_data_buffer[URC_DATA_BUFFER_SIZE];
+static uint8_t urc_identifier_buffer_length = 0;
+static uint8_t urc_data_buffer_length = 0;
+
+static bool urc_read = true;
+
+typedef enum {
+    URC_PARSING_IDENTIFIER,
+    URC_PARSING_DATA,
+    URC_NOT_PARSING
+} UrcParseState;
+
+static UrcParseState urc_parse_state = URC_NOT_PARSING;
+
+static char urc_lookup_table[MAX_URC_CALLBACKS][URC_IDENTIFIER_BUFFER_SIZE];
+static uint8_t urc_lookup_table_length[MAX_URC_CALLBACKS];
+void (*urc_callbacks[MAX_URC_CALLBACKS])(void);
+
+// Used to keep a pointer to the URC we are processing and found to be matching,
+// which will fire after we are finished processing the URC.
+void (*urc_current_callback)(void);
 
 // Default values
 static uint8_t number_of_retries = 5;
 static double sleep_between_retries_ms = 20;
+
+// Defined for use of rest of library
+SequansControllerClass SequansController;
 
 /** @brief Flow control update for the UART interface with the LTE modules
  *
@@ -121,27 +141,81 @@ ISR(USART1_RXC_vect) {
     rx_buffer[rx_head_index] = data;
     rx_num_elements++;
 
-    /*
-    // TODO: To interrupt or not to interrupt, ask Johan
-    if (data == URC_START_CHARACTER) {
-        parsing_urc = true;
-        urc_buffer_length = 0;
-    } else if (data == URC_END_CHARACTER) {
-        parsing_urc = false;
+    // Here we keep track of the length of the URC when it starts and compare it
+    // against the look up table of lengths of the strings we are looking for.
+    // We compare against them first in order to save some cycles in the ISR and
+    // if the lengths match, we compare the string for the URC and against the
+    // buffer. If they match, call the callback
+    switch (urc_parse_state) {
 
-        for (uint8_t i = 0; i < number_of_urc_callbacks; i++) {
-            if (urc_lookup_table_length[i] == urc_buffer_length) {
-                if (memcmp(
-                        urc_buffer, urc_lookup_table[i], urc_buffer_length)) {
-                    urc_callback[i]();
-                    break;
+    case URC_NOT_PARSING:
+        if (data == URC_IDENTIFIER_START_CHARACTER) {
+            urc_identifier_buffer_length = 0;
+            urc_parse_state = URC_PARSING_IDENTIFIER;
+        }
+
+        break;
+
+    case URC_PARSING_IDENTIFIER:
+
+        if (data == URC_IDENTIFIER_END_CHARACTER) {
+
+            // We set this as the initial condition and if we find a match for
+            // the URC we go on parsing the data
+            urc_parse_state = URC_NOT_PARSING;
+
+            for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
+
+                if (urc_lookup_table_length[i] ==
+                    urc_identifier_buffer_length) {
+
+                    if (memcmp(urc_identifier_buffer,
+                               urc_lookup_table[i],
+                               urc_lookup_table_length[i]) == 0) {
+                        urc_current_callback = urc_callbacks[i];
+                        urc_parse_state = URC_PARSING_DATA;
+
+                        // Reset the index in order to prepare the URC buffer
+                        // for data
+                        urc_data_buffer_length = 0;
+                        break;
+                    }
                 }
             }
+        } else if (urc_identifier_buffer_length == URC_IDENTIFIER_BUFFER_SIZE) {
+            urc_parse_state = URC_NOT_PARSING;
+        } else {
+            urc_identifier_buffer[urc_identifier_buffer_length++] = data;
         }
-    } else if (parsing_urc) {
-        urc_buffer[urc_buffer_length++] = data;
+
+        break;
+
+    case URC_PARSING_DATA:
+
+        if (data == CARRIAGE_RETURN) {
+
+            // Add termination since we're done
+            urc_data_buffer[urc_data_buffer_length] = 0;
+
+            urc_read = false;
+
+            if (urc_current_callback != NULL) {
+                urc_current_callback();
+            }
+
+            urc_parse_state = URC_NOT_PARSING;
+        } else if (urc_data_buffer_length == URC_DATA_BUFFER_SIZE) {
+            // This is just a failsafe
+            urc_parse_state = URC_NOT_PARSING;
+        } else {
+            urc_data_buffer[urc_data_buffer_length++] = data;
+        }
+
+        break;
+
+    default:
+        break;
     }
-    */
 
     flowControlUpdate();
 }
@@ -167,7 +241,7 @@ ISR(USART1_DRE_vect) {
     }
 }
 
-void sequansControllerBegin(void) {
+void SequansControllerClass::begin(void) {
 
     // PIN SETUP
 
@@ -214,7 +288,7 @@ void sequansControllerBegin(void) {
     PORTG.OUTSET |= PIN2_bm;
 }
 
-void sequansControllerEnd(void) {
+void SequansControllerClass::end(void) {
     USART1.CTRLA = 0;
     USART1.CTRLB = 0;
     USART1.CTRLC = 0;
@@ -222,23 +296,23 @@ void sequansControllerEnd(void) {
     pinConfigure(CTS_PIN, 0);
 }
 
-void sequansControllerSetRetryConfiguration(const uint8_t num_retries,
-                                            const double sleep_ms) {
+void SequansControllerClass::setRetryConfiguration(const uint8_t num_retries,
+                                                   const double sleep_ms) {
 
     number_of_retries = num_retries;
     sleep_between_retries_ms = sleep_ms;
 }
 
-bool sequansControllerIsTxReady(void) {
+bool SequansControllerClass::isTxReady(void) {
     return (tx_num_elements != TX_BUFFER_SIZE);
 }
 
-bool sequansControllerIsRxReady(void) { return (rx_num_elements != 0); }
+bool SequansControllerClass::isRxReady(void) { return (rx_num_elements != 0); }
 
-bool sequansControllerWriteByte(const uint8_t data) {
+bool SequansControllerClass::writeByte(const uint8_t data) {
 
     uint8_t retry_count = 0;
-    while (!sequansControllerIsTxReady()) {
+    while (!isTxReady()) {
         retry_count++;
 
         if (retry_count == number_of_retries) {
@@ -264,32 +338,32 @@ bool sequansControllerWriteByte(const uint8_t data) {
     return true;
 }
 
-bool sequansControllerWriteCommand(const char *command) {
+bool SequansControllerClass::writeCommand(const char *command) {
     const size_t length = strlen(command);
 
     for (size_t i = 0; i < length; i++) {
-        if (!sequansControllerWriteByte(command[i])) {
+        if (!writeByte(command[i])) {
             return false;
         }
     }
 
-    return sequansControllerWriteByte('\r');
+    return writeByte('\r');
 }
 
-bool sequansControllerWriteBytes(const uint8_t *data,
-                                 const size_t buffer_size) {
+bool SequansControllerClass::writeBytes(const uint8_t *data,
+                                        const size_t buffer_size) {
 
     for (size_t i = 0; i < buffer_size; i++) {
-        if (!sequansControllerWriteByte(data[i])) {
+        if (!writeByte(data[i])) {
             return false;
         }
     }
 
-    return sequansControllerWriteByte('\r');
+    return writeByte('\r');
 }
 
-int16_t sequansControllerReadByte() {
-    if (!sequansControllerIsRxReady()) {
+int16_t SequansControllerClass::readByte() {
+    if (!isRxReady()) {
         return -1;
     }
 
@@ -306,13 +380,13 @@ int16_t sequansControllerReadByte() {
     return rx_buffer[next_tail_index];
 }
 
-ResponseResult sequansControllerReadResponse(char *out_buffer,
-                                             uint16_t buffer_size) {
+ResponseResult SequansControllerClass::readResponse(char *out_buffer,
+                                                    uint16_t buffer_size) {
     uint8_t retry_count = 0;
     int16_t value;
 
     for (size_t i = 0; i < buffer_size; i++) {
-        if (!sequansControllerIsRxReady()) {
+        if (!isRxReady()) {
             retry_count++;
             _delay_ms(sleep_between_retries_ms);
 
@@ -328,7 +402,7 @@ ResponseResult sequansControllerReadResponse(char *out_buffer,
         // Reset if we get a valid value
         retry_count = 0;
 
-        out_buffer[i] = (uint8_t)sequansControllerReadByte();
+        out_buffer[i] = (uint8_t)readByte();
 
         // For AT command responses from the LTE module, "OK\r\n" or
         // "ERROR\r\n" signifies the end of a response, so we look "\r\n".
@@ -365,7 +439,7 @@ ResponseResult sequansControllerReadResponse(char *out_buffer,
     return BUFFER_OVERFLOW;
 }
 
-ResponseResult sequansControllerFlushResponse(void) {
+ResponseResult SequansControllerClass::flushResponse(void) {
 
     // We use the termination buffer to look for a "\r\n", which can indicate
     // termination. We set it to max size of the error termination so that we
@@ -384,7 +458,7 @@ ResponseResult sequansControllerFlushResponse(void) {
     // or if we pass the retry count.
     while (retry_count < number_of_retries) {
 
-        if (!sequansControllerIsRxReady()) {
+        if (!isRxReady()) {
             retry_count++;
             _delay_ms(sleep_between_retries_ms);
             continue;
@@ -395,8 +469,7 @@ ResponseResult sequansControllerFlushResponse(void) {
             termination_buffer[i] = termination_buffer[i + 1];
         }
 
-        termination_buffer[termination_buffer_size - 1] =
-            sequansControllerReadByte();
+        termination_buffer[termination_buffer_size - 1] = readByte();
         // Reset retry count when we get some data
         retry_count = 0;
 
@@ -422,11 +495,12 @@ ResponseResult sequansControllerFlushResponse(void) {
     return TIMEOUT;
 }
 
-bool sequansControllerExtractValueFromCommandResponse(
+bool SequansControllerClass::extractValueFromCommandResponse(
     char *response,
     const uint8_t index,
     char *buffer,
-    const size_t buffer_size) {
+    const size_t buffer_size,
+    const char start_character) {
 
     // Using strtok further down in this function would modify the original
     // string, so we create a copy to the end index + 1 (because of
@@ -435,18 +509,24 @@ bool sequansControllerExtractValueFromCommandResponse(
     char response_copy[response_size];
     strcpy(response_copy, response);
 
-    // Find the first occurrence of the data start character and move pointer to
-    // there
-    char *data = strchr(response_copy, DATA_START_CHARACTER);
+    char *data;
 
-    if (data == NULL) {
-        return false;
-    }
+    if (start_character != 0) {
 
-    // Increment pointer to skip the data start character (and the following
-    // space in the start sequence of the data if it is there)
-    while (*data == DATA_START_CHARACTER || *data == SPACE_CHARACTER) {
-        data++;
+        // Find the first occurrence of the data start character and move
+        // pointer to there
+        data = strchr(response_copy, start_character);
+
+        if (data == NULL) {
+            return false;
+        }
+
+        // Increment pointer to skip the data start character (and the following
+        // space in the start sequence of the data if it is there)
+        while (*data == start_character || *data == SPACE_CHARACTER) { data++; }
+    } else {
+        // If no start character is given, just set data start to string start
+        data = response_copy;
     }
 
     // Now we split the string by the response delimiter and search for the
@@ -476,7 +556,60 @@ bool sequansControllerExtractValueFromCommandResponse(
         return false;
     }
 
-    memcpy(buffer, value, value_length);
+    strcpy(buffer, value);
+
+    return true;
+}
+
+bool SequansControllerClass::registerCallback(const char *urc_identifier,
+                                              void (*urc_callback)(void)) {
+
+    for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
+        // Look for empty spot
+        if (urc_lookup_table_length[i] == 0) {
+            strcpy(urc_lookup_table[i], urc_identifier);
+            urc_lookup_table_length[i] = strlen(urc_identifier);
+            urc_callbacks[i] = urc_callback;
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void SequansControllerClass::unregisterCallback(const char *urc_identifier) {
+    const uint8_t urc_identifier_length = strlen(urc_identifier);
+    for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
+        if (memcmp(urc_identifier,
+                   urc_lookup_table[i],
+                   urc_identifier_length) == 0) {
+            // No need to fill the look up table identifier table, as we
+            // override it if a new registration is issued, but the length is
+            // used to check if the slot is active or not, so we set that to 0
+            // and reset the callback pointer for house keeping
+            urc_lookup_table_length[i] = 0;
+            urc_callbacks[i] = NULL;
+            break;
+        }
+    }
+}
+
+bool SequansControllerClass::readNotification(char *buffer,
+                                              uint8_t buffer_size) {
+
+    if (urc_read) {
+        return false;
+    }
+
+    if (buffer_size > URC_DATA_BUFFER_SIZE) {
+        return false;
+    }
+
+    memcpy(buffer, urc_data_buffer, buffer_size);
+
+    // We do a reset here to signify that the URC has been read.
+    urc_read = true;
 
     return true;
 }

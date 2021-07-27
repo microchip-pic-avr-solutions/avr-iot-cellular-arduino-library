@@ -20,6 +20,12 @@ class LTEClass {
      */
     void end(void);
 
+    /**
+     * @brief Registers a callback function which will be called when the
+     * connection status is updated.
+     */
+    void registerConnectionNotificationCallback(void (*callback)(void));
+
     bool isConnectedToOperator(void);
 };
 

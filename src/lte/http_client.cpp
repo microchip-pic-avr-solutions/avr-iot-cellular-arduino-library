@@ -47,6 +47,8 @@
 #define HTTP_BODY_BUFFER_MIN_SIZE 64
 #define HTTP_BODY_BUFFER_MAX_SIZE 1500
 
+#define DEFAULT_RETRIES 5
+
 /**
  * @brief Waits for the HTTP response (which can't be requested) puts it into a
  * buffer.
@@ -66,13 +68,13 @@ static ResponseResult waitAndRetrieveHttpResponse(char *buffer,
                                                   const size_t buffer_size) {
     // Wait until the receive buffer is filled with something from the HTTP
     // response
-    while (!sequansControllerIsRxReady()) {}
+    while (!SequansController.isRxReady()) {}
 
     // Send single AT command in order to receive an OK which will later will be
     // searched for as the termination in the HTTP response
-    sequansControllerWriteCommand("AT");
+    SequansController.writeCommand("AT");
 
-    return sequansControllerReadResponse(buffer, buffer_size);
+    return SequansController.readResponse(buffer, buffer_size);
 }
 
 /**
@@ -92,27 +94,27 @@ static HttpResponse sendData(const char *endpoint,
     HttpResponse httpResponse = {0, 0};
 
     // Clear the receive buffer to be ready for the response
-    while (sequansControllerIsRxReady()) { sequansControllerFlushResponse(); }
+    while (SequansController.isRxReady()) { SequansController.flushResponse(); }
 
     // Setup and transmit SEND command before sending the data
     const uint32_t digits_in_data_length = trunc(log10(buffer_size)) + 1;
 
     char command[strlen(HTTP_SEND) + strlen(endpoint) + digits_in_data_length];
     sprintf(command, HTTP_SEND, method, endpoint, buffer_size);
-    sequansControllerWriteCommand(command);
+    SequansController.writeCommand(command);
 
     // We receive one start bytes of the character '>', so we wait for
     // it
-    while (sequansControllerReadByte() != HTTP_SEND_START_CHARACTER) {}
+    while (SequansController.readByte() != HTTP_SEND_START_CHARACTER) {}
 
     // Now we deliver the payload
-    sequansControllerWriteBytes(buffer, buffer_size);
+    SequansController.writeBytes(buffer, buffer_size);
 
     // Wait until we get some valid response and we don't reach the timeout for
     // the interface
     ResponseResult response_result;
     do {
-        response_result = sequansControllerFlushResponse();
+        response_result = SequansController.flushResponse();
     } while (response_result == TIMEOUT);
 
     if (response_result != OK) {
@@ -127,7 +129,7 @@ static HttpResponse sendData(const char *endpoint,
 
     char http_status_code_buffer[HTTP_RESPONSE_STATUS_CODE_LENGTH + 1] = "";
 
-    bool got_response_code = sequansControllerExtractValueFromCommandResponse(
+    bool got_response_code = SequansController.extractValueFromCommandResponse(
         http_response,
         HTTP_RESPONSE_STATUS_CODE_INDEX,
         http_status_code_buffer,
@@ -135,7 +137,7 @@ static HttpResponse sendData(const char *endpoint,
 
     char data_size_buffer[HTTP_RESPONSE_DATA_SIZE_LENGTH] = "";
 
-    bool got_data_size = sequansControllerExtractValueFromCommandResponse(
+    bool got_data_size = SequansController.extractValueFromCommandResponse(
         http_response,
         HTTP_RESPONSE_DATA_SIZE_INDEX,
         data_size_buffer,
@@ -164,14 +166,14 @@ static HttpResponse queryData(const char *endpoint, const uint8_t method) {
     HttpResponse httpResponse = {0, 0};
 
     // Clear the receive buffer to be ready for the response
-    while (sequansControllerIsRxReady()) { sequansControllerFlushResponse(); }
+    while (SequansController.isRxReady()) { SequansController.flushResponse(); }
 
     // Set up and send the query
     char command[strlen(HTTP_QUERY) + strlen(endpoint)];
     sprintf(command, HTTP_QUERY, method, endpoint);
-    sequansControllerWriteCommand(command);
+    SequansController.writeCommand(command);
 
-    if (sequansControllerFlushResponse() != OK) {
+    if (SequansController.flushResponse() != OK) {
         return httpResponse;
     }
 
@@ -183,7 +185,7 @@ static HttpResponse queryData(const char *endpoint, const uint8_t method) {
 
     char http_status_code_buffer[HTTP_RESPONSE_STATUS_CODE_LENGTH + 1] = "";
 
-    bool got_response_code = sequansControllerExtractValueFromCommandResponse(
+    bool got_response_code = SequansController.extractValueFromCommandResponse(
         http_response,
         HTTP_RESPONSE_STATUS_CODE_INDEX,
         http_status_code_buffer,
@@ -191,7 +193,7 @@ static HttpResponse queryData(const char *endpoint, const uint8_t method) {
 
     char data_size_buffer[HTTP_RESPONSE_DATA_SIZE_LENGTH] = "";
 
-    bool got_data_size = sequansControllerExtractValueFromCommandResponse(
+    bool got_data_size = SequansController.extractValueFromCommandResponse(
         http_response,
         HTTP_RESPONSE_DATA_SIZE_INDEX,
         data_size_buffer,
@@ -212,19 +214,19 @@ bool HttpClient::configure(const char *host,
                            const uint16_t port,
                            const bool enable_tls) {
 
-    while (sequansControllerIsRxReady()) { sequansControllerFlushResponse(); }
+    while (SequansController.isRxReady()) { SequansController.flushResponse(); }
 
-    const uint8_t retries = 5;
     uint8_t retry_count = 0;
 
-    // TODO: this required?
     do {
         char command[HTTP_CONFIGURE_SIZE] = "";
         sprintf(command, HTTP_CONFIGURE, host, port, enable_tls ? 1 : 0);
-        sequansControllerWriteCommand(command);
-    } while (sequansControllerFlushResponse() != OK && retry_count < retries);
+        SequansController.writeCommand(command);
 
-    return retry_count < retries;
+    } while (SequansController.flushResponse() != OK &&
+             retry_count < DEFAULT_RETRIES);
+
+    return retry_count < DEFAULT_RETRIES;
 }
 
 HttpResponse HttpClient::post(const char *endpoint,
@@ -261,26 +263,25 @@ int16_t HttpClient::readBody(char *buffer, const uint32_t buffer_size) {
     }
 
     // Clear the receive buffer to be ready for the response
-    while (sequansControllerIsRxReady()) { sequansControllerFlushResponse(); }
+    while (SequansController.isRxReady()) { SequansController.flushResponse(); }
 
     // We send the buffer size with the receive command so that we only
     // receive that. The rest will be flushed from the modem.
     char command[HTTP_RECEIVE_LENGTH] = "";
 
     sprintf(command, HTTP_RECEIVE, buffer_size);
-    sequansControllerWriteCommand(command);
+    SequansController.writeCommand(command);
 
     // We receive three start bytes of the character '<', so we wait for
     // them
     uint8_t start_bytes = 3;
 
     // Wait for first byte in receive buffer
-    while (!sequansControllerIsRxReady()) {}
+    while (!SequansController.isRxReady()) {}
 
     while (start_bytes > 0) {
 
-        // This will block until we receive
-        if (sequansControllerReadByte() == HTTP_RECEIVE_START_CHARACTER) {
+        if (SequansController.readByte() == HTTP_RECEIVE_START_CHARACTER) {
             start_bytes--;
         }
     }
@@ -288,7 +289,7 @@ int16_t HttpClient::readBody(char *buffer, const uint32_t buffer_size) {
     // Now we are ready to receive the payload. We only check for error and
     // not overflow in the receive buffer in comparison to our buffer as we
     // know the size of what we want to receive
-    if (sequansControllerReadResponse(buffer, buffer_size) == ERROR) {
+    if (SequansController.readResponse(buffer, buffer_size) == ERROR) {
 
         return 0;
     }
