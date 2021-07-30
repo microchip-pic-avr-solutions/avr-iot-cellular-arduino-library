@@ -15,20 +15,26 @@ typedef struct {
 
 } MqttReceiveNotification;
 
+typedef enum {
+    AT_MOST_ONCE = 0, // default
+    AT_LEAST_ONCE,
+    EXACTLY_ONCE
+} MqttQoS;
+
 class MqttClient {
 
   public:
     /**
-     * @brief Will configure and connect to the host/broker specified. Will
-     * disconnect from the current broker (if any) before configuring the new
-     * client.
+     * @brief Will configure and request connection to the host/broker
+     * specified. Will disconnect from the current broker (if any) before
+     * configuring the new client.
      *
      * @param client_id The identifier for this unit.
-     * @param host Host/broker to connect to.
+     * @param host Host/broker to attempt to connect to.
      * @param port Port for communication.
      * @param use_tls Whether to use TLS in the communication.
      *
-     * @return true if connection was successful.
+     * @return true if configuration was succesful.
      */
     bool begin(const char *client_id,
                const char *host,
@@ -41,32 +47,50 @@ class MqttClient {
     bool end(void);
 
     /**
+     * @brief Register callback function for when the client is
+     * connected/disconnected to/from the MQTT broker. Called from ISR, so keep
+     * this function short.
+     */
+    void onConnectionStatusChange(void (*connected)(void),
+                                  void (*disconnected)(void));
+
+    /**
+     * @return true if connected to MQTT broker.
+     */
+    bool isConnected(void);
+
+    /**
      * @brief Publishes the contents of the buffer to the given topic.
      *
      * @param topic Topic to publish to.
      * @param buffer Data to publish.
-     * @param buffer_size Has to be in range 1-65535
+     * @param buffer_size Has to be in range 1-65535.
+     * @param quality_of_service MQTT protocol QoS.
      *
      * @return true if publish was successful.
      */
     bool publish(const char *topic,
                  const uint8_t *buffer,
-                 const uint32_t buffer_size);
+                 const uint32_t buffer_size,
+                 const MqttQoS quality_of_service = AT_MOST_ONCE);
 
     /**
      * @brief Subscribes to a given topic.
      *
-     * @return true if subscribe was successful.
+     * @param topic Topic to subscribe to.
+     * @param quality_of_service MQTT protocol QoS.
+     *
+     * @return true if subscription was successful.
      */
-    bool subscribe(const char *topic);
+    bool subscribe(const char *topic,
+                   const MqttQoS quality_of_service = AT_MOST_ONCE);
 
     /**
-     * @brief Registers a callback function which will be called when we receive
-     * a message on any topic we've subscribed on. In other words this callback
-     * functions as a notification that something arrived, but not what. This
-     * function will be called from an ISR, so keep it short.
+     * @brief Register a callback function which will be called when we receive
+     * a message on any topic we've subscribed on. Called from ISR, so keep this
+     * function short.
      */
-    void registerReceiveNotificationCallback(void (*callback)(void));
+    void onReceive(void (*callback)(void));
 
     /**
      * @brief Reads a receive notification (if any).

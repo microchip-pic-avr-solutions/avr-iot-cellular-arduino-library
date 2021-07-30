@@ -5,7 +5,7 @@
 #ifndef LTE_H
 #define LTE_H
 
-class LTEClass {
+class LteClass {
 
   public:
     /**
@@ -21,14 +21,15 @@ class LTEClass {
     void end(void);
 
     /**
-     * @brief Registers a callback function which will be called when the
-     * connection status is updated.
+     * @brief Registers callback functions for when the module is connected to
+     * the operator and disconnected from the operator.
      */
-    void registerConnectionNotificationCallback(void (*callback)(void));
+    void onConnectionStatusChange(void (*connect_callback)(void),
+                                  void (*disconnect_callback)(void));
 
-    bool isConnectedToOperator(void);
+    bool isConnected(void);
 };
 
-extern LTEClass LTE;
+extern LteClass Lte;
 
 #endif

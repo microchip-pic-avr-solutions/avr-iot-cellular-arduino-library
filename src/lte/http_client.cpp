@@ -6,8 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-// We only use profile 0 to keep things simple we also stick with spId 1
-#define HTTP_CONFIGURE "AT+SQNHTTPCFG=0,\"%s\",%u,0,\"\",\"\",%u,120,1,1"
+// We only use profile 0 to keep things simple we also stick with spId 2
+// which we dedicate to HTTPS
+#define HTTP_CONFIGURE "AT+SQNHTTPCFG=0,\"%s\",%u,0,\"\",\"\",%u,120,1,2"
 
 // Command without any data in it (with parantheses): 36 bytes
 // Max length of doman name: 127 bytes
@@ -58,13 +59,13 @@
  * @param buffer Buffer to place the HTTP response in.
  * @param buffer_size Size of buffer to place HTTP response in.
  *
- * @return Relays the return code from sequansControllerFlushResponse().
+ * @return Relays the return code from SequansController.readResponse().
  *         SEQUANS_CONTROLLER_RESPONSE_OK if ok.
  */
 static ResponseResult waitAndRetrieveHttpResponse(char *buffer,
                                                   const size_t buffer_size) {
     // Wait until the receive buffer is filled with the URC
-    while (SequansController.readByte() != URC_START_CHARACTER) {}
+    while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {}
 
     // Send single AT command in order to receive an OK which will later will be
     // searched for as the termination in the HTTP response
@@ -89,8 +90,7 @@ static HttpResponse sendData(const char *endpoint,
 
     HttpResponse httpResponse = {0, 0};
 
-    // Clear the receive buffer to be ready for the response
-    while (SequansController.isRxReady()) { SequansController.flushResponse(); }
+    SequansController.clearReceiveBuffer();
 
     // Setup and transmit SEND command before sending the data
     const uint32_t digits_in_data_length = trunc(log10(buffer_size)) + 1;
@@ -110,7 +110,7 @@ static HttpResponse sendData(const char *endpoint,
     // the interface
     ResponseResult response_result;
     do {
-        response_result = SequansController.flushResponse();
+        response_result = SequansController.readResponse();
     } while (response_result == TIMEOUT);
 
     if (response_result != OK) {
@@ -161,15 +161,14 @@ static HttpResponse queryData(const char *endpoint, const uint8_t method) {
 
     HttpResponse httpResponse = {0, 0};
 
-    // Clear the receive buffer to be ready for the response
-    while (SequansController.isRxReady()) { SequansController.flushResponse(); }
+    SequansController.clearReceiveBuffer();
 
     // Set up and send the query
     char command[strlen(HTTP_QUERY) + strlen(endpoint)];
     sprintf(command, HTTP_QUERY, method, endpoint);
     SequansController.writeCommand(command);
 
-    if (SequansController.flushResponse() != OK) {
+    if (SequansController.readResponse() != OK) {
         return httpResponse;
     }
 
@@ -210,19 +209,12 @@ bool HttpClient::configure(const char *host,
                            const uint16_t port,
                            const bool enable_tls) {
 
-    while (SequansController.isRxReady()) { SequansController.flushResponse(); }
+    SequansController.clearReceiveBuffer();
 
-    uint8_t retry_count = 0;
+    char command[HTTP_CONFIGURE_SIZE] = "";
+    sprintf(command, HTTP_CONFIGURE, host, port, enable_tls ? 1 : 0);
 
-    do {
-        char command[HTTP_CONFIGURE_SIZE] = "";
-        sprintf(command, HTTP_CONFIGURE, host, port, enable_tls ? 1 : 0);
-        SequansController.writeCommand(command);
-
-    } while (SequansController.flushResponse() != OK &&
-             retry_count < DEFAULT_RETRIES);
-
-    return retry_count < DEFAULT_RETRIES;
+    return SequansController.retryCommand(command, DEFAULT_RETRIES);
 }
 
 HttpResponse HttpClient::post(const char *endpoint,
@@ -258,8 +250,7 @@ int16_t HttpClient::readBody(char *buffer, const uint32_t buffer_size) {
         return -1;
     }
 
-    // Clear the receive buffer to be ready for the response
-    while (SequansController.isRxReady()) { SequansController.flushResponse(); }
+    SequansController.clearReceiveBuffer();
 
     // We send the buffer size with the receive command so that we only
     // receive that. The rest will be flushed from the modem.
@@ -286,7 +277,6 @@ int16_t HttpClient::readBody(char *buffer, const uint32_t buffer_size) {
     // not overflow in the receive buffer in comparison to our buffer as we
     // know the size of what we want to receive
     if (SequansController.readResponse(buffer, buffer_size) == ERROR) {
-
         return 0;
     }
 

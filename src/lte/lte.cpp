@@ -5,7 +5,7 @@
 #define AT_COMMAND_DISCONNECT        "AT+CFUN=0"
 #define AT_COMMAND_CONNECTION_STATUS "AT+CREG?"
 #define AT_COMMAND_DISABLE_CEREG_URC "AT+CEREG=0"
-#define AT_COMMAND_ENABLE_CEREG_URC  "AT+CEREG=1"
+#define AT_COMMAND_ENABLE_CEREG_URC  "AT+CEREG=2"
 #define AT_COMMAND_DISABLE_CREG_URC  "AT+CREG=0"
 
 #define CEREG_CALLBACK "CEREG"
@@ -18,41 +18,65 @@
 
 #define RESPONSE_CONNECTION_STATUS_SIZE 24
 
-static bool writeCommandWithShortResponse(const char *command) {
-    while (SequansController.isRxReady()) { SequansController.flushResponse(); }
+#define CEREG_DATA_LENGTH 2
 
-    SequansController.writeCommand(command);
-    return (SequansController.flushResponse() == OK);
+// When the CEREG appears as an URC, it only includes the stat, but there will
+// be a space before the data, hence this value since this index is character
+// index.
+#define CEREG_STAT_CHARACTER_INDEX 1
+
+static void (*connected_callback)(void) = NULL;
+static void (*disconnected_callback)(void) = NULL;
+
+static void connectionStatus(void) {
+    // +1 for null termination
+    char buffer[CEREG_DATA_LENGTH + 1];
+
+    if (SequansController.readNotification(buffer, sizeof(buffer))) {
+
+        const char stat = buffer[CEREG_STAT_CHARACTER_INDEX];
+
+        if (stat == STAT_REGISTERED_ROAMING ||
+            stat == STAT_REGISTERED_HOME_NETWORK) {
+
+            if (connected_callback) {
+                connected_callback();
+            }
+        } else {
+            if (disconnected_callback) {
+                disconnected_callback();
+            }
+        }
+    }
 }
 
-void LTEClass::begin(void) {
+void LteClass::begin(void) {
     SequansController.begin();
 
-    // Since we want the default to be to handle URC synchronously, we disable
-    // this as they are the only ones arriving at an irregular interval
-    //
+    SequansController.clearReceiveBuffer();
+
     // This might fail the first times after initializing the sequans
     // controller, so we just retry until they succeed
-    while (!writeCommandWithShortResponse(AT_COMMAND_DISABLE_CEREG_URC)) {}
-    while (!writeCommandWithShortResponse(AT_COMMAND_DISABLE_CREG_URC)) {}
-
-    writeCommandWithShortResponse(AT_COMMAND_CONNECT);
+    SequansController.retryCommand(AT_COMMAND_DISABLE_CREG_URC);
+    SequansController.retryCommand(AT_COMMAND_ENABLE_CEREG_URC);
+    SequansController.retryCommand(AT_COMMAND_CONNECT);
 }
 
-void LTEClass::end(void) {
-    writeCommandWithShortResponse(AT_COMMAND_DISCONNECT);
-
+void LteClass::end(void) {
+    SequansController.retryCommand(AT_COMMAND_DISCONNECT);
     SequansController.end();
 }
 
-void LTEClass::registerConnectionNotificationCallback(void (*callback)()) {
-    writeCommandWithShortResponse(AT_COMMAND_ENABLE_CEREG_URC);
-    SequansController.registerCallback(CEREG_CALLBACK, callback);
+void LteClass::onConnectionStatusChange(void (*connect_callback)(void),
+                                        void (*disconnect_callback)(void)) {
+    connected_callback = connect_callback;
+    disconnected_callback = disconnect_callback;
+    SequansController.registerCallback(CEREG_CALLBACK, connectionStatus);
 }
 
-bool LTEClass::isConnectedToOperator(void) {
+bool LteClass::isConnected(void) {
 
-    while (SequansController.isRxReady()) { SequansController.flushResponse(); }
+    SequansController.clearReceiveBuffer();
     SequansController.writeCommand(AT_COMMAND_CONNECTION_STATUS);
 
     char response[RESPONSE_CONNECTION_STATUS_SIZE];
