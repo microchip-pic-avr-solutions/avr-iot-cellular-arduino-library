@@ -1,4 +1,4 @@
-## ECC:
+## ECC
 - There is some race condition with hal_i2c where the if we don't use enough 
   time, it just halts. Need the delay for now.
 
@@ -8,6 +8,7 @@
 
 
 ## MQTT
+- Ability to not use ATECC?
 
 
 ## Sequans Controller
