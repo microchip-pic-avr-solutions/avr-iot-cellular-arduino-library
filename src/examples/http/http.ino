@@ -37,7 +37,7 @@ void setup() {
     SerialInterface.begin(115200);
 
     Lte.onConnectionStatusChange(connectedToNetwork, disconnectedFromNetwork);
-    LTE.begin();
+    Lte.begin();
 
     if (Lte.isConnected()) {
         digitalWrite(CELL_LED, LOW);
@@ -71,7 +71,7 @@ void testHttp() {
     // --- HTTPS ---
 
     if (!http_client.configure("raw.githubusercontent.com", 443, true)) {
-        SerialInterface.println("Failed to configure http client");
+        SerialInterface.println("Failed to configure https client");
     }
 
     SerialInterface.println("Configured to HTTPS");
