@@ -17,6 +17,7 @@
 #define MQTT_ON_MESSAGE_URC    "SQNSMQTTONMESSAGE"
 #define MQTT_ON_CONNECT_URC    "SQNSMQTTONCONNECT"
 #define MQTT_ON_DISCONNECT_URC "SQNSMQTTONDISCONNECT"
+#define HCESIGN                "AT+SQNHCESIGN=%u,0,64,\"%s\""
 
 #define HCESIGN_URC "SQNHCESIGN"
 
@@ -61,6 +62,13 @@
 // Total: 155 bytes
 #define MQTT_RECEIVE_LENGTH 155
 
+// Command without any data in it (with parantheses): 22 bytes
+// ctxId: 5 bytes (16 bits, thus 5 characters max)
+// Signature: 64 bytes
+// Termination: 1 byte
+// Total: 92 bytes
+#define HCESIGN_LENGTH 155
+
 // Just arbitrary, but will fit 'ordinary' responses and their termination
 #define MQTT_DEFAULT_RESPONSE_LENGTH 48
 
@@ -76,7 +84,11 @@
 #define MQTT_TOPIC_MAX_LENGTH 128
 
 // Max length is 1024, so 4 characters
-#define MSG_LENGTH_BUFFER_SIZE 4
+#define MQTT_MSG_LENGTH_BUFFER_SIZE 4
+
+#define HCESIGN_REQUEST_LENGTH 128
+#define HCESIGN_DIGEST_LENGTH  64
+#define HCESIGN_CTX_ID_LENGTH  5
 
 static bool connected_to_broker = false;
 static void (*connected_callback)(void) = NULL;
@@ -111,6 +123,8 @@ static void internalDisconnectCallback(void) {
     }
 }
 
+// TODO: remove all serial prints
+
 bool MqttClient::begin(const char *client_id,
                        const char *host,
                        const uint16_t port,
@@ -131,8 +145,6 @@ bool MqttClient::begin(const char *client_id,
             return false;
         }
 
-        // TODO: fix
-        /*
         // ECC controller initialization, only for when we are using TLS of
         // course
 
@@ -156,7 +168,6 @@ bool MqttClient::begin(const char *client_id,
         if (result != ATCA_SUCCESS) {
             return false;
         }
-        */
     } else {
         char command[MQTT_CONFIGURE_LENGTH] = "";
         sprintf(command, MQTT_CONFIGURE, client_id);
@@ -175,39 +186,95 @@ bool MqttClient::begin(const char *client_id,
     char command[MQTT_CONNECT_LENGTH] = "";
     sprintf(command, MQTT_CONNECT, host, port);
     if (!SequansController.retryCommand(command)) {
+        Serial5.println("Failed set request connection\r\n");
         return false;
     }
 
-    // TODO: fix
-    /*
-    // Wait for connection URC
-    while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {}
+    if (use_tls) {
 
-    // Write AT to get an "OK" response which we will search for
-    SequansController.writeCommand("AT");
+        // Wait for sign URC
+        while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {
+        }
 
-    char connect_response[MQTT_DEFAULT_RESPONSE_LENGTH];
-    if (SequansController.readResponse(connect_response,
-                                       sizeof(connect_response)) != OK) {
+        // Write AT to get an "OK" response which we will search for
+        SequansController.writeCommand("AT");
 
-        Serial5.printf("Response failed: %s\r\n", connect_response);
-        return false;
+        char sign_request[HCESIGN_REQUEST_LENGTH];
+        if (SequansController.readResponse(sign_request,
+                                           sizeof(sign_request)) != OK) {
+
+            return false;
+        }
+
+        // Grab the ctx id
+
+        // +1 for null termination
+        char ctx_id_buffer[HCESIGN_CTX_ID_LENGTH + 1];
+
+        bool got_ctx_id = SequansController.extractValueFromCommandResponse(
+            sign_request, 0, ctx_id_buffer, sizeof(ctx_id_buffer));
+
+        if (!got_ctx_id) {
+            return false;
+        }
+
+        // Grab the digest, which will be 32 bytes, but appear as 64 hex
+        // characters
+        char digest[HCESIGN_DIGEST_LENGTH + 1];
+
+        bool got_digest = SequansController.extractValueFromCommandResponse(
+            sign_request, 3, digest, HCESIGN_DIGEST_LENGTH + 1);
+
+        if (!got_digest) {
+            return false;
+        }
+
+        // Convert digest to 32 bytes
+        uint8_t message_to_sign[HCESIGN_DIGEST_LENGTH / 2];
+        char *position = digest;
+
+        for (uint8_t i = 0; i < sizeof(message_to_sign); i++) {
+            // TODO: This might be a bit expensive
+            sscanf(position, "%2hhx", &message_to_sign[i]);
+            position += 2;
+        }
+
+        // Sign digest with ECC's primary private key
+        ATCA_STATUS result = atcab_sign(0, message_to_sign, digest);
+
+        if (result != ATCA_SUCCESS) {
+            return false;
+        }
+
+        // Now we need to convert the byte array into a hex string in compact
+        // form
+        const char hex_conversion[] = "0123456789abcdef";
+        char command[HCESIGN_LENGTH] = "";
+
+        // +1 for NULL termination
+        char signature[HCESIGN_DIGEST_LENGTH * 2 + 1];
+
+        // Prepare signature by converting to a hex string
+        for (uint8_t i = 0; i < sizeof(digest) - 1; i++) {
+            signature[i * 2] = hex_conversion[(digest[i] >> 4) & 0x0F];
+            signature[i * 2 + 1] = hex_conversion[digest[i] & 0x0F];
+        }
+
+        // NULL terminate
+        signature[HCESIGN_DIGEST_LENGTH * 2] = 0;
+        sprintf(command, HCESIGN, atoi(ctx_id_buffer), signature);
+        SequansController.writeCommand(command);
+
+        if (SequansController.readResponse() != OK) {
+            return false;
+        } else {
+            Serial5.printf("Sent command: %s\r\n", command);
+        }
+
+        atcab_release();
     }
 
-    // +1 for null termination
-    char rc_buffer[MQTT_CONNECTION_RC_LENGTH + 1];
-
-    bool got_rc = SequansController.extractValueFromCommandResponse(
-        connect_response, 1, rc_buffer, sizeof(rc_buffer));
-
-    if (!got_rc) {
-        return false;
-    }
-
-    if (atoi(rc_buffer) != 0) {
-        return false;
-    }
-    */
+    return true;
 }
 
 bool MqttClient::end(void) {
@@ -358,7 +425,7 @@ MqttReceiveNotification MqttClient::readReceiveNotification(void) {
     char *topic = topic_buffer + 1;
     topic[strlen(topic) - 1] = 0;
 
-    char message_length_buffer[MSG_LENGTH_BUFFER_SIZE + 1];
+    char message_length_buffer[MQTT_MSG_LENGTH_BUFFER_SIZE + 1];
 
     bool got_message_length = SequansController.extractValueFromCommandResponse(
         notification_buffer,
