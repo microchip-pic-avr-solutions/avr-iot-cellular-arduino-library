@@ -5,9 +5,8 @@
 //#include <cryptoauthlib.h>
 #include <stdio.h>
 
-//#include "src/ecc/ecc_controller.h"
-//#include "src/lte/http_client.h"
-#include "src/lte/sequans_controller.h"
+//#include "src/http_client.h"
+#include "src/sequans_controller.h"
 
 #define DEL_CHARACTER   127
 #define ENTER_CHARACTER 13
@@ -88,58 +87,6 @@ void testHttp() {
     }
 }
 
-void testEcc() {
-    Serial5.println("---- Testing ECC ----");
-    if (!eccControllerInitialize()) {
-        Serial5.println("ECC controller failed to initialize");
-        return;
-    }
-
-    uint8_t serial_number[ECC_SERIAL_NUMBER_LENGTH];
-
-    if (!eccControllerRetrieveSerialNumber((uint8_t *)serial_number)) {
-        Serial5.println("ECC controller failed to retrieve serial number");
-        return;
-    }
-
-    Serial5.print("Serial number: ");
-    for (size_t i = 0; i < sizeof(serial_number); i++) {
-        Serial5.print(serial_number[i], HEX);
-    }
-    // Should be: 01 23 43 6B DB 97 28 E5 01
-
-    Serial5.println();
-
-    uint8_t public_key[64];
-
-    if (!eccControllerRetrievePublicKey(0, &public_key[0])) {
-        return;
-    }
-
-    Serial5.print("Public key: ");
-    for (size_t i = 0; i < sizeof(public_key); i++) {
-        Serial5.print(public_key[i], HEX);
-    }
-
-    Serial5.println();
-
-    uint8_t message[ECC_SIGN_MESSSAGE_LENGTH];
-    sprintf(message, "Hello sign");
-    uint8_t signature[ECC_SIGN_MESSSAGE_LENGTH];
-
-    if (!eccControllerSignMessage(0, &message[0], &signature[0])) {
-        return;
-    }
-
-    Serial5.print("Signed message: ");
-
-    for (size_t i = 0; i < sizeof(signature); i++) {
-        Serial5.print(signature[i], HEX);
-    }
-
-    Serial5.println();
-}
-
 */
 void debugBridgeUpdate(void) {
     static uint8_t character;
@@ -161,8 +108,6 @@ void debugBridgeUpdate(void) {
             /*
             if (memcmp(input_buffer, "http", 4) == 0) {
                 testHttp();
-            } else if (memcmp(input_buffer, "ecc", 3) == 0) {
-                // testEcc();
             } else if (memcmp(input_buffer, "twi", 3) == 0) {
                 testTwi();
             } else {
