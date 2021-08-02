@@ -1,5 +1,5 @@
-#include "src/lte/lte.h"
-#include "src/lte/mqtt_client.h"
+#include "src/lte.h"
+#include "src/mqtt_client.h"
 #include "test.h"
 
 #include <Arduino.h>
@@ -10,33 +10,19 @@
 #define ERROR_LED      PIN_PG5
 
 MqttClient mqtt_client;
-bool initialized_mqtt_client = false;
 bool should_check_message = false;
+
+void connectedToNetwork(void) { digitalWrite(CELL_LED, LOW); }
+
+void disconnectedFromNetwork(void) { digitalWrite(CELL_LED, HIGH); }
+
+void connectedToBroker(void) { digitalWrite(CONNECTION_LED, LOW); }
+
+void disconnectedFromBroker(void) { digitalWrite(CONNECTION_LED, HIGH); }
 
 void receive(void) {
     should_check_message = true;
-
     digitalWrite(DATA_LED, LOW);
-}
-
-void initializeMqttClient() {
-
-    digitalWrite(ERROR_LED, HIGH);
-
-    if (mqtt_client.begin("iotthing",
-                          "a2o6d3azuiiax4-ats.iot.us-east-2.amazonaws.com",
-                          8883,
-                          true)) {
-        Serial5.println("Connected to MQTT broker");
-
-        mqtt_client.registerReceiveNotificationCallback(receive);
-        mqtt_client.subscribe("sdk/test/Python");
-
-        digitalWrite(CONNECTION_LED, LOW);
-    } else {
-        Serial5.println("Failed to configure and connect MQTT");
-        digitalWrite(ERROR_LED, LOW);
-    }
 }
 
 void publishMessage(const char *topic, const char *message) {
@@ -54,13 +40,7 @@ void publishMessage(const char *topic, const char *message) {
     digitalWrite(DATA_LED, HIGH);
 }
 
-bool should_check_connection = true;
-
-void updateConnectionStatus(void) { should_check_connection = true; }
-
-void setup() {
-    Serial5.begin(115200);
-
+void setupPins(void) {
     // These pins is active low
     pinMode(CELL_LED, OUTPUT);
     pinMode(CONNECTION_LED, OUTPUT);
@@ -71,29 +51,89 @@ void setup() {
     digitalWrite(CONNECTION_LED, HIGH);
     digitalWrite(DATA_LED, HIGH);
     digitalWrite(ERROR_LED, HIGH);
+}
 
-    LTE.begin();
-    LTE.registerConnectionNotificationCallback(updateConnectionStatus);
+void setup() {
+    Serial5.begin(115200);
+    setupPins();
+
+    Lte.onConnectionStatusChange(connectedToNetwork, disconnectedFromNetwork);
+    Lte.begin();
+
+    mqtt_client.onConnectionStatusChange(connectedToBroker,
+                                         disconnectedFromBroker);
+    mqtt_client.onReceive(receive);
+
+    // TODO: this should be called after we are connected
+    if (mqtt_client.begin("avrdb64",
+                          "a2o6d3azuiiax4-ats.iot.us-east-2.amazonaws.com",
+                          8883,
+                          true)) {
+
+        // TODO: This should be issued after connection
+        mqtt_client.subscribe("sdk/test/Python");
+    } else {
+        digitalWrite(ERROR_LED, LOW);
+        Serial5.println("Failed to configure MQTT");
+    }
 
     Serial5.println("---- Finished initializing ----");
+
+    if (Lte.isConnected()) {
+        digitalWrite(CELL_LED, LOW);
+    }
+}
+
+void debugBridgeUpdate(void) {
+    static uint8_t character;
+    static char input_buffer[INPUT_BUFFER_SIZE];
+    static uint8_t input_buffer_index = 0;
+
+    if (Serial5.available() > 0) {
+        character = Serial5.read();
+
+        switch (character) {
+        case DEL_CHARACTER:
+            if (strlen(input_buffer) > 0) {
+                input_buffer[input_buffer_index--] = 0;
+            }
+            break;
+
+        case ENTER_CHARACTER:
+
+            /*
+            if (memcmp(input_buffer, "http", 4) == 0) {
+                testHttp();
+            } else if (memcmp(input_buffer, "twi", 3) == 0) {
+                testTwi();
+            } else {
+            */
+            SequansController.writeCommand(input_buffer);
+            //}
+
+            // Reset buffer
+            memset(input_buffer, 0, sizeof(input_buffer));
+            input_buffer_index = 0;
+
+            break;
+
+        default:
+            input_buffer[input_buffer_index++] = character;
+            break;
+        }
+
+        Serial5.print((char)character);
+    }
+
+    if (SequansController.isRxReady()) {
+        // Send back data from modem to host
+        Serial5.write(SequansController.readByte());
+    }
 }
 
 void loop() {
 
     debugBridgeUpdate();
-
-    if (should_check_connection) {
-        // Pin is active low
-        bool connected = LTE.isConnectedToOperator();
-        digitalWrite(CELL_LED, connected ? LOW : HIGH);
-        should_check_connection = false;
-
-        if (connected && !initialized_mqtt_client) {
-            initializeMqttClient();
-
-            initialized_mqtt_client = true;
-        }
-    }
 
     if (should_check_message) {
 
