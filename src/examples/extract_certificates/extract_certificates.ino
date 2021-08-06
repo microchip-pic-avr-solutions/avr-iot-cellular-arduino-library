@@ -124,7 +124,7 @@ int extractCertificates(void) {
 void setup() {
 
     Serial5.begin(115200);
-    provision();
+    extractCertificates();
 }
 
 void loop() {}

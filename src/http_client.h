@@ -5,6 +5,7 @@
 #ifndef HTTP_CLIENT_H
 #define HTTP_CLIENT_H
 
+#include <Arduino.h>
 #include <stdint.h>
 
 typedef struct {
@@ -12,9 +13,17 @@ typedef struct {
     uint32_t data_size;
 } HttpResponse;
 
-class HttpClient {
+class HttpClientClass {
+
+  private:
+    HttpClientClass(){};
 
   public:
+    static HttpClientClass &instance(void) {
+        static HttpClientClass instance;
+        return instance;
+    }
+
     /**
      * @brief Sets up the HTTP client with a host and port.
      *
@@ -37,12 +46,29 @@ class HttpClient {
                       const uint32_t buffer_size);
 
     /**
+     * @brief Issues a post to the host configured. Will block until operation
+     * is done.
+     *
+     * @param messsage Needs to be a regular c string which is null terminated.
+     *
+     */
+    HttpResponse post(const char *endpoint, const char *messsage);
+
+    /**
      * @brief Issues a put to the host configured. Will block until operation is
      * done.
      */
     HttpResponse put(const char *endpoint,
                      const uint8_t *buffer,
                      const uint32_t buffer_size);
+
+    /**
+     * @brief Issues a put to the host configured. Will block until operation is
+     * done.
+     *
+     * @param messsage Needs to be a regular c string which is null terminated.
+     */
+    HttpResponse put(const char *endpoint, const char *message);
 
     /**
      * @brief Issues a get from the host configured. Will block until operation
@@ -76,6 +102,15 @@ class HttpClient {
      * outside the range allowed.
      */
     int16_t readBody(char *buffer, const uint32_t buffer_size);
+
+    /**
+     * @brief Reads the body of the response after a HTTP call. Will read 128
+     * bytes at a time, so several calls to this method has to be made in order
+     * to read responses greater in size than that.
+     */
+    String readBody(void);
 };
+
+extern HttpClientClass HttpClient;
 
 #endif

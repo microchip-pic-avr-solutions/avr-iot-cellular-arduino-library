@@ -55,7 +55,11 @@ ATCA_STATUS hal_i2c_receive(ATCAIface iface,
     // delay some here. This might be due to two operations happening quickly
     // after each other. Two reads for example.
     // This is really bad though :/
-    atca_delay_ms(100);
+    // atca_delay_ms(100);
+    delay(60);
+
+    // TODO: fix
+    // Serial5.printf("-- Start --\r\nAddress: %x\r\n", word_address);
 
     *rxlength = Wire1.requestFrom(word_address, (size_t)(*rxlength));
 
@@ -70,6 +74,8 @@ ATCA_STATUS hal_i2c_receive(ATCAIface iface,
             i++;
         }
     }
+
+    // Serial5.printf("-- End --\r\n");
 
     return ATCA_SUCCESS;
 }

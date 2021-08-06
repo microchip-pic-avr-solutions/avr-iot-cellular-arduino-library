@@ -47,6 +47,8 @@
 
 #define DEFAULT_RETRIES 5
 
+HttpClientClass HttpClient = HttpClientClass::instance();
+
 /**
  * @brief Waits for the HTTP response (which can't be requested) puts it into a
  * buffer.
@@ -205,9 +207,9 @@ static HttpResponse queryData(const char *endpoint, const uint8_t method) {
     return httpResponse;
 }
 
-bool HttpClient::configure(const char *host,
-                           const uint16_t port,
-                           const bool enable_tls) {
+bool HttpClientClass::configure(const char *host,
+                                const uint16_t port,
+                                const bool enable_tls) {
 
     SequansController.clearReceiveBuffer();
 
@@ -217,31 +219,39 @@ bool HttpClient::configure(const char *host,
     return SequansController.retryCommand(command, DEFAULT_RETRIES);
 }
 
-HttpResponse HttpClient::post(const char *endpoint,
-                              const uint8_t *buffer,
-                              const uint32_t buffer_size) {
+HttpResponse HttpClientClass::post(const char *endpoint,
+                                   const uint8_t *buffer,
+                                   const uint32_t buffer_size) {
     return sendData(endpoint, buffer, buffer_size, HTTP_POST_METHOD);
 }
 
-HttpResponse HttpClient::put(const char *endpoint,
-                             const uint8_t *buffer,
-                             const uint32_t buffer_size) {
+HttpResponse HttpClientClass::post(const char *endpoint, const char *message) {
+    return post(endpoint, message, strlen(message));
+}
+
+HttpResponse HttpClientClass::put(const char *endpoint,
+                                  const uint8_t *buffer,
+                                  const uint32_t buffer_size) {
     return sendData(endpoint, buffer, buffer_size, HTTP_PUT_METHOD);
 }
 
-HttpResponse HttpClient::get(const char *endpoint) {
+HttpResponse HttpClientClass::put(const char *endpoint, const char *message) {
+    return put(endpoint, message, strlen(message));
+}
+
+HttpResponse HttpClientClass::get(const char *endpoint) {
     return queryData(endpoint, HTTP_GET_METHOD);
 }
 
-HttpResponse HttpClient::head(const char *endpoint) {
+HttpResponse HttpClientClass::head(const char *endpoint) {
     return queryData(endpoint, HTTP_HEAD_METHOD);
 }
 
-HttpResponse HttpClient::del(const char *endpoint) {
+HttpResponse HttpClientClass::del(const char *endpoint) {
     return queryData(endpoint, HTTP_DELETE_METHOD);
 }
 
-int16_t HttpClient::readBody(char *buffer, const uint32_t buffer_size) {
+int16_t HttpClientClass::readBody(char *buffer, const uint32_t buffer_size) {
 
     // Safeguard against the limitation in the Sequans AT command parameter
     // for the response receive command.
@@ -286,4 +296,16 @@ int16_t HttpClient::readBody(char *buffer, const uint32_t buffer_size) {
     memset(buffer + response_length - 2, 0, 2);
 
     return response_length - 2;
+}
+
+String HttpClientClass::readBody(void) {
+    // TODO: test
+    char buffer[HTTP_BODY_BUFFER_MIN_SIZE * 2];
+    int16_t bytes_read = readBody(buffer, sizeof(buffer));
+
+    if (bytes_read == -1) {
+        return "";
+    }
+
+    return buffer;
 }

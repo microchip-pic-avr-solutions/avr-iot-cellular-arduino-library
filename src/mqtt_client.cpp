@@ -64,10 +64,10 @@
 
 // Command without any data in it (with parantheses): 22 bytes
 // ctxId: 5 bytes (16 bits, thus 5 characters max)
-// Signature: 64 bytes
+// Signature: 128 bytes
 // Termination: 1 byte
-// Total: 92 bytes
-#define HCESIGN_LENGTH 155
+// Total: 156 bytes
+#define HCESIGN_LENGTH 156
 
 // Just arbitrary, but will fit 'ordinary' responses and their termination
 #define MQTT_DEFAULT_RESPONSE_LENGTH 48
@@ -89,6 +89,9 @@
 #define HCESIGN_REQUEST_LENGTH 128
 #define HCESIGN_DIGEST_LENGTH  64
 #define HCESIGN_CTX_ID_LENGTH  5
+
+// Singleton instance
+MqttClientClass MqttClient = MqttClientClass::instance();
 
 static bool connected_to_broker = false;
 static void (*connected_callback)(void) = NULL;
@@ -125,10 +128,10 @@ static void internalDisconnectCallback(void) {
 
 // TODO: remove all serial prints
 
-bool MqttClient::begin(const char *client_id,
-                       const char *host,
-                       const uint16_t port,
-                       const bool use_tls) {
+bool MqttClientClass::begin(const char *client_id,
+                            const char *host,
+                            const uint16_t port,
+                            const bool use_tls) {
     // We have to make sure we are disconnected first
     SequansController.retryCommand(MQTT_DISCONNECT);
     SequansController.clearReceiveBuffer();
@@ -192,83 +195,104 @@ bool MqttClient::begin(const char *client_id,
 
     if (use_tls) {
 
-        // Wait for sign URC
-        while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {
-        }
+        bool finished_signing = false;
 
-        // Write AT to get an "OK" response which we will search for
-        SequansController.writeCommand("AT");
+        while (!finished_signing) {
 
-        char sign_request[HCESIGN_REQUEST_LENGTH];
-        if (SequansController.readResponse(sign_request,
-                                           sizeof(sign_request)) != OK) {
+            // Wait for sign URC
+            while (SequansController.readByte() !=
+                   URC_IDENTIFIER_START_CHARACTER) {}
 
-            return false;
-        }
+            // Write AT to get an "OK" response which we will search for
+            SequansController.writeCommand("AT");
 
-        // Grab the ctx id
+            char sign_request[HCESIGN_REQUEST_LENGTH];
+            if (SequansController.readResponse(sign_request,
+                                               sizeof(sign_request)) != OK) {
 
-        // +1 for null termination
-        char ctx_id_buffer[HCESIGN_CTX_ID_LENGTH + 1];
+                Serial5.printf("Failed to read response: %s\r\n", sign_request);
+                return false;
+            }
 
-        bool got_ctx_id = SequansController.extractValueFromCommandResponse(
-            sign_request, 0, ctx_id_buffer, sizeof(ctx_id_buffer));
+            Serial5.printf("Got URC: %s\r\n", sign_request);
 
-        if (!got_ctx_id) {
-            return false;
-        }
+            if (memcmp(sign_request, "SQNSMQTT", 8) == 0) {
+                finished_signing = true;
+                sign_request[48] = 0;
+                Serial5.printf("Finished: %s\r\n", sign_request);
+                return false;
+            } else if (memcmp(sign_request, "CEREG", 5) == 0) {
+                continue;
+            }
 
-        // Grab the digest, which will be 32 bytes, but appear as 64 hex
-        // characters
-        char digest[HCESIGN_DIGEST_LENGTH + 1];
+            // Grab the ctx id
 
-        bool got_digest = SequansController.extractValueFromCommandResponse(
-            sign_request, 3, digest, HCESIGN_DIGEST_LENGTH + 1);
+            // +1 for null termination
+            char ctx_id_buffer[HCESIGN_CTX_ID_LENGTH + 1];
 
-        if (!got_digest) {
-            return false;
-        }
+            bool got_ctx_id = SequansController.extractValueFromCommandResponse(
+                sign_request, 0, ctx_id_buffer, sizeof(ctx_id_buffer));
 
-        // Convert digest to 32 bytes
-        uint8_t message_to_sign[HCESIGN_DIGEST_LENGTH / 2];
-        char *position = digest;
+            if (!got_ctx_id) {
+                Serial5.printf("Failed to get ctx: %s\r\n", sign_request);
+                return false;
+            }
 
-        for (uint8_t i = 0; i < sizeof(message_to_sign); i++) {
-            // TODO: This might be a bit expensive
-            sscanf(position, "%2hhx", &message_to_sign[i]);
-            position += 2;
-        }
+            // Grab the digest, which will be 32 bytes, but appear as 64 hex
+            // characters
+            char digest[HCESIGN_DIGEST_LENGTH + 1];
 
-        // Sign digest with ECC's primary private key
-        ATCA_STATUS result = atcab_sign(0, message_to_sign, digest);
+            bool got_digest = SequansController.extractValueFromCommandResponse(
+                sign_request, 3, digest, HCESIGN_DIGEST_LENGTH + 1);
 
-        if (result != ATCA_SUCCESS) {
-            return false;
-        }
+            if (!got_digest) {
+                Serial5.printf("Failed to get digest: %s\r\n", sign_request);
+                return false;
+            }
 
-        // Now we need to convert the byte array into a hex string in compact
-        // form
-        const char hex_conversion[] = "0123456789abcdef";
-        char command[HCESIGN_LENGTH] = "";
+            // Convert digest to 32 bytes
+            uint8_t message_to_sign[HCESIGN_DIGEST_LENGTH / 2];
+            char *position = digest;
 
-        // +1 for NULL termination
-        char signature[HCESIGN_DIGEST_LENGTH * 2 + 1];
+            for (uint8_t i = 0; i < sizeof(message_to_sign); i++) {
+                // TODO: This might be a bit expensive
+                sscanf(position, "%2hhx", &message_to_sign[i]);
+                position += 2;
+            }
 
-        // Prepare signature by converting to a hex string
-        for (uint8_t i = 0; i < sizeof(digest) - 1; i++) {
-            signature[i * 2] = hex_conversion[(digest[i] >> 4) & 0x0F];
-            signature[i * 2 + 1] = hex_conversion[digest[i] & 0x0F];
-        }
+            // Sign digest with ECC's primary private key
+            ATCA_STATUS result = atcab_sign(0, message_to_sign, digest);
 
-        // NULL terminate
-        signature[HCESIGN_DIGEST_LENGTH * 2] = 0;
-        sprintf(command, HCESIGN, atoi(ctx_id_buffer), signature);
-        SequansController.writeCommand(command);
+            if (result != ATCA_SUCCESS) {
+                Serial5.printf("Failed to sign: %x\r\n", result);
+                return false;
+            }
 
-        if (SequansController.readResponse() != OK) {
-            return false;
-        } else {
+            // Now we need to convert the byte array into a hex string in
+            // compact form
+            const char hex_conversion[] = "0123456789abcdef";
+            char command[HCESIGN_LENGTH] = "";
+
+            // +1 for NULL termination
+            char signature[HCESIGN_DIGEST_LENGTH * 2 + 1] = "1";
+
+            // Prepare signature by converting to a hex string
+            for (uint8_t i = 0; i < sizeof(digest) - 1; i++) {
+                signature[i * 2] = hex_conversion[(digest[i] >> 4) & 0x0F];
+                signature[i * 2 + 1] = hex_conversion[digest[i] & 0x0F];
+            }
+
+            // NULL terminate
+            signature[HCESIGN_DIGEST_LENGTH * 2] = 0;
+            uint32_t command_length =
+                sprintf(command, HCESIGN, atoi(ctx_id_buffer), signature);
+            SequansController.writeCommand(command);
             Serial5.printf("Sent command: %s\r\n", command);
+
+            // TODO: temp
+            // SequansController.readResponse(command, sizeof(command));
+            // command[sizeof(command) - 1] = 0;
+            // Serial5.printf("Response: %s\r\n", command);
         }
 
         atcab_release();
@@ -277,7 +301,7 @@ bool MqttClient::begin(const char *client_id,
     return true;
 }
 
-bool MqttClient::end(void) {
+bool MqttClientClass::end(void) {
     SequansController.unregisterCallback(MQTT_ON_MESSAGE_URC);
     SequansController.unregisterCallback(MQTT_ON_CONNECT_URC);
     SequansController.unregisterCallback(MQTT_ON_DISCONNECT_URC);
@@ -287,8 +311,8 @@ bool MqttClient::end(void) {
     return SequansController.retryCommand(MQTT_DISCONNECT);
 }
 
-void MqttClient::onConnectionStatusChange(void (*connected)(void),
-                                          void (*disconnected)(void)) {
+void MqttClientClass::onConnectionStatusChange(void (*connected)(void),
+                                               void (*disconnected)(void)) {
 
     if (connected != NULL) {
         connected_callback = connected;
@@ -299,12 +323,12 @@ void MqttClient::onConnectionStatusChange(void (*connected)(void),
     }
 }
 
-bool MqttClient::isConnected(void) { return connected_to_broker; }
+bool MqttClientClass::isConnected(void) { return connected_to_broker; }
 
-bool MqttClient::publish(const char *topic,
-                         const uint8_t *buffer,
-                         const uint32_t buffer_size,
-                         const MqttQoS quality_of_service) {
+bool MqttClientClass::publish(const char *topic,
+                              const uint8_t *buffer,
+                              const uint32_t buffer_size,
+                              const MqttQoS quality_of_service) {
 
     while (SequansController.isRxReady()) { SequansController.readResponse(); }
 
@@ -352,8 +376,8 @@ bool MqttClient::publish(const char *topic,
     return true;
 }
 
-bool MqttClient::subscribe(const char *topic,
-                           const MqttQoS quality_of_service) {
+bool MqttClientClass::subscribe(const char *topic,
+                                const MqttQoS quality_of_service) {
 
     SequansController.clearReceiveBuffer();
 
@@ -393,13 +417,13 @@ bool MqttClient::subscribe(const char *topic,
     return true;
 }
 
-void MqttClient::onReceive(void (*callback)(void)) {
+void MqttClientClass::onReceive(void (*callback)(void)) {
     if (callback != NULL) {
         SequansController.registerCallback(MQTT_ON_MESSAGE_URC, callback);
     }
 }
 
-MqttReceiveNotification MqttClient::readReceiveNotification(void) {
+MqttReceiveNotification MqttClientClass::readReceiveNotification(void) {
     MqttReceiveNotification receive_notification{String(), 0};
 
     // +1 for NULL termination
@@ -444,9 +468,9 @@ MqttReceiveNotification MqttClient::readReceiveNotification(void) {
     return receive_notification;
 }
 
-bool MqttClient::readMessage(const char *topic,
-                             uint8_t *buffer,
-                             uint16_t buffer_size) {
+bool MqttClientClass::readMessage(const char *topic,
+                                  uint8_t *buffer,
+                                  uint16_t buffer_size) {
     if (buffer_size > MQTT_MAX_BUFFER_SIZE) {
         return false;
     }
@@ -473,4 +497,18 @@ bool MqttClient::readMessage(const char *topic,
         SequansController.readResponse((char *)buffer, buffer_size);
 
     return (result == OK);
+}
+
+String MqttClientClass::readMessage(const char *topic) {
+    // TODO: test. Don't think we can do consecutive reads with this, the
+    // message might just be discarded after the first read of 128 bytes. The
+    // max payload is 1024, but that is a lot of ram to take up.
+
+    // The size is arbitary
+    char buffer[128];
+    if (!readMessage(topic, (uint8_t *)buffer, sizeof(buffer))) {
+        return "";
+    }
+
+    return buffer;
 }

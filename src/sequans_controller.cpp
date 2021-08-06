@@ -24,7 +24,7 @@
 #define SEQUANS_MODULE_BAUD_RATE 115200
 
 // Sizes for the circular buffers
-#define RX_BUFFER_SIZE        128
+#define RX_BUFFER_SIZE        512 // TODO: TEMP, should be 128
 #define TX_BUFFER_SIZE        64
 #define RX_BUFFER_ALMOST_FULL RX_BUFFER_SIZE - 2
 

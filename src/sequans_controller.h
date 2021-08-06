@@ -136,6 +136,8 @@ class SequansControllerClass {
      * @param buffer Destination buffer for value.
      * @param buffer_size Destination buffer size.
      * @param start_character Start character of the data or NULL if none.
+     * Default is URC_IDENTIFIER_END_CHARACTER, which specifies the end of the
+     * identifier and the start of data.
      *
      * @return true if extraction was successful.
      */

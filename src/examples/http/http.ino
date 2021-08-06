@@ -49,12 +49,10 @@ static bool tested_http = false;
 void testHttp() {
 
     SerialInterface.println("---- Testing HTTP ----");
-    HttpResponse response;
 
     // --- HTTP ---
-    HttpClient http_client;
 
-    if (!http_client.configure("www.ptsv2.com", 80, false)) {
+    if (!HttpClient.configure("www.ptsv2.com", 80, false)) {
         SerialInterface.println("Failed to configure http client");
     }
 
@@ -62,7 +60,7 @@ void testHttp() {
 
     const char *payload = "{\"hellothere\": \"generalkenobi\"}";
     response =
-        http_client.post("/t/1rqc3-1624431962/post", payload, strlen(payload));
+        HttpClient.post("/t/1rqc3-1624431962/post", payload, strlen(payload));
 
     SerialInterface.printf("POST - status code: %d, data size: %d\r\n",
                            response.status_code,
@@ -70,26 +68,27 @@ void testHttp() {
 
     // --- HTTPS ---
 
-    if (!http_client.configure("raw.githubusercontent.com", 443, true)) {
+    if (!HttpClient.configure("raw.githubusercontent.com", 443, true)) {
         SerialInterface.println("Failed to configure https client");
     }
 
     SerialInterface.println("Configured to HTTPS");
 
-    response = http_client.head("/SpenceKonde/DxCore/master/.gitignore");
+    response = HttpClient.head("/SpenceKonde/DxCore/master/.gitignore");
 
     SerialInterface.printf("HEAD - status code: %d, data size: %d\r\n",
                            response.status_code,
                            response.data_size);
 
-    response = http_client.get("/SpenceKonde/DxCore/master/.gitignore");
+    response = HttpClient.get("/SpenceKonde/DxCore/master/.gitignore");
     SerialInterface.printf("GET - status code: %d, data size: %d\r\n",
                            response.status_code,
                            response.data_size);
 
     // Add NULL termination
+    // TODO: test string read body method
     char response_buffer[response.data_size + 1] = "";
-    uint16_t bytes_read = http_client.readBody(response_buffer, 64);
+    uint16_t bytes_read = HttpClient.readBody(response_buffer, 64);
 
     if (bytes_read > 0) {
 
@@ -104,7 +103,7 @@ void testHttp() {
 void loop() {
 
     // Polling for LTE network connection is also possible
-    if (LTE.isConnected() && !tested_http) {
+    if (Lte.isConnected() && !tested_http) {
         testHttp();
     }
 

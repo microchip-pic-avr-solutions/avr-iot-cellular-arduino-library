@@ -21,9 +21,17 @@ typedef enum {
     EXACTLY_ONCE
 } MqttQoS;
 
-class MqttClient {
+class MqttClientClass {
+
+  private:
+    MqttClientClass(){};
 
   public:
+    static MqttClientClass &instance(void) {
+        static MqttClientClass instance;
+        return instance;
+    }
+
     /**
      * @brief Will configure and request connection to the host/broker
      * specified. Will disconnect from the current broker (if any) before
@@ -75,6 +83,19 @@ class MqttClient {
                  const MqttQoS quality_of_service = AT_MOST_ONCE);
 
     /**
+     * @brief Publishes the contents of the message to the given topic.
+     *
+     * @param topic Topic to publish to.
+     * @param message Data to publish, has to be null terminated.
+     * @param quality_of_service MQTT protocol QoS.
+     *
+     * @return true if publish was successful.
+     */
+    bool publish(const char *topic,
+                 const char *message,
+                 const MqttQoS quality_of_service = AT_MOST_ONCE);
+
+    /**
      * @brief Subscribes to a given topic.
      *
      * @param topic Topic to subscribe to.
@@ -113,6 +134,15 @@ class MqttClient {
      * the LTE module.
      */
     bool readMessage(const char *topic, uint8_t *buffer, uint16_t buffer_size);
+
+    /**
+     * @brief Reads the message received on the given topic (if any). Will read
+     * 128 bytes at a time, so several calls to this method has to be made in
+     * order to read responses greater in size than that.
+     */
+    String readMessage(const char *topic);
 };
+
+extern MqttClientClass MqttClient;
 
 #endif
