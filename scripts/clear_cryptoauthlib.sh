@@ -1,13 +1,12 @@
 #!/bin/bash
 
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
-CRYPTOAUTH_PATH=$SCRIPTPATH/lib/cryptoauth
+CRYPTOAUTH_PATH=$SCRIPTPATH/../lib/cryptoauth
+SRC_PATH=$SCRIPTPATH/../src
 MCU=avr128db64
 
-pushd $SCRIPTPATH/src > /dev/null
-
+pushd $SRC_PATH 
     rm -rf $MCU calib crypto hal host atcacert
     find . -name "atca_*" -exec rm -f {} +
     find . -name "cryptoauth*" -exec rm -f {} +
-
-popd > /dev/null
+popd 

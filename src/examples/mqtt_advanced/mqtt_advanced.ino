@@ -1,93 +1,75 @@
+/**
+ * This example uses callbacks for LTE and MQTT.
+ */
+
+#include <Arduino.h>
 #include <lte.h>
 #include <mqtt_client.h>
 #include <sequans_controller.h>
 
-#include <Arduino.h>
+#define MQTT_THING_NAME "avrdb64"
+#define MQTT_BROKER     "a2o6d3azuiiax4-ats.iot.us-east-2.amazonaws.com"
+#define MQTT_PORT       8883
+#define MQTT_USE_TLS    true
+
+#define SerialDebug Serial5
 
 #define CELL_LED       PIN_PG2
 #define CONNECTION_LED PIN_PG3
 #define DATA_LED       PIN_PG4
 #define ERROR_LED      PIN_PG5
 
-#define DEL_CHARACTER   127
-#define ENTER_CHARACTER 13
-
-#define INPUT_BUFFER_SIZE    128
-#define RESPONSE_BUFFER_SIZE 256
-
 bool should_check_message = false;
+bool connected_to_broker = false;
 
-void connectedToNetwork(void) { digitalWrite(CELL_LED, LOW); }
+void connectedToNetwork(void);
+void disconnectedFromNetwork(void);
 
-void disconnectedFromNetwork(void) { digitalWrite(CELL_LED, HIGH); }
+void connectedToBroker(void);
+void disconnectedFromBroker(void);
+void receive(void);
 
-void connectedToBroker(void) { digitalWrite(CONNECTION_LED, LOW); }
+void setup() {
+    Serial5.begin(115200);
 
-void disconnectedFromBroker(void) { digitalWrite(CONNECTION_LED, HIGH); }
-
-void receive(void) {
-    should_check_message = true;
-    digitalWrite(DATA_LED, LOW);
-}
-
-void publishMessage(const char *topic, const char *message) {
-
-    digitalWrite(ERROR_LED, HIGH);
-    digitalWrite(DATA_LED, LOW);
-
-    if (MqttClient.publish(topic, (uint8_t *)message, strlen(message))) {
-        Serial5.println("Published to MQTT broker");
-    } else {
-        Serial5.println("Failed to publish");
-        digitalWrite(ERROR_LED, LOW);
-    }
-
-    digitalWrite(DATA_LED, HIGH);
-}
-
-void setupPins(void) {
-    // These pins is active low
     pinMode(CELL_LED, OUTPUT);
     pinMode(CONNECTION_LED, OUTPUT);
     pinMode(DATA_LED, OUTPUT);
     pinMode(ERROR_LED, OUTPUT);
 
+    // These pins is active low
     digitalWrite(CELL_LED, HIGH);
     digitalWrite(CONNECTION_LED, HIGH);
     digitalWrite(DATA_LED, HIGH);
     digitalWrite(ERROR_LED, HIGH);
-}
 
-void setup() {
-    Serial5.begin(115200);
-    setupPins();
-
+    // Register callbacks for network connection
     Lte.onConnectionStatusChange(connectedToNetwork, disconnectedFromNetwork);
     Lte.begin();
+    while (!Lte.isConnected()) { delay(1000); }
 
+    // Register callbacks for broker connection and when we receive a message
     MqttClient.onConnectionStatusChange(connectedToBroker,
                                         disconnectedFromBroker);
     MqttClient.onReceive(receive);
 
-    // TODO: this should be called after we are connected
-    if (MqttClient.begin("avrdb64",
-                         "a2o6d3azuiiax4-ats.iot.us-east-2.amazonaws.com",
-                         8883,
-                         true)) {
+    connected_to_broker =
+        MqttClient.begin(MQTT_THING_NAME, MQTT_BROKER, MQTT_PORT, MQTT_USE_TLS);
 
-        // TODO: This should be issued after connection
-        // MqttClient.subscribe("sdk/test/Python");
+    if (connected_to_broker) {
+        MqttClient.subscribe("frombroker");
     } else {
         digitalWrite(ERROR_LED, LOW);
-        Serial5.println("Failed to configure MQTT");
-    }
-
-    Serial5.println("---- Finished initializing ----");
-
-    if (Lte.isConnected()) {
-        digitalWrite(CELL_LED, LOW);
+        Serial5.println("Failed to connect to broker");
     }
 }
+
+// TODO: temp, just for bridge mode
+#define DEL_CHARACTER   127
+#define ENTER_CHARACTER 13
+
+#define INPUT_BUFFER_SIZE    128
+#define RESPONSE_BUFFER_SIZE 256
 
 void debugBridgeUpdate(void) {
     static uint8_t character;
@@ -136,11 +118,37 @@ void debugBridgeUpdate(void) {
     }
 }
 
+void connectedToNetwork(void) { digitalWrite(CELL_LED, LOW); }
+void disconnectedFromNetwork(void) { digitalWrite(CELL_LED, HIGH); }
+
+void connectedToBroker(void) { digitalWrite(CONNECTION_LED, LOW); }
+void disconnectedFromBroker(void) { digitalWrite(CONNECTION_LED, HIGH); }
+
+void receive(void) {
+    should_check_message = true;
+    digitalWrite(DATA_LED, LOW);
+}
+
+void publishMessage(const char *topic, const char *message) {
+
+    digitalWrite(ERROR_LED, HIGH);
+    digitalWrite(DATA_LED, LOW);
+
+    if (MqttClient.publish(topic, (uint8_t *)message, strlen(message))) {
+        Serial5.println("Published to MQTT broker");
+    } else {
+        Serial5.println("Failed to publish");
+        digitalWrite(ERROR_LED, LOW);
+    }
+
+    digitalWrite(DATA_LED, HIGH);
+}
+
 void loop() {
 
     debugBridgeUpdate();
 
-    if (should_check_message) {
+    if (connected_to_broker && should_check_message) {
 
         MqttReceiveNotification notification =
             MqttClient.readReceiveNotification();
@@ -158,7 +166,7 @@ void loop() {
             Serial5.printf("I got the messsage: %s\r\n", (char *)buffer);
 
             // We publish a message back
-            publishMessage("heartbeat", buffer);
+            publishMessage("tobroker", buffer);
         } else {
             Serial5.printf("Failed to read message\r\n");
         }

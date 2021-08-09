@@ -38,10 +38,6 @@ void setup() {
 
     Lte.onConnectionStatusChange(connectedToNetwork, disconnectedFromNetwork);
     Lte.begin();
-
-    if (Lte.isConnected()) {
-        digitalWrite(CELL_LED, LOW);
-    }
 }
 
 static bool tested_http = false;

@@ -60,6 +60,14 @@ void LteClass::begin(void) {
     SequansController.retryCommand(AT_COMMAND_DISABLE_CREG_URC);
     SequansController.retryCommand(AT_COMMAND_ENABLE_CEREG_URC);
     SequansController.retryCommand(AT_COMMAND_CONNECT);
+
+    // This is convenient when the MCU has been issued a reset, but the lte
+    // modem is alerady connected, which will be the case during development for
+    // example. In that way, the user gets the callback upon start and doesn't
+    // have to check themselves
+    if (isConnected()) {
+        connected_callback();
+    }
 }
 
 void LteClass::end(void) {
