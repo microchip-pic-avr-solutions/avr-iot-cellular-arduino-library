@@ -8,7 +8,8 @@
 #include <string.h>
 
 #define MQTT_CONFIGURE         "AT+SQNSMQTTCFG=0,\"%s\""
-#define MQTT_CONFIGURE_TLS     "AT+SQNSMQTTCFG=0,\"%s\",\"\",\"\",1"
+#define MQTT_CONFIGURE_TLS     "AT+SQNSMQTTCFG=0,\"%s\",\"\",\"\",2"
+#define MQTT_CONFIGURE_TLS_ECC "AT+SQNSMQTTCFG=0,\"%s\",\"\",\"\",1"
 #define MQTT_CONNECT           "AT+SQNSMQTTCONNECT=0,\"%s\",%u"
 #define MQTT_DISCONNECT        "AT+SQNSMQTTDISCONNECT=0"
 #define MQTT_PUBLISH           "AT+SQNSMQTTPUBLISH=0,\"%s\",%u,%u"
@@ -131,7 +132,8 @@ static void internalDisconnectCallback(void) {
 bool MqttClientClass::begin(const char *client_id,
                             const char *host,
                             const uint16_t port,
-                            const bool use_tls) {
+                            const bool use_tls,
+                            const bool use_ecc) {
     // We have to make sure we are disconnected first
     SequansController.retryCommand(MQTT_DISCONNECT);
     SequansController.clearReceiveBuffer();
@@ -141,35 +143,44 @@ bool MqttClientClass::begin(const char *client_id,
     // The sequans modem fails if we specify 0 as TLS, so we just have to have
     // two commands for this
     if (use_tls) {
+
         char command[MQTT_CONFIGURE_TLS_LENGTH] = "";
-        sprintf(command, MQTT_CONFIGURE_TLS, client_id);
+        if (use_ecc) {
+            sprintf(command, MQTT_CONFIGURE_TLS_ECC, client_id);
+        } else {
+            sprintf(command, MQTT_CONFIGURE_TLS, client_id);
+        }
 
         if (!SequansController.retryCommand(command)) {
             return false;
         }
 
-        // ECC controller initialization, only for when we are using TLS of
-        // course
+        if (use_ecc) {
 
-        // Config for the ECC. This needs to be static since cryptolib defines a
-        // pointer to it during the initialization process and stores that for
-        // further operations so we don't want to store it on the stack.
-        static ATCAIfaceCfg cfg_atecc608b_i2c = {
-            ATCA_I2C_IFACE,
-            ATECC608B,
-            {
-                0x58,  // 7 bit address of ECC
-                2,     // Bus number
-                100000 // Baud rate
-            },
-            1560,
-            20,
-            NULL};
+            // ECC controller initialization, only for when we are using TLS of
+            // course
 
-        ATCA_STATUS result = atcab_init(&cfg_atecc608b_i2c);
+            // Config for the ECC. This needs to be static since cryptolib
+            // defines a pointer to it during the initialization process and
+            // stores that for further operations so we don't want to store it
+            // on the stack.
+            static ATCAIfaceCfg cfg_atecc608b_i2c = {
+                ATCA_I2C_IFACE,
+                ATECC608B,
+                {
+                    0x58,  // 7 bit address of ECC
+                    2,     // Bus number
+                    100000 // Baud rate
+                },
+                1560,
+                20,
+                NULL};
 
-        if (result != ATCA_SUCCESS) {
-            return false;
+            ATCA_STATUS result = atcab_init(&cfg_atecc608b_i2c);
+
+            if (result != ATCA_SUCCESS) {
+                return false;
+            }
         }
     } else {
         char command[MQTT_CONFIGURE_LENGTH] = "";
@@ -195,10 +206,7 @@ bool MqttClientClass::begin(const char *client_id,
 
     if (use_tls) {
 
-        bool finished_signing = false;
-
-        while (!finished_signing) {
-
+        if (use_ecc) {
             // Wait for sign URC
             while (SequansController.readByte() !=
                    URC_IDENTIFIER_START_CHARACTER) {}
@@ -216,17 +224,12 @@ bool MqttClientClass::begin(const char *client_id,
 
             Serial5.printf("Got URC: %s\r\n", sign_request);
 
-            if (memcmp(sign_request, "SQNSMQTT", 8) == 0) {
-                finished_signing = true;
-                sign_request[48] = 0;
-                Serial5.printf("Finished: %s\r\n", sign_request);
-                return false;
-            } else if (memcmp(sign_request, "CEREG", 5) == 0) {
-                continue;
+            if (memcmp(sign_request, "SQNSMQTTON", 10) == 0) {
+                Serial5.println("MQTT on connnect, returninig");
+                return true;
             }
 
             // Grab the ctx id
-
             // +1 for null termination
             char ctx_id_buffer[HCESIGN_CTX_ID_LENGTH + 1];
 
@@ -288,14 +291,37 @@ bool MqttClientClass::begin(const char *client_id,
                 sprintf(command, HCESIGN, atoi(ctx_id_buffer), signature);
             SequansController.writeCommand(command);
             Serial5.printf("Sent command: %s\r\n", command);
-
-            // TODO: temp
-            // SequansController.readResponse(command, sizeof(command));
-            // command[sizeof(command) - 1] = 0;
-            // Serial5.printf("Response: %s\r\n", command);
         }
 
-        atcab_release();
+        // Wait for MQTT connection URC
+        while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {
+        }
+
+        // Write AT to get an "OK" response which we will search for
+        SequansController.writeCommand("AT");
+
+        char connection_response[MQTT_DEFAULT_RESPONSE_LENGTH];
+        if (SequansController.readResponse(connection_response,
+                                           sizeof(connection_response)) != OK) {
+
+            Serial5.printf("Failed to read connection response: %s\r\n",
+                           connection_response);
+            return false;
+        }
+
+        // +1 for null termination
+        char rc_buffer[MQTT_CONNECTION_RC_LENGTH + 1];
+
+        bool got_rc = SequansController.extractValueFromCommandResponse(
+            connection_response, 1, rc_buffer, sizeof(rc_buffer));
+
+        if (!got_rc) {
+            return false;
+        }
+
+        if (atoi(rc_buffer) != 0) {
+            return false;
+        }
     }
 
     return true;
@@ -347,8 +373,9 @@ bool MqttClientClass::publish(const char *topic,
     }
 
     // Wait until we receive the URC
-    while (!SequansController.isRxReady()) {}
+    while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {}
 
+    // We do this as a trick to get an termination sequence after the URC
     SequansController.writeCommand("AT");
 
     char publish_response[MQTT_DEFAULT_RESPONSE_LENGTH];
@@ -376,6 +403,13 @@ bool MqttClientClass::publish(const char *topic,
     return true;
 }
 
+bool MqttClientClass::publish(const char *topic,
+                              const char *message,
+                              const MqttQoS quality_of_service) {
+
+    publish(topic, (uint8_t *)message, strlen(message), quality_of_service);
+}
+
 bool MqttClientClass::subscribe(const char *topic,
                                 const MqttQoS quality_of_service) {
 
@@ -390,8 +424,9 @@ bool MqttClientClass::subscribe(const char *topic,
     }
 
     // Now we wait for the URC
-    while (!SequansController.isRxReady()) {}
+    while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {}
 
+    // We do this as a trick to get an termination sequence after the URC
     SequansController.writeCommand("AT");
 
     char subscribe_response[MQTT_DEFAULT_RESPONSE_LENGTH];

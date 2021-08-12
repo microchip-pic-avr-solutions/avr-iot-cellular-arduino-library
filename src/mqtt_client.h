@@ -41,13 +41,18 @@ class MqttClientClass {
      * @param host Host/broker to attempt to connect to.
      * @param port Port for communication.
      * @param use_tls Whether to use TLS in the communication.
+     * @param use_ecc Whether to use the ECC for signing messages. If not used,
+     * the private key has to be stored on the LTE modem and the security
+     * profile has to be be set up to not use external hardware cryptographic
+     * engine.
      *
      * @return true if configuration was succesful.
      */
     bool begin(const char *client_id,
                const char *host,
                const uint16_t port,
-               const bool use_tls);
+               const bool use_tls,
+               const bool use_ecc = true);
 
     /**
      * @brief Disconnects from the broker.
