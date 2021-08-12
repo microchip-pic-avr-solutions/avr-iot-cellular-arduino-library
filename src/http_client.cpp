@@ -6,9 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-// We only use profile 0 to keep things simple we also stick with spId 2
+// We only use profile 0 to keep things simple we also stick with spId 3
 // which we dedicate to HTTPS
-#define HTTP_CONFIGURE "AT+SQNHTTPCFG=0,\"%s\",%u,0,\"\",\"\",%u,120,1,2"
+#define HTTP_CONFIGURE "AT+SQNHTTPCFG=0,\"%s\",%u,0,\"\",\"\",%u,120,1,3"
 
 // Command without any data in it (with parantheses): 36 bytes
 // Max length of doman name: 127 bytes
