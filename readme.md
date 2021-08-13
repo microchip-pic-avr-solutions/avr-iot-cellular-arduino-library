@@ -1,5 +1,5 @@
-# Not internal things
-
+# Public things
+ 
 ## Setup (not finished yet, but this could be the user experience once everything we need is merged into DxCore and provisioning is done).
 
 1. Provision your board against your cloud provider **todo: need more details here**
@@ -10,38 +10,24 @@
 
 The library can be used both in a polling fashion and an interrupt/callback based way when it comes to LTE connection and MQTT.
 
-### Connecting to Amazon Web Services (AWS), Microsoft Azure or Google Cloud
-
-Have a look at the example [mqtt_polling.ino](src/examples/mqtt_polling/mqtt_polling.ino) and [mqtt_interrupt.ino](src/examples/mqtt_interrupt/mqtt_interrupt.ino) which is a more advanced example with interrupts/callbacks and a state machine.
-
-### Using HTTP(S)
-
-Have a look at the example [http.ino](src/examples/http/http.ino).
-
+Have a look at the examples [mqtt_polling.ino](src/examples/mqtt_polling/mqtt_polling.ino), [mqtt_interrupt.ino](src/examples/mqtt_interrupt/mqtt_interrupt.ino) and [http.ino](src/examples/http/http.ino).
 
 
 # Internal to Microchip (should probably not be included in a github readme)
 
 ## Setup required for development of the library
 
-Firstly, grab [DxCore](https://github.com/SpenceKonde/DxCore/blob/master/Installation.md).
-
-Thereafter, one has to clone this repo to one's Arduino library [folder](https://www.arduino.cc/en/hacking/libraries). **Remember to use the --recursive flag during clone, as cryptoauthlib is a submodule**
-
-For cryptoauthlib, we need build the archive, copy it and the header files to the `src` folder. This is done by calling the `./scripts/inject_cryptoauthlib.sh` script. The `./scripts/clear_cryptoauthlib.sh` removes all the cryptoauthlib related files from the source directory. This is a somewhat awkward setup, but we do this because of three things:
-
-1. Arduino doesn't allow us to specify include paths from the library (it's fixed at the source folder), so we have to 'inject' the headers from cryptoauthlib in the source folder and not some sub folder.
-2. Compile time is reduced significantly by using an archive for cryptoauthlib. There are a lot of source files in the cryptoauthlib, and having them be compiled each time the user uploads the sketch will slow down development for the users (especially in the Arduino IDE on Windows for some reason, compiling through arduino-cli within wsl was a lot quicker).
-3. Easier to use for the user. In this way, the library can just be downloaded and used. We only need to make sure that we do the 'injecting' before we create a new release.
-
-The scripts have dependencies on bash, cmake and make. So those need to be installed.
-
-The board needs to be provisioned, which there are some details about below in the security profile and certificates section.
-
-After that, one can run one of the examples in `src/examples`. Open one of them up in the Arduino IDE, modify your setup from the `tools` menu to set the board, chip and port and upload the sketch. If it complains about TWI1, look below.
+1. Firstly, grab [DxCore](https://github.com/SpenceKonde/DxCore/blob/master/Installation.md).
+2. Clone this repo to one's Arduino library [folder](https://www.arduino.cc/en/hacking/libraries) (Usually `Documents\Arduino\libraries` on Windows): `git clone --recursive https://bitbucket.microchip.com/scm/mcu8mass/avr-iot-cellular-arduino-firmware.git` 
+3. Build cryptoauthlib archive and place headers in `src` folder: `./scripts/inject_cryptoauthlib.sh` (The `./scripts/clear_cryptoauthlib.sh` removes all the cryptoauthlib related files from the source directory). This is a somewhat awkward setup, but we do this because of three things:
+    - Arduino doesn't allow us to specify include paths from the library (it's fixed at the source folder), so we have to 'inject' the headers from cryptoauthlib in the source folder and not some sub folder.
+    - Compile time is reduced significantly by using an archive for cryptoauthlib. There are a lot of source files in the cryptoauthlib, and having them be compiled each time the user uploads the sketch will slow down development for the users (especially in the Arduino IDE on Windows for some reason, compiling through arduino-cli within wsl was a lot quicker).
+    - Easier to use for the user. In this way, the library can just be downloaded and used. We only need to make sure that we do the 'injecting' before we create a new release.
+4. Provision your board **todo more here**. The board needs to be provisioned, which there are some details about below in the security profile and certificates section.
+5. Open up one of the examples in `src/examples` in the Arduino IDE. Modify your setup from the `tools` menu to set the board, chip and port and upload the sketch. If it complains about TWI1, look below.
 
 
-### Things which need to be merged into DxCore
+## Things which need to be merged into DxCore
 
 - This might have changed now, but currently there are no TWI1 support in DxCore. This is begin worked on in one of the issues and should be patched in soon. For making this to work at the moment you need to copy the contents of the patch in this [issue](https://github.com/SpenceKonde/DxCore/issues/54#issuecomment-860186363) by MX682X. Copy his source files to `<place where DxCore is located>/DxCore/hardware/megaavr/x.x.x/libraries/Wire/src`.
 - Static linking support, hopefully this will be merged when this goes into someone other's hands. The PR is [here](https://github.com/SpenceKonde/DxCore/pull/128). If it is not yet upstream, you need to replace the platform.txt in that PR with the one in DxCore's root for cryptoauthlib to link correctly.
@@ -92,4 +78,3 @@ For HTTPS we just use the bundled CA certificate(s) stored in the Sequans module
 - All the todos in code
 - Test the examples
 - Test all the functions
-- Test http aginast httpbin.org?
