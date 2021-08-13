@@ -1,6 +1,6 @@
 /**
  * @brief Interface for sending AT commands to and receiveing responses from the
- *        Sequans GM02S module.
+ *        Sequans GM02S module. Singleton.
  */
 
 #ifndef SEQUANS_CONTROLLER_H
@@ -13,7 +13,8 @@
 // Is public here for users of the interface
 #define URC_DATA_BUFFER_SIZE 164
 
-#define DATA_START_CHARACTER ':'
+#define URC_IDENTIFIER_START_CHARACTER '+'
+#define URC_IDENTIFIER_END_CHARACTER   ':'
 
 typedef enum {
     OK,
@@ -25,7 +26,15 @@ typedef enum {
 
 class SequansControllerClass {
 
+  private:
+    SequansControllerClass(){};
+
   public:
+    static SequansControllerClass &instance(void) {
+        static SequansControllerClass instance;
+        return instance;
+    }
+
     /**
      * @brief Sets up the pins for TX, RX, RTS and CTS of the serial interface
      * towards the LTE module. Will also issue a RESET for the LTE module.
@@ -71,12 +80,20 @@ class SequansControllerClass {
     bool writeCommand(const char *command);
 
     /**
+     * @brief Issues a write of the given command n times.
+     *
+     * @return true if an OK response was returned for the written command.
+     */
+    bool retryCommand(const char *command, const uint8_t retries = 5);
+
+    /**
      * @return -1 if failed to read or read value if else.
      */
     int16_t readByte(void);
 
     /**
-     * @brief Reads a response after e.g. an AT command.
+     * @brief Reads a response after e.g. an AT command, will try to read until
+     * an OK or ERROR (depending on the buffer size).
      *
      * @note This function requires that the modem is in ATV1 mode. Which is the
      * default mode.
@@ -98,23 +115,17 @@ class SequansControllerClass {
     ResponseResult readResponse(char *out_buffer, uint16_t buffer_size);
 
     /**
-     * @brief Will read the response to flush out the receive buffer, but not
-     * place the read bytes anywhere. Returns whether an OK or ERROR was found
-     * in the response.
-     *
-     * This can be used where the response of a command is of interest, but
-     * where thebuffer has to be cleared for the next time a command is given.
-     * This can also be used to check if the result from a command was a "OK" or
-     * "ERROR" without placing the actual result anywhere. Will read the receive
-     * buffer until an "OK\r\n" or "ERROR\r\n" is found, which is the
-     * termination sequence for the LTE modem in ATV1 mode (or if amount of
-     * retries is passed).
-     *
-     * @return - OK if termination was found to be "OK".
-     *         - ERROR if termination was found to be "ERROR".
-     *         - TIMEOUT if we passed the retry amount.
+     * @brief Reads the response without placing the content of the read
+     * anywhere. Will return the same response as from readResponse(char
+     * *out_buffer, uint16_t buffer_size).
      */
-    ResponseResult flushResponse(void);
+    ResponseResult readResponse(void);
+
+    /**
+     * @brief Will clear the receive buffer, will just set the ring buffer tail
+     * and head indices to the same position, not issue any further reads.
+     */
+    void clearReceiveBuffer(void);
 
     /**
      * @brief Searches for a value at one index in the response, which has a
@@ -125,6 +136,8 @@ class SequansControllerClass {
      * @param buffer Destination buffer for value.
      * @param buffer_size Destination buffer size.
      * @param start_character Start character of the data or NULL if none.
+     * Default is URC_IDENTIFIER_END_CHARACTER, which specifies the end of the
+     * identifier and the start of data.
      *
      * @return true if extraction was successful.
      */
@@ -133,7 +146,7 @@ class SequansControllerClass {
         const uint8_t index,
         char *buffer,
         const size_t buffer_size,
-        const char start_character = DATA_START_CHARACTER);
+        const char start_character = URC_IDENTIFIER_END_CHARACTER);
 
     /**
      * @brief Registers for callbacks when an URC with the given identifier is
