@@ -24,7 +24,7 @@
 #define SEQUANS_MODULE_BAUD_RATE 115200
 
 // Sizes for the circular buffers
-#define RX_BUFFER_SIZE        512 // TODO: TEMP, should be 128
+#define RX_BUFFER_SIZE        128
 #define TX_BUFFER_SIZE        64
 #define RX_BUFFER_ALMOST_FULL RX_BUFFER_SIZE - 2
 
@@ -86,7 +86,7 @@ void (*urc_current_callback)(void);
 static uint8_t number_of_retries = 5;
 static double sleep_between_retries_ms = 20;
 
-// Defined for use of rest of library
+// Singleton. Defined for use of rest of library
 SequansControllerClass SequansController = SequansControllerClass::instance();
 
 /** @brief Flow control update for the UART interface with the LTE modules
@@ -465,13 +465,10 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     const size_t buffer_size,
     const char start_character) {
 
-    // TODO: try to reduce this
-
     // Using strtok further down in this function would modify the original
     // string, so we create a copy to the end index + 1 (because of
     // NULL termination).
-    const size_t response_size = strlen(response) + 1;
-    char response_copy[response_size];
+    char response_copy[strlen(response) + 1];
     strcpy(response_copy, response);
 
     char *data;
@@ -507,7 +504,8 @@ bool SequansControllerClass::extractValueFromCommandResponse(
 
     char *first_carriage_return = strchr(value, '\r');
 
-    // If found, set termination to the carriage return
+    // If found, set termination to the carriage return. If not, leave the
+    // string be as it is
     if (value != NULL) {
         *first_carriage_return = 0;
     }

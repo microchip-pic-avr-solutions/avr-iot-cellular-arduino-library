@@ -1,6 +1,6 @@
 /**
  * @brief Interface for sending AT commands to and receiveing responses from the
- *        Sequans GM02S module.
+ *        Sequans GM02S module. Singleton.
  */
 
 #ifndef SEQUANS_CONTROLLER_H

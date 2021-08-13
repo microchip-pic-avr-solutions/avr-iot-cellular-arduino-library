@@ -298,9 +298,8 @@ int16_t HttpClientClass::readBody(char *buffer, const uint32_t buffer_size) {
     return response_length - 2;
 }
 
-String HttpClientClass::readBody(void) {
-    // TODO: test
-    char buffer[HTTP_BODY_BUFFER_MIN_SIZE * 2];
+String HttpClientClass::readBody(const uint32_t size) {
+    char buffer[size];
     int16_t bytes_read = readBody(buffer, sizeof(buffer));
 
     if (bytes_read == -1) {

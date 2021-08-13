@@ -8,15 +8,15 @@
 
 ## Using the library
 
-The library can be used both in a polling fashion and an interrupt/callback based way. There are examples of both for MQTT and HTTP(S).
+The library can be used both in a polling fashion and an interrupt/callback based way when it comes to LTE connection and MQTT.
 
 ### Connecting to Amazon Web Services (AWS), Microsoft Azure or Google Cloud
 
-Have a look at the example [mqtt_polling.ino](src/examples/mqtt_polling/mqtt_polling.ino) and [mqtt_interrupt.ino](src/examples/mqtt_interrupt/mqtt_interrupt.ino).
+Have a look at the example [mqtt_polling.ino](src/examples/mqtt_polling/mqtt_polling.ino) and [mqtt_interrupt.ino](src/examples/mqtt_interrupt/mqtt_interrupt.ino) which is a more advanced example with interrupts/callbacks and a state machine.
 
 ### Using HTTP(S)
 
-Have a look at the example [http_polling.ino](src/examples/http_polling/http_polling.ino) and [http_interrupt.ino](src/examples/http_interrupt/http_interrupt.ino)
+Have a look at the example [http.ino](src/examples/http/http.ino).
 
 
 
@@ -61,14 +61,14 @@ There is example code for this under the example folder, which will both the dev
 
 3. Store CA certificate for the MQTT broker on the Sequans module in slot 19 (arbitrary, but this is what the library uses). This can be done with the `AT+SQNSNVW="certificate",19,<certificate length><CR><LF><certificate data>` command.
 
-4. Enable this configuration: `AT+SQNSPCFG=1,2,"0xC02B",5,19,0,0,"","",1`. Have a look at Seqans' AT command reference for more details around this command. 
+4. Enable this configuration: `AT+SQNSPCFG=1,2,"0xC02B",1,19,0,0,"","",1`. Have a look at Seqans' AT command reference for more details around this command. 
 
-5. Optional: If we want to use MQTT without the ECC we can enable a separate security profile at place 2: `AT+SQNSPCFG=2,2,"0xC02F",5,18,5,5,"","",0`, but then certificates has to be loaded into the sequans modem for this. Note that we use aes here. This is regular certificates which are generated in the AWS console when onboarding a device there. Also note that we use place 5 for certificate and private key and 18 for CA.
+5. Optional: If we want to use MQTT without the ECC we can enable a separate security profile at place 2: `AT+SQNSPCFG=2,2,"0xC02F",1,18,5,5,"","",0`, but then certificates has to be loaded into the sequans modem for this. Note that we use aes here. This is regular certificates which are generated in the AWS console when onboarding a device there as well as its root certificate which is downloaded when one runs the connect package (gets downloaded from AWS). Also note that we use place 5 for certificate and private key and 18 for CA. Remember to check the policy for which thingname is allowed and such.
 
 
 ### HTTPS 
 
-For HTTPS we just use the bundled CA certificate(s) stored in the Sequans module. To make the security profile, issue the following: `AT+SQNSPCFG=3,,,5,2`. We utilise security profile ID 2 for HTTPS, since we reserve 1 to MQTT. We also use the CA at location 2, which is preloaded digicert certificate which comes with Sequans module. **todo: should we use this or another CA for http?**
+For HTTPS we just use the bundled CA certificate(s) stored in the Sequans module. To make the security profile, issue the following: `AT+SQNSPCFG=3,2,"",1,1`. We utilise security profile ID 3 for HTTPS, since we reserve 1 and 2 to MQTT. We also use the CA at location 1, which is preloaded Verisign certificate which comes with the modem. 
 
 
 
@@ -81,15 +81,15 @@ For HTTPS we just use the bundled CA certificate(s) stored in the Sequans module
   time, it just halts. Need the delay for now.
 
 
-## HTTPS
-- Some hostnames still doesn't work... Might be something with CA
-
-
 ## MQTT
-- Ability to not use ATECC? -> Store private key on Sequans module 
+
+## General
+- Write table of certificates, keys and security profiles
+- Write about code structure, singletons because of Arduino and such
 
 ## Code
 
 - All the todos in code
 - Test the examples
+- Test all the functions
 - Test http aginast httpbin.org?

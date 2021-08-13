@@ -104,11 +104,14 @@ class HttpClientClass {
     int16_t readBody(char *buffer, const uint32_t buffer_size);
 
     /**
-     * @brief Reads the body of the response after a HTTP call. Will read 128
-     * bytes at a time, so several calls to this method has to be made in order
-     * to read responses greater in size than that.
+     * @brief Reads the body of the response after a HTTP call. Will read @param
+     * size amount of bytes at a time, so several calls to this method has to be
+     * made in order to read responses greater in size than that, or the size
+     * has to be increased.
+     *
+     * @param size How many bytes to read at a time.
      */
-    String readBody(void);
+    String readBody(const uint32_t size = 256);
 };
 
 extern HttpClientClass HttpClient;
