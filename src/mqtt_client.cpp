@@ -127,8 +127,6 @@ static void internalDisconnectCallback(void) {
     }
 }
 
-// TODO: remove all serial prints
-
 bool MqttClientClass::begin(const char *client_id,
                             const char *host,
                             const uint16_t port,
@@ -200,7 +198,6 @@ bool MqttClientClass::begin(const char *client_id,
     char command[MQTT_CONNECT_LENGTH] = "";
     sprintf(command, MQTT_CONNECT, host, port);
     if (!SequansController.retryCommand(command)) {
-        Serial5.println("Failed set request connection\r\n");
         return false;
     }
 
@@ -217,17 +214,12 @@ bool MqttClientClass::begin(const char *client_id,
             char sign_request[HCESIGN_REQUEST_LENGTH];
             if (SequansController.readResponse(sign_request,
                                                sizeof(sign_request)) != OK) {
-
-                Serial5.printf("Failed to read response: %s\r\n", sign_request);
                 return false;
             }
 
+#ifdef DEBUG
             Serial5.printf("Got URC: %s\r\n", sign_request);
-
-            if (memcmp(sign_request, "SQNSMQTTON", 10) == 0) {
-                Serial5.println("MQTT on connnect, returninig");
-                return true;
-            }
+#endif
 
             // Grab the ctx id
             // +1 for null termination
@@ -237,7 +229,6 @@ bool MqttClientClass::begin(const char *client_id,
                 sign_request, 0, ctx_id_buffer, sizeof(ctx_id_buffer));
 
             if (!got_ctx_id) {
-                Serial5.printf("Failed to get ctx: %s\r\n", sign_request);
                 return false;
             }
 
@@ -249,7 +240,6 @@ bool MqttClientClass::begin(const char *client_id,
                 sign_request, 3, digest, HCESIGN_DIGEST_LENGTH + 1);
 
             if (!got_digest) {
-                Serial5.printf("Failed to get digest: %s\r\n", sign_request);
                 return false;
             }
 
@@ -258,7 +248,6 @@ bool MqttClientClass::begin(const char *client_id,
             char *position = digest;
 
             for (uint8_t i = 0; i < sizeof(message_to_sign); i++) {
-                // TODO: This might be a bit expensive
                 sscanf(position, "%2hhx", &message_to_sign[i]);
                 position += 2;
             }
@@ -267,7 +256,6 @@ bool MqttClientClass::begin(const char *client_id,
             ATCA_STATUS result = atcab_sign(0, message_to_sign, digest);
 
             if (result != ATCA_SUCCESS) {
-                Serial5.printf("Failed to sign: %x\r\n", result);
                 return false;
             }
 
@@ -290,7 +278,9 @@ bool MqttClientClass::begin(const char *client_id,
             uint32_t command_length =
                 sprintf(command, HCESIGN, atoi(ctx_id_buffer), signature);
             SequansController.writeCommand(command);
+#ifdef DEBUG
             Serial5.printf("Sent command: %s\r\n", command);
+#endif
         }
 
         // Wait for MQTT connection URC
@@ -303,9 +293,6 @@ bool MqttClientClass::begin(const char *client_id,
         char connection_response[MQTT_DEFAULT_RESPONSE_LENGTH];
         if (SequansController.readResponse(connection_response,
                                            sizeof(connection_response)) != OK) {
-
-            Serial5.printf("Failed to read connection response: %s\r\n",
-                           connection_response);
             return false;
         }
 
@@ -366,13 +353,14 @@ bool MqttClientClass::publish(const char *topic,
     sprintf(command, MQTT_PUBLISH, topic, quality_of_service, buffer_size);
     SequansController.writeCommand(command);
 
-    // Now we deliver the payload
+    // Wait for start character for delivering payload
+    while (SequansController.readByte() != '>') {}
     SequansController.writeBytes(buffer, buffer_size);
-    if (SequansController.readResponse() != OK) {
-        return false;
-    }
 
-    // Wait until we receive the URC
+    // Wait until we receive the first URC which we discard
+    while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {}
+
+    // Wait until we receive the second URC which includes the status code
     while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {}
 
     // We do this as a trick to get an termination sequence after the URC
@@ -383,6 +371,9 @@ bool MqttClientClass::publish(const char *topic,
         publish_response, sizeof(publish_response));
 
     if (result != OK) {
+#ifdef DEBUG
+        SerialDebug.println("Failed to get publish result");
+#endif
         return false;
     }
 
@@ -390,13 +381,19 @@ bool MqttClientClass::publish(const char *topic,
     char rc_buffer[MQTT_CONNECTION_RC_LENGTH + 1];
 
     bool got_rc = SequansController.extractValueFromCommandResponse(
-        publish_response, 0, rc_buffer, sizeof(rc_buffer));
+        publish_response, 2, rc_buffer, sizeof(rc_buffer));
 
     if (!got_rc) {
+#ifdef DEBUG
+        SerialDebug.printf("Failed to get status code: %s \r\n", rc_buffer);
+#endif
         return false;
     }
 
     if (atoi(rc_buffer) != 0) {
+#ifdef DEBUG
+        SerialDebug.printf("Status code (rc) != 0: %d\r\n", atoi(rc_buffer));
+#endif
         return false;
     }
 
@@ -407,7 +404,8 @@ bool MqttClientClass::publish(const char *topic,
                               const char *message,
                               const MqttQoS quality_of_service) {
 
-    publish(topic, (uint8_t *)message, strlen(message), quality_of_service);
+    return publish(
+        topic, (uint8_t *)message, strlen(message), quality_of_service);
 }
 
 bool MqttClientClass::subscribe(const char *topic,
@@ -534,13 +532,9 @@ bool MqttClientClass::readMessage(const char *topic,
     return (result == OK);
 }
 
-String MqttClientClass::readMessage(const char *topic) {
-    // TODO: test. Don't think we can do consecutive reads with this, the
-    // message might just be discarded after the first read of 128 bytes. The
-    // max payload is 1024, but that is a lot of ram to take up.
-
-    // The size is arbitary
-    char buffer[128];
+String MqttClientClass::readMessage(const char *topic, const uint16_t size) {
+    // Add bytes for termination of AT command when reading
+    char buffer[size + 10];
     if (!readMessage(topic, (uint8_t *)buffer, sizeof(buffer))) {
         return "";
     }

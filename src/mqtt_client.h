@@ -1,5 +1,5 @@
 /**
- * @brief MQTT client for connecting to e.g AWS.
+ * @brief Singleton MQTT client for connecting to e.g AWS.
  */
 
 #ifndef MQTT_CLIENT_H
@@ -141,11 +141,11 @@ class MqttClientClass {
     bool readMessage(const char *topic, uint8_t *buffer, uint16_t buffer_size);
 
     /**
-     * @brief Reads the message received on the given topic (if any). Will read
-     * 128 bytes at a time, so several calls to this method has to be made in
-     * order to read responses greater in size than that.
+     * @brief Reads the message received on the given topic (if any).
+     *
+     * @param size Size of buffer. Max is 1024.
      */
-    String readMessage(const char *topic);
+    String readMessage(const char *topic, const uint16_t size = 256);
 };
 
 extern MqttClientClass MqttClient;
