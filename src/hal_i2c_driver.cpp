@@ -57,6 +57,8 @@ ATCA_STATUS hal_i2c_receive(ATCAIface iface,
     // This is really bad though :/
     atca_delay_ms(100);
 
+    // Serial5.printf("-- Start --\r\nAddress: %x\r\n", word_address);
+
     *rxlength = Wire1.requestFrom(word_address, (size_t)(*rxlength));
 
     int value;
@@ -70,6 +72,8 @@ ATCA_STATUS hal_i2c_receive(ATCAIface iface,
             i++;
         }
     }
+
+    // Serial5.printf("-- End --\r\n");
 
     return ATCA_SUCCESS;
 }
