@@ -1,5 +1,5 @@
 /**
- * This example uses callbacks for LTE and MQTT.
+ * This example uses callbacks/interrupts for LTE and MQTT.
  */
 
 #include <Arduino.h>
@@ -7,7 +7,8 @@
 #include <mqtt_client.h>
 #include <sequans_controller.h>
 
-#define MQTT_THING_NAME "cccf626c3be836af9f72fb534b42b3ea4cc6e1dd"
+//#define MQTT_THING_NAME "cccf626c3be836af9f72fb534b42b3ea4cc6e1dd"
+#define MQTT_THING_NAME "basicPubSub"
 #define MQTT_BROKER     "a1gqt8sttiign3-ats.iot.us-east-2.amazonaws.com"
 #define MQTT_PORT       8883
 #define MQTT_USE_TLS    true
@@ -67,16 +68,18 @@ void loop() {
             state = CONNECTED_TO_NETWORK;
             digitalWrite(CELL_LED, LOW);
 
-            // Attempt connection to MQTT broker
             MqttClient.onConnectionStatusChange(connectedToBroker,
                                                 disconnectedFromBroker);
             MqttClient.onReceive(receive);
 
-            if (!MqttClient.begin(MQTT_THING_NAME,
-                                  MQTT_BROKER,
-                                  MQTT_PORT,
-                                  MQTT_USE_TLS,
-                                  MQTT_USE_ECC)) {
+            // Attempt connection to MQTT broker
+            if (MqttClient.begin(MQTT_THING_NAME,
+                                 MQTT_BROKER,
+                                 MQTT_PORT,
+                                 MQTT_USE_TLS,
+                                 MQTT_USE_ECC)) {
+                MqttClient.subscribe("topic_1");
+            } else {
                 SerialDebug.println("Failed to connect to broker");
             }
 
@@ -141,8 +144,8 @@ void loop() {
                                        sizeof(buffer))) {
                 Serial5.printf("I got the messsage: %s\r\n", (char *)buffer);
 
-                // We publish a message back
-                publishMessage("tobroker", buffer);
+                // We publish the message back
+                MqttClient.publish("topic_2", buffer);
             } else {
                 Serial5.printf("Failed to read message\r\n");
             }
@@ -154,7 +157,7 @@ void loop() {
     }
 }
 
-// ------------------------------ DEBUGBRIDGE ------------------------------ //
+// ------------------------------ DEBUG BRIDGE ----------------------------- //
 
 #define DEL_CHARACTER   127
 #define ENTER_CHARACTER 13

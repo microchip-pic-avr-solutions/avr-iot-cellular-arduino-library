@@ -1,9 +1,14 @@
+/**
+ * This example uses polling for the LTE module and the MQTT module when
+ * checking for new messages.
+ */
+
+#include <Arduino.h>
 #include <lte.h>
 #include <mqtt_client.h>
 
-#include <Arduino.h>
-
-#define MQTT_THING_NAME "0b34785df53a3f9c88304c1c6b5e692b1dd6d958"
+//#define MQTT_THING_NAME "cccf626c3be836af9f72fb534b42b3ea4cc6e1dd"
+#define MQTT_THING_NAME "basicPubSub"
 #define MQTT_BROKER     "a2o6d3azuiiax4-ats.iot.us-east-2.amazonaws.com"
 #define MQTT_PORT       8883
 #define MQTT_USE_TLS    true
@@ -19,12 +24,13 @@ void setup() {
 
     // Start LTE modem and wait until we are connected to the operator
     Lte.begin();
+
     while (!Lte.isConnected()) {
         SerialDebug.println("Not connected to operator yet...");
         delay(5000);
     }
 
-    SerialDebug.println("Connected!");
+    SerialDebug.println("Connected to operator!");
 
     // Attempt to connect to broker
     connectedToBroker = MqttClient.begin(
@@ -32,7 +38,7 @@ void setup() {
 
     if (connectedToBroker) {
         Serial5.println("Connected to broker!");
-        MqttClient.subscribe("frombroker");
+        MqttClient.subscribe("topic_1");
     } else {
         SerialDebug.println("Failed to connect to broker");
     }
@@ -42,7 +48,7 @@ void loop() {
 
     if (connectedToBroker) {
 
-        String message = MqttClient.readMessage("frombroker");
+        String message = MqttClient.readMessage("topic_1");
 
         // Read message will return an empty string if there were no new
         // messages, so anything other than that means that there were a new
@@ -55,7 +61,7 @@ void loop() {
         // Publishing can fail due to network issues, so to be on the safe side
         // one should check the return value to see if the message got published
         bool publishedSuccessfully =
-            MqttClient.publish("tobroker", "hello world");
+            MqttClient.publish("topic_2", "hello world");
 
         if (!publishedSuccessfully) {
             SerialDebug.println("Failed to publish");
