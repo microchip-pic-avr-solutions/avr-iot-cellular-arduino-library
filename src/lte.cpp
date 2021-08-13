@@ -25,6 +25,9 @@
 // index.
 #define CEREG_STAT_CHARACTER_INDEX 1
 
+// Singleton. Defined for use of the rest of the library.
+LteClass Lte = LteClass::instance();
+
 static void (*connected_callback)(void) = NULL;
 static void (*disconnected_callback)(void) = NULL;
 
@@ -65,7 +68,7 @@ void LteClass::begin(void) {
     // modem is alerady connected, which will be the case during development for
     // example. In that way, the user gets the callback upon start and doesn't
     // have to check themselves
-    if (isConnected()) {
+    if (isConnected() && connected_callback != NULL) {
         connected_callback();
     }
 }

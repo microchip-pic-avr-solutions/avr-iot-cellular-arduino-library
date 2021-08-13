@@ -7,7 +7,15 @@
 
 class LteClass {
 
+  private:
+    LteClass(){};
+
   public:
+    static LteClass &instance(void) {
+        static LteClass instance;
+        return instance;
+    }
+
     /**
      * @brief Initializes the LTE module and its controller interface. Starts
      * searching for operator.
