@@ -4,7 +4,7 @@
 
 1. Download Arduino IDE and grab [DxCore](https://github.com/SpenceKonde/DxCore/blob/master/Installation.md).
 2. Clone this repo to one's Arduino library [folder](https://www.arduino.cc/en/hacking/libraries) (Usually `Documents\Arduino\libraries` on Windows): `git clone --recursive https://bitbucket.microchip.com/scm/mcu8mass/avr-iot-cellular-arduino-firmware.git` 
-3. Build cryptoauthlib archive and place headers in `src` folder: `./scripts/inject_cryptoauthlib.sh` (The `./scripts/clear_cryptoauthlib.sh` removes all the cryptoauthlib related files from the source directory). Note that this depends on make and cmake. This is a somewhat awkward setup, but we do this because of three things:
+3. Build cryptoauthlib archive and place headers in `src` folder with the command: `./scripts/inject_cryptoauthlib.sh` (The `./scripts/clear_cryptoauthlib.sh` removes all the cryptoauthlib related files from the source directory). Note that this depends on make and cmake. This is a somewhat awkward setup, but we do this because of three things:
     - Arduino doesn't allow us to specify include paths from the library (it's fixed at the source folder), so we have to 'inject' the headers from cryptoauthlib in the source folder and not some sub folder.
     - Compile time is reduced significantly by using an archive for cryptoauthlib. There are a lot of source files in the cryptoauthlib, and having them be compiled each time the user uploads the sketch will slow down development for the users (especially in the Arduino IDE on Windows for some reason, compiling through arduino-cli within wsl was a lot quicker).
     - Easier to use for the user. In this way, the library can just be downloaded and used. **We only need to make sure that we do the 'injecting' before we create a new release.**
@@ -15,7 +15,7 @@
 ## Things which need to be merged into DxCore
 
 - This might have changed now, but currently there are no TWI1 support in DxCore. This is begin worked on in one of the issues and should be patched in soon. For making this to work at the moment you need to copy the contents of the patch in this [issue](https://github.com/SpenceKonde/DxCore/issues/54#issuecomment-860186363) by MX682X. Copy his source files to `<place where DxCore is located>/DxCore/hardware/megaavr/x.x.x/libraries/Wire/src`.
-- Static linking support, this is merged into master of DxCore, but not upstream in a version yet. The PR is [here](https://github.com/SpenceKonde/DxCore/pull/128). If it is not yet upstream, you need to replace the platform.txt in that PR with the one in DxCore's root for cryptoauthlib to link correctly.
+- Static linking support, this is merged into master of DxCore, but not upstream in a version yet. The file is [here](https://github.com/SpenceKonde/DxCore/blob/master/megaavr/platform.txt). If it is not yet upstream, you need to replace the platform.txt in DxCore root with the file linked for cryptoauthlib to link correctly.
 
 
 ## Provisioning: security profiles and certificates
@@ -40,6 +40,11 @@ For secure MQTT with TLS, we can utilise the ATECC. In order to get this communi
 For HTTPS we just use the bundled CA certificate(s) stored in the Sequans module. To make the security profile, issue the AT command in the table under the HTTPS row. We use the CA at location 1, which is preloaded Verisign certificate which comes with the modem. 
 
 
+## Project structure
+
+- `lib` is where cryptoauthlib lives, we have a custom CMakeLists.txt file which builds it to our preference, the atca config and device specification for the AVR128DB64.
+- `src` is where all the source code, headers and examples are. The archive file for cryptoauthlib also has to be placed at src/<mcu target>/libcryptoauthlib.a. This is done by the inject script though, which also places all the other headers for cryptoauthlib in the src folder.
+- `scripts` has the convenience scripts for building and injecting cryptoauthlib: `inject_cryptoauthlib.sh` and clearing it from the src folder: `clear_cryptoauthlib.sh`. There are also two other convenience scripts: `make.sh` and `flash.sh` (they've only been used during development and can be deleted).
 
 ## Code structure
 

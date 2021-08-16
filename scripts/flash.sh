@@ -3,7 +3,7 @@
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 
 PORT=COM8
-BUILD_DIR=$SCRIPTPATH/build
+BUILD_DIR=$SCRIPTPATH/../build
 
 # Do path conversion for WSL
 if grep -q microsoft /proc/version; then
