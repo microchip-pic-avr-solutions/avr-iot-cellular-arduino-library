@@ -137,8 +137,6 @@ ISR(USART1_RXC_vect) {
     rx_buffer[rx_head_index] = data;
     rx_num_elements++;
 
-    // TODO: should find a way to cut down on this one
-
     // Here we keep track of the length of the URC when it starts and compare it
     // against the look up table of lengths of the strings we are looking for.
     // We compare against them first in order to save some cycles in the ISR and
