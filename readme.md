@@ -1,18 +1,3 @@
-# Public things
- 
-## Setup (not finished yet, but this could be the user experience once everything we need is merged into DxCore and provisioning is done).
-
-1. Provision your board against your cloud provider **todo: this will be done via iot-provisioning, so need those details her**
-2. Download the Arduino IDE and grab [DxCore](https://github.com/SpenceKonde/DxCore/blob/master/Installation.md).
-3. Download the latest release for of this library in the releases page on the right side. Open up the Arduino IDE and click `Sketch > Include Library > Add .ZIP library...`  and find where you downloaded the library.
-
-## Using the library
-
-The library can be used both in a polling fashion and an interrupt/callback based way when it comes to LTE connection and MQTT.
-
-Have a look at the examples [mqtt_polling.ino](src/examples/mqtt_polling/mqtt_polling.ino), [mqtt_interrupt.ino](src/examples/mqtt_interrupt/mqtt_interrupt.ino) and [http.ino](src/examples/http/http.ino).
-
-
 # Internal to Microchip (should probably not be included in a github readme)
 
 ## Setup required for development of the library
@@ -76,3 +61,21 @@ There is one support file for cryptoauthlib, `src/hal_i2c_driver.cpp`, which is 
 ## ECC
 - There is some contion with hal_i2c where the if we don't use enough 
   time, it just halts. Need the delay for now.
+
+
+# Public things (outline for the GitHub readme)
+ 
+## Setup (not finished yet, but this could be the user experience once everything we need is merged into DxCore and provisioning is done).
+
+1. Provision your board against your cloud provider **todo: this will be done via iot-provisioning, so need those details her**
+2. Download the Arduino IDE and grab [DxCore](https://github.com/SpenceKonde/DxCore/blob/master/Installation.md).
+3. Download the latest release for of this library in the releases page on the right side. Open up the Arduino IDE and click `Sketch > Include Library > Add .ZIP library...`  and find where you downloaded the library.
+
+## Using the library
+
+The library can be used both in a polling fashion and an interrupt/callback based way when it comes to LTE connection and MQTT.
+
+Have a look at the examples [mqtt_polling.ino](src/examples/mqtt_polling/mqtt_polling.ino), [mqtt_interrupt.ino](src/examples/mqtt_interrupt/mqtt_interrupt.ino) and [http.ino](src/examples/http/http.ino).
+
+
+
