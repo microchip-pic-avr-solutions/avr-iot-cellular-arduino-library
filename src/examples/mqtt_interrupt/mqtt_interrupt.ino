@@ -1,5 +1,7 @@
 /**
- * This example uses callbacks/interrupts for LTE and MQTT.
+ * This example is a more advanced MQTT example with callbacks/interrupts and a
+ * state machine. It will just listen to a topic and send the messages on that
+ * topic back on another topic.
  */
 
 #include <Arduino.h>
@@ -7,9 +9,9 @@
 #include <mqtt_client.h>
 #include <sequans_controller.h>
 
-//#define MQTT_THING_NAME "cccf626c3be836af9f72fb534b42b3ea4cc6e1dd"
+//#define MQTT_THING_NAME "0b34785df53a3f9c88304c1c6b5e692b1dd6d958"
 #define MQTT_THING_NAME "basicPubSub"
-#define MQTT_BROKER     "a1gqt8sttiign3-ats.iot.us-east-2.amazonaws.com"
+#define MQTT_BROKER     "a2o6d3azuiiax4-ats.iot.us-east-2.amazonaws.com"
 #define MQTT_PORT       8883
 #define MQTT_USE_TLS    true
 #define MQTT_USE_ECC    false
@@ -117,7 +119,7 @@ void loop() {
 
         case CONNECTED_TO_BROKER:
             state = CONNECTED_TO_NETWORK;
-            digitalWrite(CONNECTION_LED, LOW);
+            digitalWrite(CONNECTION_LED, HIGH);
             break;
         }
 
@@ -166,6 +168,9 @@ void loop() {
 #define INPUT_BUFFER_SIZE    128
 #define RESPONSE_BUFFER_SIZE 256
 
+/**
+ * @brief This is only for AT commands, does not have to be included.
+ */
 void debugBridgeUpdate(void) {
     static uint8_t character;
     static char input_buffer[INPUT_BUFFER_SIZE];
