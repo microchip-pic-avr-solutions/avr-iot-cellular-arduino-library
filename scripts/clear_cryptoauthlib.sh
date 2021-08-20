@@ -9,4 +9,5 @@ pushd $SRC_PATH
     rm -rf $MCU calib crypto hal host atcacert
     find . -name "atca_*" -exec rm -f {} +
     find . -name "cryptoauth*" -exec rm -f {} +
+    find . -name "cert_def*" -exec rm -f {} +
 popd 
