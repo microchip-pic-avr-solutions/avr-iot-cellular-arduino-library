@@ -25,7 +25,7 @@
 
 // Sizes for the circular buffers
 #define RX_BUFFER_SIZE        128
-#define TX_BUFFER_SIZE        64
+#define TX_BUFFER_SIZE        128
 #define RX_BUFFER_ALMOST_FULL RX_BUFFER_SIZE - 2
 
 #define MAX_URC_CALLBACKS          8
