@@ -24,16 +24,23 @@ typedef enum {
 class MqttClientClass {
 
   private:
+    /**
+     * @brief Hide constructor in order to enforce a single instance of the
+     * class.
+     */
     MqttClientClass(){};
 
   public:
+    /**
+     * @brief Singleton instance.
+     */
     static MqttClientClass &instance(void) {
         static MqttClientClass instance;
         return instance;
     }
 
     /**
-     * @brief Will configure and request connection to the host/broker
+     * @brief Will configure and connect to the host/broker
      * specified. Will disconnect from the current broker (if any) before
      * configuring the new client.
      *
@@ -46,7 +53,7 @@ class MqttClientClass {
      * profile has to be be set up to not use external hardware cryptographic
      * engine.
      *
-     * @return true if configuration was succesful.
+     * @return true if configuration and connection was succesful.
      */
     bool begin(const char *client_id,
                const char *host,
@@ -91,7 +98,7 @@ class MqttClientClass {
      * @brief Publishes the contents of the message to the given topic.
      *
      * @param topic Topic to publish to.
-     * @param message Data to publish, has to be null terminated.
+     * @param message String to publish, has to be null terminated.
      * @param quality_of_service MQTT protocol QoS.
      *
      * @return true if publish was successful.
@@ -144,6 +151,9 @@ class MqttClientClass {
      * @brief Reads the message received on the given topic (if any).
      *
      * @param size Size of buffer. Max is 1024.
+     *
+     * @return The message or an empty string if no new message was retrieved on
+     * the given topic.
      */
     String readMessage(const char *topic, const uint16_t size = 256);
 };

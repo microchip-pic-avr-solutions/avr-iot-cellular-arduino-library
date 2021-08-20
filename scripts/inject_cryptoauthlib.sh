@@ -33,6 +33,9 @@ pushd $SRC_PATH/cryptoauthlib
     popd
 popd
 
+# Copy over certificate definitions
+cp -r $CRYPTOAUTH_PATH/cert_def* $SRC_PATH/cryptoauthlib/
+
 # Move everything to src since arduino's include path is set to that and it's 
 # messy changing it without the user having to do things with their Arduino 
 # configuration

@@ -27,9 +27,16 @@ typedef enum {
 class SequansControllerClass {
 
   private:
+    /**
+     * @brief Constructor is hidden to enforce a single instance of this class
+     * through a singleton.
+     */
     SequansControllerClass(){};
 
   public:
+    /**
+     * @brief Singleton instance.
+     */
     static SequansControllerClass &instance(void) {
         static SequansControllerClass instance;
         return instance;
@@ -37,7 +44,7 @@ class SequansControllerClass {
 
     /**
      * @brief Sets up the pins for TX, RX, RTS and CTS of the serial interface
-     * towards the LTE module. Will also issue a RESET for the LTE module.
+     * towards the LTE module.
      */
     void begin(void);
 

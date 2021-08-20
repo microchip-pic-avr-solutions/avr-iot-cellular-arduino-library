@@ -1,5 +1,7 @@
 /**
- * This example uses callbacks/interrupts for LTE and MQTT.
+ * This example is a more advanced MQTT example with callbacks/interrupts and a
+ * state machine. It will just listen to a topic and send the messages on that
+ * topic back on another topic.
  */
 
 #include <Arduino.h>
@@ -7,9 +9,9 @@
 #include <mqtt_client.h>
 #include <sequans_controller.h>
 
-//#define MQTT_THING_NAME "cccf626c3be836af9f72fb534b42b3ea4cc6e1dd"
+//#define MQTT_THING_NAME "0b34785df53a3f9c88304c1c6b5e692b1dd6d958"
 #define MQTT_THING_NAME "basicPubSub"
-#define MQTT_BROKER     "a1gqt8sttiign3-ats.iot.us-east-2.amazonaws.com"
+#define MQTT_BROKER     "a2o6d3azuiiax4-ats.iot.us-east-2.amazonaws.com"
 #define MQTT_PORT       8883
 #define MQTT_USE_TLS    true
 #define MQTT_USE_ECC    false
@@ -27,7 +29,7 @@
 
 typedef enum { NOT_CONNECTED, CONNECTED_TO_NETWORK, CONNECTED_TO_BROKER } State;
 
-State state;
+State state = NOT_CONNECTED;
 uint8_t callback_flags = 0;
 
 // -------------------------- CALLBACKS & SETUP ---------------------------- //
@@ -41,7 +43,7 @@ void disconnectedFromBroker(void) { callback_flags |= BROKER_DISCONN_FLAG; }
 void receive(void) { callback_flags |= RECEIVE_MSG_FLAG; }
 
 void setup() {
-    Serial5.begin(115200);
+    SerialDebug.begin(115200);
     SerialDebug.println("Starting initialization");
 
     pinMode(CELL_LED, OUTPUT);
@@ -117,7 +119,7 @@ void loop() {
 
         case CONNECTED_TO_BROKER:
             state = CONNECTED_TO_NETWORK;
-            digitalWrite(CONNECTION_LED, LOW);
+            digitalWrite(CONNECTION_LED, HIGH);
             break;
         }
 
@@ -142,12 +144,13 @@ void loop() {
             if (MqttClient.readMessage(notification.receive_topic.c_str(),
                                        buffer,
                                        sizeof(buffer))) {
-                Serial5.printf("I got the messsage: %s\r\n", (char *)buffer);
+                SerialDebug.printf("I got the messsage: %s\r\n",
+                                   (char *)buffer);
 
                 // We publish the message back
                 MqttClient.publish("topic_2", buffer);
             } else {
-                Serial5.printf("Failed to read message\r\n");
+                SerialDebug.printf("Failed to read message\r\n");
             }
 
             break;
@@ -165,13 +168,16 @@ void loop() {
 #define INPUT_BUFFER_SIZE    128
 #define RESPONSE_BUFFER_SIZE 256
 
+/**
+ * @brief This is only for AT commands, does not have to be included.
+ */
 void debugBridgeUpdate(void) {
     static uint8_t character;
     static char input_buffer[INPUT_BUFFER_SIZE];
     static uint8_t input_buffer_index = 0;
 
-    if (Serial5.available() > 0) {
-        character = Serial5.read();
+    if (SerialDebug.available() > 0) {
+        character = SerialDebug.read();
 
         switch (character) {
         case DEL_CHARACTER:
@@ -195,11 +201,11 @@ void debugBridgeUpdate(void) {
             break;
         }
 
-        Serial5.print((char)character);
+        SerialDebug.print((char)character);
     }
 
     if (SequansController.isRxReady()) {
         // Send back data from modem to host
-        Serial5.write(SequansController.readByte());
+        SerialDebug.write(SequansController.readByte());
     }
 }

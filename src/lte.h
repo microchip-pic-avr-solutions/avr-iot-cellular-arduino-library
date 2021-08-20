@@ -8,9 +8,16 @@
 class LteClass {
 
   private:
+    /**
+     * @brief Constructor is hidden to enforce a single instance of this class
+     * through a singleton.
+     */
     LteClass(){};
 
   public:
+    /**
+     * @brief Singleton instance.
+     */
     static LteClass &instance(void) {
         static LteClass instance;
         return instance;

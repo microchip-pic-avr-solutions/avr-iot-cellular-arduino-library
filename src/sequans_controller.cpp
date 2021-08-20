@@ -25,7 +25,7 @@
 
 // Sizes for the circular buffers
 #define RX_BUFFER_SIZE        128
-#define TX_BUFFER_SIZE        64
+#define TX_BUFFER_SIZE        128
 #define RX_BUFFER_ALMOST_FULL RX_BUFFER_SIZE - 2
 
 #define MAX_URC_CALLBACKS          8
@@ -136,8 +136,6 @@ ISR(USART1_RXC_vect) {
     rx_head_index = (rx_head_index + 1) & RX_BUFFER_MASK;
     rx_buffer[rx_head_index] = data;
     rx_num_elements++;
-
-    // TODO: should find a way to cut down on this one
 
     // Here we keep track of the length of the URC when it starts and compare it
     // against the look up table of lengths of the strings we are looking for.
