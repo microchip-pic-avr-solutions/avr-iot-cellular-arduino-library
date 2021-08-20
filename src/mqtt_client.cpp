@@ -8,8 +8,8 @@
 #include <string.h>
 
 #define MQTT_CONFIGURE         "AT+SQNSMQTTCFG=0,\"%s\""
-#define MQTT_CONFIGURE_TLS     "AT+SQNSMQTTCFG=0,\"%s\",\"\",\"\",2"
-#define MQTT_CONFIGURE_TLS_ECC "AT+SQNSMQTTCFG=0,\"%s\",\"\",\"\",1"
+#define MQTT_CONFIGURE_TLS     "AT+SQNSMQTTCFG=0,\"%s\",,,2"
+#define MQTT_CONFIGURE_TLS_ECC "AT+SQNSMQTTCFG=0,\"%s\",,,1"
 #define MQTT_CONNECT           "AT+SQNSMQTTCONNECT=0,\"%s\",%u"
 #define MQTT_DISCONNECT        "AT+SQNSMQTTDISCONNECT=0"
 #define MQTT_PUBLISH           "AT+SQNSMQTTPUBLISH=0,\"%s\",%u,%u"
@@ -28,11 +28,11 @@
 // Total: 84 bytes
 #define MQTT_CONFIGURE_LENGTH 84
 
-// Command without any data in it (with parantheses): 27 bytes
+// Command without any data in it (with parantheses): 22 bytes
 // Client ID: 64 bytes (this is imposed by this implementation)
 // Termination: 1 byte
-// Total: 92 bytes
-#define MQTT_CONFIGURE_TLS_LENGTH 92
+// Total: 87 bytes
+#define MQTT_CONFIGURE_TLS_LENGTH 87
 
 // Command without any data in it (with parantheses): 24 bytes
 // Hostname: 127 bytes
@@ -133,7 +133,7 @@ bool MqttClientClass::begin(const char *client_id,
                             const bool use_tls,
                             const bool use_ecc) {
     // We have to make sure we are disconnected first
-    SequansController.retryCommand(MQTT_DISCONNECT);
+    SequansController.writeCommand(MQTT_DISCONNECT);
     SequansController.clearReceiveBuffer();
 
     // -- Configuration --
@@ -177,6 +177,7 @@ bool MqttClientClass::begin(const char *client_id,
             ATCA_STATUS result = atcab_init(&cfg_atecc608b_i2c);
 
             if (result != ATCA_SUCCESS) {
+                Serial5.printf("Failed to initialize ECC: %x\r\n", result);
                 return false;
             }
         }
@@ -184,7 +185,9 @@ bool MqttClientClass::begin(const char *client_id,
         char command[MQTT_CONFIGURE_LENGTH] = "";
         sprintf(command, MQTT_CONFIGURE, client_id);
 
-        if (!SequansController.retryCommand(command)) {
+        if (!SequansController.writeCommand(command)) {
+
+            Serial5.printf("Failed to configure MQTT\r\n");
             return false;
         }
     }
@@ -198,12 +201,14 @@ bool MqttClientClass::begin(const char *client_id,
     char command[MQTT_CONNECT_LENGTH] = "";
     sprintf(command, MQTT_CONNECT, host, port);
     if (!SequansController.retryCommand(command)) {
+        Serial5.printf("Failed to request connection to MQTT broker\r\n");
         return false;
     }
 
     if (use_tls) {
 
         if (use_ecc) {
+
             // Wait for sign URC
             while (SequansController.readByte() !=
                    URC_IDENTIFIER_START_CHARACTER) {}
@@ -217,9 +222,7 @@ bool MqttClientClass::begin(const char *client_id,
                 return false;
             }
 
-#ifdef DEBUG
             Serial5.printf("Got URC: %s\r\n", sign_request);
-#endif
 
             // Grab the ctx id
             // +1 for null termination
@@ -265,7 +268,7 @@ bool MqttClientClass::begin(const char *client_id,
             char command[HCESIGN_LENGTH] = "";
 
             // +1 for NULL termination
-            char signature[HCESIGN_DIGEST_LENGTH * 2 + 1] = "1";
+            char signature[HCESIGN_DIGEST_LENGTH * 2 + 1] = "";
 
             // Prepare signature by converting to a hex string
             for (uint8_t i = 0; i < sizeof(digest) - 1; i++) {
@@ -278,9 +281,13 @@ bool MqttClientClass::begin(const char *client_id,
             uint32_t command_length =
                 sprintf(command, HCESIGN, atoi(ctx_id_buffer), signature);
             SequansController.writeCommand(command);
-#ifdef DEBUG
             Serial5.printf("Sent command: %s\r\n", command);
-#endif
+            Serial5.printf("This will likely fail due to incorrect "
+                           "provisioning, read readme\r\n");
+
+            // TODO: remove this return statement once Sequans modem is
+            // reporting SQNSMQTTONCONNECT: 0,0.
+            return false;
         }
 
         // Wait for MQTT connection URC
