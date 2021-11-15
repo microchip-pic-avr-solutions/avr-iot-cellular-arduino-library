@@ -1,24 +1,27 @@
 #include "lte.h"
 #include "sequans_controller.h"
+#include <Arduino.h>
 
-#define AT_COMMAND_CONNECT           "AT+CFUN=1"
-#define AT_COMMAND_DISCONNECT        "AT+CFUN=0"
-#define AT_COMMAND_CONNECTION_STATUS "AT+CREG?"
+#define AT_COMMAND_CONNECT "AT+CFUN=1"
+#define AT_COMMAND_DISCONNECT "AT+CFUN=0"
+#define AT_COMMAND_CONNECTION_STATUS "AT+CEREG?"
 #define AT_COMMAND_DISABLE_CEREG_URC "AT+CEREG=0"
-#define AT_COMMAND_ENABLE_CEREG_URC  "AT+CEREG=2"
-#define AT_COMMAND_DISABLE_CREG_URC  "AT+CREG=0"
+#define AT_COMMAND_ENABLE_CEREG_URC "AT+CEREG=2"
+#define AT_COMMAND_DISABLE_CREG_URC "AT+CREG=0"
 
 #define CEREG_CALLBACK "CEREG"
 
 // This includes null termination
-#define STAT_LENGTH                  2
-#define STAT_INDEX                   1
+#define STAT_LENGTH 2
+#define STAT_INDEX 1
 #define STAT_REGISTERED_HOME_NETWORK '1'
-#define STAT_REGISTERED_ROAMING      '5'
+#define STAT_REGISTERED_ROAMING '5'
 
 #define RESPONSE_CONNECTION_STATUS_SIZE 24
 
 #define CEREG_DATA_LENGTH 2
+
+#define CEREG_N_OK 2
 
 // When the CEREG appears as an URC, it only includes the stat, but there will
 // be a space before the data, hence this value since this index is character
@@ -31,29 +34,37 @@ LteClass Lte = LteClass::instance();
 static void (*connected_callback)(void) = NULL;
 static void (*disconnected_callback)(void) = NULL;
 
-static void connectionStatus(void) {
+static void connectionStatus(void)
+{
     // +1 for null termination
     char buffer[CEREG_DATA_LENGTH + 1];
 
-    if (SequansController.readNotification(buffer, sizeof(buffer))) {
+    if (SequansController.readNotification(buffer, sizeof(buffer)))
+    {
 
         const char stat = buffer[CEREG_STAT_CHARACTER_INDEX];
 
         if (stat == STAT_REGISTERED_ROAMING ||
-            stat == STAT_REGISTERED_HOME_NETWORK) {
+            stat == STAT_REGISTERED_HOME_NETWORK)
+        {
 
-            if (connected_callback) {
+            if (connected_callback)
+            {
                 connected_callback();
             }
-        } else {
-            if (disconnected_callback) {
+        }
+        else
+        {
+            if (disconnected_callback)
+            {
                 disconnected_callback();
             }
         }
     }
 }
 
-void LteClass::begin(void) {
+void LteClass::begin(void)
+{
     SequansController.begin();
 
     SequansController.clearReceiveBuffer();
@@ -68,33 +79,38 @@ void LteClass::begin(void) {
     // modem is alerady connected, which will be the case during development for
     // example. In that way, the user gets the callback upon start and doesn't
     // have to check themselves
-    if (isConnected() && connected_callback != NULL) {
+    if (isConnected() && connected_callback != NULL)
+    {
         connected_callback();
     }
 }
 
-void LteClass::end(void) {
+void LteClass::end(void)
+{
     SequansController.retryCommand(AT_COMMAND_DISCONNECT);
     SequansController.end();
 }
 
 void LteClass::onConnectionStatusChange(void (*connect_callback)(void),
-                                        void (*disconnect_callback)(void)) {
+                                        void (*disconnect_callback)(void))
+{
     connected_callback = connect_callback;
     disconnected_callback = disconnect_callback;
     SequansController.registerCallback(CEREG_CALLBACK, connectionStatus);
 }
 
-bool LteClass::isConnected(void) {
+bool LteClass::isConnected(void)
+{
 
     SequansController.clearReceiveBuffer();
     SequansController.writeCommand(AT_COMMAND_CONNECTION_STATUS);
 
     char response[RESPONSE_CONNECTION_STATUS_SIZE];
 
-    if (SequansController.readResponse(response,
-                                       RESPONSE_CONNECTION_STATUS_SIZE) != OK) {
-
+    ResponseResult res = SequansController.readResponse(response,
+                                                        RESPONSE_CONNECTION_STATUS_SIZE);
+    if (res != CEREG_N_OK)
+    {
         return false;
     }
 
@@ -103,12 +119,14 @@ bool LteClass::isConnected(void) {
     bool found_token = SequansController.extractValueFromCommandResponse(
         response, STAT_INDEX, stat_token, STAT_LENGTH);
 
-    if (!found_token) {
+    if (!found_token)
+    {
         return false;
     }
 
     if (stat_token[0] == STAT_REGISTERED_HOME_NETWORK ||
-        stat_token[0] == STAT_REGISTERED_ROAMING) {
+        stat_token[0] == STAT_REGISTERED_ROAMING)
+    {
         return true;
     }
 

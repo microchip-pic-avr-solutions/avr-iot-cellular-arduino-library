@@ -9,26 +9,26 @@
 #include <Arduino.h>
 #include <pins_arduino.h>
 
-#define TX_PIN      PIN_PC0
-#define CTS_PIN     PIN_PC6
-#define CTS_PIN_bm  PIN6_bm
-#define CTS_INT_bm  PORT_INT6_bm
+#define TX_PIN PIN_PC0
+#define CTS_PIN PIN_PC6
+#define CTS_PIN_bm PIN6_bm
+#define CTS_INT_bm PORT_INT6_bm
 #define RING_INT_bm PORT_INT4_bm
-#define RTS_PORT    PORTC
-#define RTS_PIN     PIN_PC7
-#define RTS_PIN_bm  PIN7_bm
-#define RESET_PIN   PIN_PE1
-#define RING_PIN    PIN_PC4
+#define RTS_PORT PORTC
+#define RTS_PIN PIN_PC7
+#define RTS_PIN_bm PIN7_bm
+#define RESET_PIN PIN_PE1
+#define RING_PIN PIN_PC4
 
-#define HWSERIALAT               USART1
+#define HWSERIALAT USART1
 #define SEQUANS_MODULE_BAUD_RATE 115200
 
 // Sizes for the circular buffers
-#define RX_BUFFER_SIZE        128
-#define TX_BUFFER_SIZE        128
+#define RX_BUFFER_SIZE 128
+#define TX_BUFFER_SIZE 128
 #define RX_BUFFER_ALMOST_FULL RX_BUFFER_SIZE - 2
 
-#define MAX_URC_CALLBACKS          8
+#define MAX_URC_CALLBACKS 8
 #define URC_IDENTIFIER_BUFFER_SIZE 28
 
 // Specifies the valid bits for the index in the buffers
@@ -38,9 +38,9 @@
 // CTS, control line for the MCU sending the LTE module data
 #define sequansModuleIsReadyForData() (!(VPORTC.IN & CTS_PIN_bm))
 
-#define LINE_FEED          '\n'
-#define CARRIAGE_RETURN    '\r'
-#define SPACE_CHARACTER    ' '
+#define LINE_FEED '\n'
+#define CARRIAGE_RETURN '\r'
+#define SPACE_CHARACTER ' '
 #define RESPONSE_DELIMITER ","
 
 static const char OK_TERMINATION[] = "OK\r\n";
@@ -66,7 +66,8 @@ static volatile uint8_t urc_data_buffer_length = 0;
 
 static bool urc_read = true;
 
-typedef enum {
+typedef enum
+{
     URC_PARSING_IDENTIFIER,
     URC_PARSING_DATA,
     URC_NOT_PARSING
@@ -95,14 +96,18 @@ SequansControllerClass SequansController = SequansControllerClass::instance();
  * is close to full the RTS line is de-asserted (set high) to signal to the
  * target that no more data should be sent
  */
-static void flowControlUpdate(void) {
+static void flowControlUpdate(void)
+{
 
     // We prefer to not use arduino's digitalWrite here to reduce code in the
     // ISR
-    if (rx_num_elements < RX_BUFFER_ALMOST_FULL) {
+    if (rx_num_elements < RX_BUFFER_ALMOST_FULL)
+    {
         // Space for more data, assert RTS line (active low)
         RTS_PORT.OUTCLR |= RTS_PIN_bm;
-    } else {
+    }
+    else
+    {
         // Buffer is filling up, tell the target to stop sending data
         // for now by de-asserting RTS
         RTS_PORT.OUTSET |= RTS_PIN_bm;
@@ -110,14 +115,19 @@ static void flowControlUpdate(void) {
 }
 
 // For CTS interrupt
-ISR(PORTC_PORT_vect) {
-    if (VPORTC.INTFLAGS & CTS_INT_bm) {
+ISR(PORTC_PORT_vect)
+{
+    if (VPORTC.INTFLAGS & CTS_INT_bm)
+    {
 
-        if (VPORTC.IN & CTS_PIN_bm) {
+        if (VPORTC.IN & CTS_PIN_bm)
+        {
             // CTS is not asserted (active low) so disable USART Data Register
             // Empty Interrupt where the logic is to send more data
             HWSERIALAT.CTRLA &= ~USART_DREIE_bm;
-        } else {
+        }
+        else
+        {
             // CTS is asserted check if there is data to transmit
             // before we enable interrupt
             HWSERIALAT.CTRLA |= USART_DREIE_bm;
@@ -128,7 +138,8 @@ ISR(PORTC_PORT_vect) {
 }
 
 // RX complete
-ISR(USART1_RXC_vect) {
+ISR(USART1_RXC_vect)
+{
     uint8_t data = USART1.RXDATAL;
 
     // We do an logical AND here as a means of allowing the index to wrap
@@ -142,10 +153,12 @@ ISR(USART1_RXC_vect) {
     // We compare against them first in order to save some cycles in the ISR and
     // if the lengths match, we compare the string for the URC and against the
     // buffer. If they match, call the callback
-    switch (urc_parse_state) {
+    switch (urc_parse_state)
+    {
 
     case URC_NOT_PARSING:
-        if (data == URC_IDENTIFIER_START_CHARACTER) {
+        if (data == URC_IDENTIFIER_START_CHARACTER)
+        {
             urc_identifier_buffer_length = 0;
             urc_parse_state = URC_PARSING_IDENTIFIER;
         }
@@ -154,19 +167,23 @@ ISR(USART1_RXC_vect) {
 
     case URC_PARSING_IDENTIFIER:
 
-        if (data == URC_IDENTIFIER_END_CHARACTER) {
+        if (data == URC_IDENTIFIER_END_CHARACTER)
+        {
             // We set this as the initial condition and if we find a match for
             // the URC we go on parsing the data
             urc_parse_state = URC_NOT_PARSING;
 
-            for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
+            for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++)
+            {
 
                 if (urc_lookup_table_length[i] ==
-                    urc_identifier_buffer_length) {
+                    urc_identifier_buffer_length)
+                {
 
                     if (memcmp(urc_identifier_buffer,
                                urc_lookup_table[i],
-                               urc_lookup_table_length[i]) == 0) {
+                               urc_lookup_table_length[i]) == 0)
+                    {
                         urc_current_callback = urc_callbacks[i];
                         urc_parse_state = URC_PARSING_DATA;
 
@@ -177,9 +194,13 @@ ISR(USART1_RXC_vect) {
                     }
                 }
             }
-        } else if (urc_identifier_buffer_length == URC_IDENTIFIER_BUFFER_SIZE) {
+        }
+        else if (urc_identifier_buffer_length == URC_IDENTIFIER_BUFFER_SIZE)
+        {
             urc_parse_state = URC_NOT_PARSING;
-        } else {
+        }
+        else
+        {
             urc_identifier_buffer[urc_identifier_buffer_length++] = data;
         }
 
@@ -187,22 +208,28 @@ ISR(USART1_RXC_vect) {
 
     case URC_PARSING_DATA:
 
-        if (data == CARRIAGE_RETURN) {
+        if (data == CARRIAGE_RETURN)
+        {
 
             // Add termination since we're done
             urc_data_buffer[urc_data_buffer_length] = 0;
 
             urc_read = false;
 
-            if (urc_current_callback != NULL) {
+            if (urc_current_callback != NULL)
+            {
                 urc_current_callback();
             }
 
             urc_parse_state = URC_NOT_PARSING;
-        } else if (urc_data_buffer_length == URC_DATA_BUFFER_SIZE) {
+        }
+        else if (urc_data_buffer_length == URC_DATA_BUFFER_SIZE)
+        {
             // This is just a failsafe
             urc_parse_state = URC_NOT_PARSING;
-        } else {
+        }
+        else
+        {
             urc_data_buffer[urc_data_buffer_length++] = data;
         }
 
@@ -220,8 +247,10 @@ ISR(USART1_RXC_vect) {
  * transmitted on the line and set up new data to be transmitted from the ring
  * buffer.
  */
-ISR(USART1_DRE_vect) {
-    if (tx_num_elements != 0) {
+ISR(USART1_DRE_vect)
+{
+    if (tx_num_elements != 0)
+    {
         // We do an logical AND here as a means of allowing the index to
         // wrap around since we have a circular buffer
         tx_tail_index = (tx_tail_index + 1) & TX_BUFFER_MASK;
@@ -230,13 +259,16 @@ ISR(USART1_DRE_vect) {
         // yet
         USART1.TXDATAL = tx_buffer[tx_tail_index];
         tx_num_elements--;
-    } else {
+    }
+    else
+    {
         // Disable TX interrupt until we want to send more data
         USART1.CTRLA &= ~(1 << USART_DREIE_bp);
     }
 }
 
-void SequansControllerClass::begin(void) {
+void SequansControllerClass::begin(void)
+{
 
     // PIN SETUP
 
@@ -261,13 +293,14 @@ void SequansControllerClass::begin(void) {
 
     // Set reset low to reset the LTE modem
     pinConfigure(RESET_PIN, PIN_DIR_OUTPUT);
+    digitalWrite(RESET_PIN, HIGH);
+    delay(10);
     digitalWrite(RESET_PIN, LOW);
 
     // SERIAL INTERFACE SETUP
 
     // LTE modules has set baud rate of 115200 for its UART0 interface
-    USART1.BAUD = (uint16_t)(
-        ((float)F_CPU * 64 / (16 * (float)SEQUANS_MODULE_BAUD_RATE)) + 0.5);
+    USART1.BAUD = (uint16_t)(((float)F_CPU * 64 / (16 * (float)SEQUANS_MODULE_BAUD_RATE)) + 0.5);
 
     // Interrupt on receive completed
     USART1.CTRLA = USART_RXCIE_bm;
@@ -283,7 +316,8 @@ void SequansControllerClass::begin(void) {
     PORTG.OUTSET |= PIN2_bm;
 }
 
-void SequansControllerClass::end(void) {
+void SequansControllerClass::end(void)
+{
     USART1.CTRLA = 0;
     USART1.CTRLB = 0;
     USART1.CTRLC = 0;
@@ -292,25 +326,30 @@ void SequansControllerClass::end(void) {
 }
 
 void SequansControllerClass::setRetryConfiguration(const uint8_t num_retries,
-                                                   const double sleep_ms) {
+                                                   const double sleep_ms)
+{
 
     number_of_retries = num_retries;
     sleep_between_retries_ms = sleep_ms;
 }
 
-bool SequansControllerClass::isTxReady(void) {
+bool SequansControllerClass::isTxReady(void)
+{
     return (tx_num_elements != TX_BUFFER_SIZE);
 }
 
 bool SequansControllerClass::isRxReady(void) { return (rx_num_elements != 0); }
 
-bool SequansControllerClass::writeByte(const uint8_t data) {
+bool SequansControllerClass::writeByte(const uint8_t data)
+{
 
     uint8_t retry_count = 0;
-    while (!isTxReady()) {
+    while (!isTxReady())
+    {
         retry_count++;
 
-        if (retry_count == number_of_retries) {
+        if (retry_count == number_of_retries)
+        {
             return false;
         }
 
@@ -326,22 +365,26 @@ bool SequansControllerClass::writeByte(const uint8_t data) {
 
     // Enable TX interrupt if CTS (active low) is asserted
     // (i.e. device is ready for data)
-    if (sequansModuleIsReadyForData()) {
+    if (sequansModuleIsReadyForData())
+    {
         USART1.CTRLA |= (1 << USART_DREIE_bp);
     }
 
     return true;
 }
 
-bool SequansControllerClass::writeCommand(const char *command) {
+bool SequansControllerClass::writeCommand(const char *command)
+{
     return writeBytes((uint8_t *)command, strlen(command));
 }
 
 bool SequansControllerClass::retryCommand(const char *command,
-                                          uint8_t retries) {
+                                          uint8_t retries)
+{
     uint8_t retry_count = 0;
 
-    do {
+    do
+    {
         writeCommand(command);
     } while (SequansController.readResponse() != OK && retry_count++ < retries);
 
@@ -349,10 +392,13 @@ bool SequansControllerClass::retryCommand(const char *command,
 }
 
 bool SequansControllerClass::writeBytes(const uint8_t *data,
-                                        const size_t buffer_size) {
+                                        const size_t buffer_size)
+{
 
-    for (size_t i = 0; i < buffer_size; i++) {
-        if (!writeByte(data[i])) {
+    for (size_t i = 0; i < buffer_size; i++)
+    {
+        if (!writeByte(data[i]))
+        {
             return false;
         }
     }
@@ -360,8 +406,10 @@ bool SequansControllerClass::writeBytes(const uint8_t *data,
     return writeByte('\r');
 }
 
-int16_t SequansControllerClass::readByte() {
-    if (!isRxReady()) {
+int16_t SequansControllerClass::readByte()
+{
+    if (!isRxReady())
+    {
         return -1;
     }
 
@@ -379,18 +427,22 @@ int16_t SequansControllerClass::readByte() {
 }
 
 ResponseResult SequansControllerClass::readResponse(char *out_buffer,
-                                                    uint16_t buffer_size) {
+                                                    uint16_t buffer_size)
+{
     uint8_t retry_count = 0;
     int16_t value;
 
-    for (size_t i = 0; i < buffer_size; i++) {
-        if (!isRxReady()) {
+    for (size_t i = 0; i < buffer_size; i++)
+    {
+        if (!isRxReady())
+        {
             retry_count++;
             _delay_ms(sleep_between_retries_ms);
 
             i--;
 
-            if (retry_count == number_of_retries) {
+            if (retry_count == number_of_retries)
+            {
                 return TIMEOUT;
             }
 
@@ -403,17 +455,20 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
 
         // We won't check for the buffer having a termination until at least twi
         // bytes are in it
-        if (i == 0) {
+        if (i == 0)
+        {
             continue;
         }
 
         // For AT command responses from the LTE module, "OK\r\n" or
         // "ERROR\r\n" signifies the end of a response, so we look "\r\n".
         if (out_buffer[i - 1] == CARRIAGE_RETURN &&
-            out_buffer[i] == LINE_FEED) {
+            out_buffer[i] == LINE_FEED)
+        {
 
             char *ok_index = strstr(out_buffer, OK_TERMINATION);
-            if (ok_index != NULL) {
+            if (ok_index != NULL)
+            {
                 // Terminate and omit the rest from the OK index
                 memset(ok_index, 0, 1);
                 return OK;
@@ -421,7 +476,8 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
 
             char *error_index = strstr(out_buffer, ERROR_TERMINATION);
 
-            if (error_index != NULL) {
+            if (error_index != NULL)
+            {
                 // Terminate and omit the rest from the ERROR index
                 memset(error_index, 0, 1);
                 return ERROR;
@@ -434,14 +490,16 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
     return BUFFER_OVERFLOW;
 }
 
-ResponseResult SequansControllerClass::readResponse(void) {
+ResponseResult SequansControllerClass::readResponse(void)
+{
 
     // Just an arbitrary value, enough to hold the default terminations
     char termination_buffer[16];
     uint8_t retry_count = 0;
     ResponseResult response;
 
-    do {
+    do
+    {
         response = readResponse(termination_buffer, sizeof(termination_buffer));
         // Keep looping until response is OK or ERROR or no retries left
     } while (response == TIMEOUT && retry_count++ < number_of_retries);
@@ -449,7 +507,8 @@ ResponseResult SequansControllerClass::readResponse(void) {
     return response;
 }
 
-void SequansControllerClass::clearReceiveBuffer(void) {
+void SequansControllerClass::clearReceiveBuffer(void)
+{
     cli();
     rx_num_elements = 0;
     rx_tail_index = rx_head_index;
@@ -461,7 +520,8 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     const uint8_t index,
     char *buffer,
     const size_t buffer_size,
-    const char start_character) {
+    const char start_character)
+{
 
     // Using strtok further down in this function would modify the original
     // string, so we create a copy to the end index + 1 (because of
@@ -471,20 +531,27 @@ bool SequansControllerClass::extractValueFromCommandResponse(
 
     char *data;
 
-    if (start_character != 0) {
+    if (start_character != 0)
+    {
 
         // Find the first occurrence of the data start character and move
         // pointer to there
         data = strchr(response_copy, start_character);
 
-        if (data == NULL) {
+        if (data == NULL)
+        {
             return false;
         }
 
         // Increment pointer to skip the data start character (and the following
         // space in the start sequence of the data if it is there)
-        while (*data == start_character || *data == SPACE_CHARACTER) { data++; }
-    } else {
+        while (*data == start_character || *data == SPACE_CHARACTER)
+        {
+            data++;
+        }
+    }
+    else
+    {
         // If no start character is given, just set data start to string start
         data = response_copy;
     }
@@ -494,7 +561,8 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     char *value = strtok(data, RESPONSE_DELIMITER);
 
     uint8_t value_index = 1;
-    while (value != NULL && value_index <= index) {
+    while (value != NULL && value_index <= index)
+    {
         value = strtok(NULL, RESPONSE_DELIMITER);
 
         value_index++;
@@ -504,7 +572,8 @@ bool SequansControllerClass::extractValueFromCommandResponse(
 
     // If found, set termination to the carriage return. If not, leave the
     // string be as it is
-    if (value != NULL) {
+    if (value != NULL)
+    {
         *first_carriage_return = 0;
     }
 
@@ -513,7 +582,8 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     // We compare inclusive for value length as we want to take the null
     // termination into consideration. So the buffer size has be
     // value_length + 1
-    if (value == NULL || value_length >= buffer_size) {
+    if (value == NULL || value_length >= buffer_size)
+    {
         return false;
     }
 
@@ -523,21 +593,26 @@ bool SequansControllerClass::extractValueFromCommandResponse(
 }
 
 bool SequansControllerClass::registerCallback(const char *urc_identifier,
-                                              void (*urc_callback)(void)) {
+                                              void (*urc_callback)(void))
+{
 
     // Check if we can override first
     uint8_t urc_identifier_length = strlen(urc_identifier);
-    for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
+    for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++)
+    {
         if (urc_lookup_table_length[i] == urc_identifier_length &&
-            strcmp(urc_identifier, urc_lookup_table[i]) == 0) {
+            strcmp(urc_identifier, urc_lookup_table[i]) == 0)
+        {
             urc_callbacks[i] = urc_callback;
             return true;
         }
     }
 
     // Look for empty spot
-    for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
-        if (urc_lookup_table_length[i] == 0) {
+    for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++)
+    {
+        if (urc_lookup_table_length[i] == 0)
+        {
             strcpy(urc_lookup_table[i], urc_identifier);
             urc_lookup_table_length[i] = strlen(urc_identifier);
             urc_callbacks[i] = urc_callback;
@@ -548,12 +623,15 @@ bool SequansControllerClass::registerCallback(const char *urc_identifier,
     return false;
 }
 
-void SequansControllerClass::unregisterCallback(const char *urc_identifier) {
+void SequansControllerClass::unregisterCallback(const char *urc_identifier)
+{
     const uint8_t urc_identifier_length = strlen(urc_identifier);
-    for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
+    for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++)
+    {
         if (memcmp(urc_identifier,
                    urc_lookup_table[i],
-                   urc_identifier_length) == 0) {
+                   urc_identifier_length) == 0)
+        {
             // No need to fill the look up table identifier table, as we
             // override it if a new registration is issued, but the length is
             // used to check if the slot is active or not, so we set that to 0
@@ -566,13 +644,16 @@ void SequansControllerClass::unregisterCallback(const char *urc_identifier) {
 }
 
 bool SequansControllerClass::readNotification(char *buffer,
-                                              uint8_t buffer_size) {
+                                              uint8_t buffer_size)
+{
 
-    if (urc_read) {
+    if (urc_read)
+    {
         return false;
     }
 
-    if (buffer_size > URC_DATA_BUFFER_SIZE) {
+    if (buffer_size > URC_DATA_BUFFER_SIZE)
+    {
         return false;
     }
 
