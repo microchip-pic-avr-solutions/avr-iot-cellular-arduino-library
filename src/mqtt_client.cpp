@@ -1,15 +1,13 @@
 #include "mqtt_client.h"
 #include "sequans_controller.h"
 #include "ecc608/ecc608.h"
+#include "log/log.h"
 
 #include <cryptoauthlib.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define DEBUG
-#define SerialDebug Serial5
 
 #define MQTT_CONFIGURE "AT+SQNSMQTTCFG=0,\"%s\""
 #define MQTT_CONFIGURE_TLS "AT+SQNSMQTTCFG=0,\"%s\",,,2"
@@ -136,9 +134,7 @@ static void internalHandleSigningRequest(char *urc)
     bool ret = SequansController.genSigningRequestCmd(urc, signingRequestBuffer);
     if (ret != true)
     {
-#ifdef DEBUG
-        Serial5.println("Unable to handle signature request");
-#endif
+        Log5.Error("Unable to handle signature request");
         return;
     }
     signingRequestFlag = true;
@@ -155,6 +151,44 @@ bool MqttClientClass::pollSign(void)
     }
 
     return ret;
+}
+
+bool MqttClientClass::beginAWS()
+{
+    // Get the endoint and thing name
+    // -- Initialize the ECC
+    uint8_t err = ECC608.initializeHW();
+    if (err != ATCA_SUCCESS)
+    {
+        Log5.Error("Could not initialize ECC HW");
+        return false;
+    }
+
+    // -- Allocate the buffers
+    uint8_t thingName[128];
+    uint8_t thingNameLen = sizeof(thingName);
+    uint8_t endpoint[128];
+    uint8_t endpointLen = sizeof(endpoint);
+
+    // -- Get the thingname
+    err = ECC608.getThingName(thingName, &thingNameLen);
+    if (err != ECC608.ERR_OK)
+    {
+        Log5.Error("Could not retrieve thingname from the ECC");
+        return false;
+    }
+
+    // -- Get the endpoint
+    err = ECC608.getEndpoint(endpoint, &endpointLen);
+    if (err != ECC608.ERR_OK)
+    {
+        Log5.Error("Could not retrieve endpoint from the ECC");
+        return false;
+    }
+
+    Log5.Debugf("Connecting to AWS with endpoint = %s and thingname = %s\n", endpoint, thingName);
+
+    return this->begin((char *)(thingName), (char *)(endpoint), 8883, true, true);
 }
 
 bool MqttClientClass::begin(const char *client_id,
@@ -188,39 +222,6 @@ bool MqttClientClass::begin(const char *client_id,
         {
             return false;
         }
-
-        if (use_ecc)
-        {
-
-            // ECC controller initialization, only for when we are using TLS of
-            // course
-
-            // Config for the ECC. This needs to be static since cryptolib
-            // defines a pointer to it during the initialization process and
-            // stores that for further operations so we don't want to store it
-            // on the stack.
-            // static ATCAIfaceCfg cfg_atecc608b_i2c = {
-            //     ATCA_I2C_IFACE,
-            //     ATECC608B,
-            //     {
-            //         0x58,  // 7 bit address of ECC
-            //         2,     // Bus number
-            //         100000 // Baud rate
-            //     },
-            //     1560,
-            //     20,
-            //     NULL};
-
-            // ATCA_STATUS result = atcab_init(&cfg_atecc608b_i2c);
-
-            //             if (result != ATCA_SUCCESS)
-            //             {
-            // #ifdef DEBUG
-            //                 Serial5.printf("Failed to initialize ECC: %x\r\n", result);
-            // #endif
-            //                 return false;
-            //             }
-        }
     }
     else
     {
@@ -229,9 +230,7 @@ bool MqttClientClass::begin(const char *client_id,
 
         if (!SequansController.writeCommand(command))
         {
-#ifdef DEBUG
-            Serial5.printf("Failed to configure MQTT\r\n");
-#endif
+            Log5.Error("Failed to configure MQTT");
             return false;
         }
     }
@@ -248,9 +247,7 @@ bool MqttClientClass::begin(const char *client_id,
     sprintf(command, MQTT_CONNECT, host, port);
     if (!SequansController.retryCommand(command))
     {
-#ifdef DEBUG
-        Serial5.printf("Failed to request connection to MQTT broker\r\n");
-#endif
+        Log5.Error("Failed to request connection to MQTT broker\r\n");
         return false;
     }
 
@@ -278,9 +275,7 @@ bool MqttClientClass::begin(const char *client_id,
                                                      sizeof(connection_response));
         if (res != OK)
         {
-#ifdef DEBUG
-            Serial5.printf("Non-OK Response when writing AT. Err = %d\n", res);
-#endif
+            Log5.Errorf("Non-OK Response when writing AT. Err = %d\n", res);
             return false;
         }
 
@@ -377,9 +372,7 @@ bool MqttClientClass::publish(const char *topic,
 
     if (result != OK)
     {
-#ifdef DEBUG
-        SerialDebug.println("Failed to get publish result");
-#endif
+        Log5.Error("Failed to get publish result");
         return false;
     }
 
@@ -391,17 +384,13 @@ bool MqttClientClass::publish(const char *topic,
 
     if (!got_rc)
     {
-#ifdef DEBUG
-        SerialDebug.printf("Failed to get status code: %s \r\n", rc_buffer);
-#endif
+        Log5.Errorf("Failed to get status code: %s \r\n", rc_buffer);
         return false;
     }
 
     if (atoi(rc_buffer) != 0)
     {
-#ifdef DEBUG
-        SerialDebug.printf("Status code (rc) != 0: %d\r\n", atoi(rc_buffer));
-#endif
+        Log5.Errorf("Status code (rc) != 0: %d\r\n", atoi(rc_buffer));
         return false;
     }
 

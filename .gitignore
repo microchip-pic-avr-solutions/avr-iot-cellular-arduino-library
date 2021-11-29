@@ -6,3 +6,4 @@ src/calib
 src/cert*
 atca*
 libcryptoauth.a
+.vscode

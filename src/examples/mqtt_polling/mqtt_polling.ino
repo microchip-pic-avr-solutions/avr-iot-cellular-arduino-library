@@ -4,54 +4,68 @@
  */
 
 #include <Arduino.h>
+
 #include <lte.h>
 #include <mqtt_client.h>
+#include "ecc608/ecc608.h"
+#include "log/log.h"
 
-//#define MQTT_THING_NAME "cccf626c3be836af9f72fb534b42b3ea4cc6e1dd"
-#define MQTT_THING_NAME "basicPubSub"
+#define MQTT_USE_AWS false
+#define MQTT_SUB_TOPIC "mchp_topic_sub"
+#define MQTT_PUB_TOPIC "mchp_topic_pub"
+
+// If you are not using AWS, apply these settings
+#if (!MQTT_USE_AWS)
+
+#define MQTT_THING_NAME "someuniquemchp"
 #define MQTT_BROKER "test.mosquitto.org"
 #define MQTT_PORT 1883
 #define MQTT_USE_TLS false
 #define MQTT_USE_ECC false
 
-#define SerialDebug Serial5
+#endif
 
 bool connectedToBroker = false;
 
 void setup()
 {
-    SerialDebug.begin(115200);
-    SerialDebug.println("Starting initialization of MQTT Polling");
+    Serial5.begin(115200);
+    Log5.setLogLevel(LogLevels::INFO);
+    Log5.Info("Starting initialization of MQTT Polling");
 
     // Start LTE modem and wait until we are connected to the operator
     Lte.begin();
 
     while (!Lte.isConnected())
     {
-        SerialDebug.println("Not connected to operator yet...");
+        Log5.Info("Not connected to operator yet...");
         delay(5000);
     }
 
-    SerialDebug.println("Connected to operator!");
+    Log5.Info("Connected to operator!");
 
-    // Attempt to connect to broker
+// Attempt to connect to broker
+#if (MQTT_USE_AWS)
+    connectedToBroker = MqttClient.beginAWS();
+#else
     connectedToBroker = MqttClient.begin(
         MQTT_THING_NAME, MQTT_BROKER, MQTT_PORT, MQTT_USE_TLS, MQTT_USE_ECC);
+#endif
 
     if (connectedToBroker)
     {
-        SerialDebug.println("Connecting to broker...");
+        Log5.Info("Connecting to broker...");
         while (!MqttClient.isConnected())
         {
-            SerialDebug.println("Connecting...");
+            Log5.Info("Connecting...");
             delay(500);
         }
-        SerialDebug.println("Connected to broker!");
-        MqttClient.subscribe("mchp_topic");
+        Log5.Info("Connected to broker!");
+        MqttClient.subscribe(MQTT_SUB_TOPIC);
     }
     else
     {
-        SerialDebug.println("Failed to connect to broker");
+        Log5.Error("Failed to connect to broker");
     }
 }
 
@@ -61,28 +75,32 @@ void loop()
     if (connectedToBroker)
     {
 
-        SerialDebug.println("reading message");
-        String message = MqttClient.readMessage("mchp_topic");
+        String message = MqttClient.readMessage(MQTT_SUB_TOPIC);
 
         // Read message will return an empty string if there were no new
         // messages, so anything other than that means that there were a new
         // message
         if (message != "")
         {
-            SerialDebug.print("Got new message: ");
-            SerialDebug.println(message);
+            Log5.Info("Got new message: ");
+            Log5.Info(message);
         }
 
         // Publishing can fail due to network issues, so to be on the safe side
         // one should check the return value to see if the message got published
         bool publishedSuccessfully =
-            MqttClient.publish("topic_2", "hello world");
+            MqttClient.publish(MQTT_PUB_TOPIC, "hello world");
 
         if (!publishedSuccessfully)
         {
-            SerialDebug.println("Failed to publish");
+            Log5.Error("Failed to publish");
         }
+
+#if ((MQTT_USE_ECC) || (MQTT_USE_AWS))
+        // If we are using the ECC (secure element), we need to poll for situations where the Sequans modem wants something signed.
+        MqttClient.pollSign();
+#endif
     }
 
-    MqttClient.pollSign();
+    delay(1000);
 }
