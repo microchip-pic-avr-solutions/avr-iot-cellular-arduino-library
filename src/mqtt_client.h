@@ -9,37 +9,41 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef struct {
-    String receive_topic;
-    uint16_t message_length;
+typedef struct
+{
+  String receive_topic;
+  uint16_t message_length;
 
 } MqttReceiveNotification;
 
-typedef enum {
-    AT_MOST_ONCE = 0, // default
-    AT_LEAST_ONCE,
-    EXACTLY_ONCE
+typedef enum
+{
+  AT_MOST_ONCE = 0, // default
+  AT_LEAST_ONCE,
+  EXACTLY_ONCE
 } MqttQoS;
 
-class MqttClientClass {
+class MqttClientClass
+{
 
-  private:
-    /**
+private:
+  /**
      * @brief Hide constructor in order to enforce a single instance of the
      * class.
      */
-    MqttClientClass(){};
+  MqttClientClass(){};
 
-  public:
-    /**
+public:
+  /**
      * @brief Singleton instance.
      */
-    static MqttClientClass &instance(void) {
-        static MqttClientClass instance;
-        return instance;
-    }
+  static MqttClientClass &instance(void)
+  {
+    static MqttClientClass instance;
+    return instance;
+  }
 
-    /**
+  /**
      * @brief Will configure and connect to the host/broker
      * specified. Will disconnect from the current broker (if any) before
      * configuring the new client.
@@ -55,31 +59,31 @@ class MqttClientClass {
      *
      * @return true if configuration and connection was succesful.
      */
-    bool begin(const char *client_id,
-               const char *host,
-               const uint16_t port,
-               const bool use_tls,
-               const bool use_ecc = true);
+  bool begin(const char *client_id,
+             const char *host,
+             const uint16_t port,
+             const bool use_tls,
+             const bool use_ecc = true);
 
-    /**
+  /**
      * @brief Disconnects from the broker.
      */
-    bool end(void);
+  bool end(void);
 
-    /**
+  /**
      * @brief Register callback function for when the client is
      * connected/disconnected to/from the MQTT broker. Called from ISR, so keep
      * this function short.
      */
-    void onConnectionStatusChange(void (*connected)(void),
-                                  void (*disconnected)(void));
+  void onConnectionStatusChange(void (*connected)(void),
+                                void (*disconnected)(void));
 
-    /**
+  /**
      * @return true if connected to MQTT broker.
      */
-    bool isConnected(void);
+  bool isConnected(void);
 
-    /**
+  /**
      * @brief Publishes the contents of the buffer to the given topic.
      *
      * @param topic Topic to publish to.
@@ -89,12 +93,12 @@ class MqttClientClass {
      *
      * @return true if publish was successful.
      */
-    bool publish(const char *topic,
-                 const uint8_t *buffer,
-                 const uint32_t buffer_size,
-                 const MqttQoS quality_of_service = AT_MOST_ONCE);
+  bool publish(const char *topic,
+               const uint8_t *buffer,
+               const uint32_t buffer_size,
+               const MqttQoS quality_of_service = AT_MOST_ONCE);
 
-    /**
+  /**
      * @brief Publishes the contents of the message to the given topic.
      *
      * @param topic Topic to publish to.
@@ -103,11 +107,11 @@ class MqttClientClass {
      *
      * @return true if publish was successful.
      */
-    bool publish(const char *topic,
-                 const char *message,
-                 const MqttQoS quality_of_service = AT_MOST_ONCE);
+  bool publish(const char *topic,
+               const char *message,
+               const MqttQoS quality_of_service = AT_MOST_ONCE);
 
-    /**
+  /**
      * @brief Subscribes to a given topic.
      *
      * @param topic Topic to subscribe to.
@@ -115,26 +119,26 @@ class MqttClientClass {
      *
      * @return true if subscription was successful.
      */
-    bool subscribe(const char *topic,
-                   const MqttQoS quality_of_service = AT_MOST_ONCE);
+  bool subscribe(const char *topic,
+                 const MqttQoS quality_of_service = AT_MOST_ONCE);
 
-    /**
+  /**
      * @brief Register a callback function which will be called when we receive
      * a message on any topic we've subscribed on. Called from ISR, so keep this
      * function short.
      */
-    void onReceive(void (*callback)(void));
+  void onReceive(void (*callback)(void));
 
-    /**
+  /**
      * @brief Reads a receive notification (if any).
      *
      * @return Data from last receive notification. If no notification has
      * already been read and there are no new ones, a message length of 0 will
      * be returned.
      */
-    MqttReceiveNotification readReceiveNotification(void);
+  MqttReceiveNotification readReceiveNotification(void);
 
-    /**
+  /**
      * @brief Reads the message received on the given topic (if any).
      *
      * @param topic topic message received on.
@@ -145,9 +149,9 @@ class MqttClientClass {
      * message or the message buffer was over 1024, which is a limitation from
      * the LTE module.
      */
-    bool readMessage(const char *topic, uint8_t *buffer, uint16_t buffer_size);
+  bool readMessage(const char *topic, uint8_t *buffer, uint16_t buffer_size);
 
-    /**
+  /**
      * @brief Reads the message received on the given topic (if any).
      *
      * @param size Size of buffer. Max is 1024.
@@ -155,7 +159,9 @@ class MqttClientClass {
      * @return The message or an empty string if no new message was retrieved on
      * the given topic.
      */
-    String readMessage(const char *topic, const uint16_t size = 256);
+  String readMessage(const char *topic, const uint16_t size = 256);
+
+  bool pollSign(void);
 };
 
 extern MqttClientClass MqttClient;

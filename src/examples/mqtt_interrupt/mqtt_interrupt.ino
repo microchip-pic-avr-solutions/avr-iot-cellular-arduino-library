@@ -182,6 +182,7 @@ void loop()
 
         callback_flags &= ~RECEIVE_MSG_FLAG;
     }
+    MqttClient.pollSign();
 }
 
 // ------------------------------ DEBUG BRIDGE ----------------------------- //

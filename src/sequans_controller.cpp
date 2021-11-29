@@ -6,11 +6,14 @@
 #include <string.h>
 #include <util/delay.h>
 
+#include <cryptoauthlib.h>
+
 #include <Arduino.h>
 #include <pins_arduino.h>
 
 #define TX_PIN PIN_PC0
 #define CTS_PIN PIN_PC6
+#define RING_PIN PIN_PC4
 #define CTS_PIN_bm PIN6_bm
 #define CTS_INT_bm PORT_INT6_bm
 #define RING_INT_bm PORT_INT4_bm
@@ -42,6 +45,19 @@
 #define CARRIAGE_RETURN '\r'
 #define SPACE_CHARACTER ' '
 #define RESPONSE_DELIMITER ","
+
+#define HCESIGN_REQUEST_LENGTH 128
+#define HCESIGN_DIGEST_LENGTH 64
+#define HCESIGN_CTX_ID_LENGTH 5
+
+// Command without any data in it (with parantheses): 22 bytes
+// ctxId: 5 bytes (16 bits, thus 5 characters max)
+// Signature: 128 bytes
+// Termination: 1 byte
+// Total: 156 bytes
+#define HCESIGN_LENGTH 156
+
+#define HCESIGN "AT+SQNHCESIGN=%u,0,64,\"%s\""
 
 static const char OK_TERMINATION[] = "OK\r\n";
 static const char ERROR_TERMINATION[] = "ERROR\r\n";
@@ -81,14 +97,16 @@ void (*urc_callbacks[MAX_URC_CALLBACKS])(void);
 
 // Used to keep a pointer to the URC we are processing and found to be matching,
 // which will fire after we are finished processing the URC.
-void (*urc_current_callback)(void);
+void (*urc_current_callback)(char *urc);
 
 // Default values
 static uint8_t number_of_retries = 5;
 static double sleep_between_retries_ms = 20;
 
+// Sleep Modes
+static volatile uint8_t sleep_mode = 0;
+
 // Singleton. Defined for use of rest of library
-SequansControllerClass SequansController = SequansControllerClass::instance();
 
 /** @brief Flow control update for the UART interface with the LTE modules
  *
@@ -98,6 +116,11 @@ SequansControllerClass SequansController = SequansControllerClass::instance();
  */
 static void flowControlUpdate(void)
 {
+    // If we are in a sleep mode, flow control is disabled until we get a RING0 ack
+    if (sleep_mode == 1)
+    {
+        return;
+    }
 
     // We prefer to not use arduino's digitalWrite here to reduce code in the
     // ISR
@@ -133,6 +156,14 @@ ISR(PORTC_PORT_vect)
             HWSERIALAT.CTRLA |= USART_DREIE_bm;
         }
     }
+    // if (VPORTC.INTFLAGS & RING_INT_bm)
+    // {
+    //     if (VPORTC.IN & RING_PIN)
+    //     {
+    //         // Rising Edge => Wake Up
+    //         SequansController.setSleepMode(0);
+    //     }
+    // }
 
     VPORTC.INTFLAGS = 0xff;
 }
@@ -218,7 +249,7 @@ ISR(USART1_RXC_vect)
 
             if (urc_current_callback != NULL)
             {
-                urc_current_callback();
+                urc_current_callback(urc_data_buffer);
             }
 
             urc_parse_state = URC_NOT_PARSING;
@@ -264,6 +295,22 @@ ISR(USART1_DRE_vect)
     {
         // Disable TX interrupt until we want to send more data
         USART1.CTRLA &= ~(1 << USART_DREIE_bp);
+    }
+}
+
+void SequansControllerClass::setSleepMode(uint8_t sm)
+{
+    if (sm == 0)
+    {
+        digitalWrite(PIN_PC7, LOW);
+
+        sleep_mode = 0;
+    }
+    else
+    {
+        digitalWrite(PIN_PC7, HIGH);
+
+        sleep_mode = 1;
     }
 }
 
@@ -593,7 +640,7 @@ bool SequansControllerClass::extractValueFromCommandResponse(
 }
 
 bool SequansControllerClass::registerCallback(const char *urc_identifier,
-                                              void (*urc_callback)(void))
+                                              void (*urc_callback)(char *urc))
 {
 
     // Check if we can override first
@@ -661,6 +708,89 @@ bool SequansControllerClass::readNotification(char *buffer,
 
     // We do a reset here to signify that the URC has been read.
     urc_read = true;
+
+    return true;
+}
+
+bool SequansControllerClass::genSigningRequestCmd(char *urc, char *commandBuffer)
+{
+    char sign_request[HCESIGN_REQUEST_LENGTH] = "SQNHCESIGN:";
+    strcpy(sign_request + strlen("SQNHCESIGN:"), urc);
+
+#ifdef DEBUG
+    Serial5.printf("Got URC: %s\r\n", sign_request);
+#endif
+
+    // Grab the ctx id
+    // +1 for null termination
+    char ctx_id_buffer[HCESIGN_CTX_ID_LENGTH + 1];
+
+    bool got_ctx_id = extractValueFromCommandResponse(
+        sign_request, 0, ctx_id_buffer, sizeof(ctx_id_buffer));
+
+    if (!got_ctx_id)
+    {
+#ifdef DEBUG
+        Serial5.println("no ctx_id");
+#endif
+        return false;
+    }
+
+    // Grab the digest, which will be 32 bytes, but appear as 64 hex
+    // characters
+    char digest[HCESIGN_DIGEST_LENGTH + 1];
+
+    bool got_digest = extractValueFromCommandResponse(
+        sign_request, 3, digest, HCESIGN_DIGEST_LENGTH + 1);
+
+    if (!got_digest)
+    {
+#ifdef DEBUG
+        Serial5.println("no digest");
+#endif
+
+        return false;
+    }
+
+    // Convert digest to 32 bytes
+    uint8_t message_to_sign[HCESIGN_DIGEST_LENGTH / 2];
+    char *position = digest;
+
+    for (uint8_t i = 0; i < sizeof(message_to_sign); i++)
+    {
+        sscanf(position, "%2hhx", &message_to_sign[i]);
+        position += 2;
+    }
+
+    // Sign digest with ECC's primary private key
+    ATCA_STATUS result = atcab_sign(0, message_to_sign, digest);
+
+    if (result != ATCA_SUCCESS)
+    {
+#ifdef DEBUG
+        Serial5.println("ECC Signing failed");
+#endif
+        return false;
+    }
+
+    // Now we need to convert the byte array into a hex string in
+    // compact form
+    const char hex_conversion[] = "0123456789abcdef";
+
+    // +1 for NULL termination
+    char signature[HCESIGN_DIGEST_LENGTH * 2 + 1] = "";
+
+    // Prepare signature by converting to a hex string
+    for (uint8_t i = 0; i < sizeof(digest) - 1; i++)
+    {
+        signature[i * 2] = hex_conversion[(digest[i] >> 4) & 0x0F];
+        signature[i * 2 + 1] = hex_conversion[digest[i] & 0x0F];
+    }
+
+    // NULL terminate
+    signature[HCESIGN_DIGEST_LENGTH * 2] = 0;
+    uint32_t command_length =
+        sprintf(commandBuffer, HCESIGN, atoi(ctx_id_buffer), signature);
 
     return true;
 }
