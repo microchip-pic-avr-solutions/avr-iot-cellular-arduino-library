@@ -9,13 +9,15 @@
 
 void testHttp();
 
-void setup() {
+void setup()
+{
 
     SerialDebug.begin(115200);
 
     // Start LTE modem and wait until we are connected to the operator
     Lte.begin();
-    while (!Lte.isConnected()) {
+    while (!Lte.isConnected())
+    {
         Serial5.println("Not connected to operator yet...");
         delay(1000);
     }
@@ -25,7 +27,8 @@ void setup() {
     testHttp();
 }
 
-void testHttp() {
+void testHttp()
+{
 
     SerialDebug.println("---- Testing HTTP ----");
 
@@ -33,7 +36,8 @@ void testHttp() {
 
     // --- HTTP ---
 
-    if (!HttpClient.configure(DOMAIN, 80, false)) {
+    if (!HttpClient.configure(DOMAIN, 80, false))
+    {
         SerialDebug.println("Failed to configure http client");
     }
 
@@ -46,7 +50,8 @@ void testHttp() {
 
     // --- HTTPS ---
 
-    if (!HttpClient.configure(DOMAIN, 443, true)) {
+    if (!HttpClient.configure(DOMAIN, 443, true))
+    {
         SerialDebug.println("Failed to configure https client");
     }
 
@@ -63,9 +68,10 @@ void testHttp() {
                        response.status_code,
                        response.data_size);
 
-    String body = HttpClient.readBody();
+    String body = HttpClient.readBody(512);
 
-    if (body != "") {
+    if (body != "")
+    {
         SerialDebug.print("Body:\r\n");
         SerialDebug.print(body);
     }
@@ -75,23 +81,27 @@ void loop() { debugBridgeUpdate(); }
 
 // ------------------------------ DEBUG BRIDGE ----------------------------- //
 
-#define DEL_CHARACTER   127
+#define DEL_CHARACTER 127
 #define ENTER_CHARACTER 13
 
-#define INPUT_BUFFER_SIZE    128
+#define INPUT_BUFFER_SIZE 128
 #define RESPONSE_BUFFER_SIZE 256
 
-void debugBridgeUpdate(void) {
+void debugBridgeUpdate(void)
+{
     static uint8_t character;
     static char input_buffer[INPUT_BUFFER_SIZE];
     static uint8_t input_buffer_index = 0;
 
-    if (Serial5.available() > 0) {
+    if (Serial5.available() > 0)
+    {
         character = Serial5.read();
 
-        switch (character) {
+        switch (character)
+        {
         case DEL_CHARACTER:
-            if (strlen(input_buffer) > 0) {
+            if (strlen(input_buffer) > 0)
+            {
                 input_buffer[input_buffer_index--] = 0;
             }
             break;
@@ -114,7 +124,8 @@ void debugBridgeUpdate(void) {
         Serial5.print((char)character);
     }
 
-    if (SequansController.isRxReady()) {
+    if (SequansController.isRxReady())
+    {
         // Send back data from modem to host
         Serial5.write(SequansController.readByte());
     }
