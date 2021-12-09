@@ -3,7 +3,7 @@
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 
 TARGET=$SCRIPTPATH/../src/examples/mqtt_polling/mqtt_polling.ino
-EXTRA_ARGS=
+EXTRA_ARGS=--clean
 
 if [ "$1" = "clean" ]; then
     EXTRA_ARGS=--clean

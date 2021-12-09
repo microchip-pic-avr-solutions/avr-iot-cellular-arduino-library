@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <http_client.h>
 #include <lte.h>
-#include <sequans_controller.h>
 #include "log/log.h"
 
 #define TIMEZONE_URL "worldtimeapi.org"
@@ -13,7 +12,6 @@ long getTimeFromApiresp(String *resp)
 	int utx_datetimeIndex = resp->indexOf(String("utc_datetime"));
 
 	String substr = resp->substring(unixTimeIndex + 10, utx_datetimeIndex - 1);
-	Log5.Infof("Parsed Time = %d\n");
 	return substr.toInt();
 }
 

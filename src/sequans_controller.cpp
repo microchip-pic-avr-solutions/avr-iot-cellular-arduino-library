@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <util/delay.h>
+#include "log/log.h"
 
 #include <cryptoauthlib.h>
 
@@ -93,7 +94,7 @@ static UrcParseState urc_parse_state = URC_NOT_PARSING;
 
 static char urc_lookup_table[MAX_URC_CALLBACKS][URC_IDENTIFIER_BUFFER_SIZE];
 static uint8_t urc_lookup_table_length[MAX_URC_CALLBACKS];
-void (*urc_callbacks[MAX_URC_CALLBACKS])(void);
+void (*urc_callbacks[MAX_URC_CALLBACKS])(char *urc);
 
 // Used to keep a pointer to the URC we are processing and found to be matching,
 // which will fire after we are finished processing the URC.
@@ -249,7 +250,7 @@ ISR(USART1_RXC_vect)
 
             if (urc_current_callback != NULL)
             {
-                urc_current_callback(urc_data_buffer);
+                urc_current_callback((char *)urc_data_buffer);
             }
 
             urc_parse_state = URC_NOT_PARSING;
@@ -477,7 +478,6 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
                                                     uint16_t buffer_size)
 {
     uint8_t retry_count = 0;
-    int16_t value;
 
     for (size_t i = 0; i < buffer_size; i++)
     {
@@ -717,9 +717,7 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc, char *commandBuffer
     char sign_request[HCESIGN_REQUEST_LENGTH] = "SQNHCESIGN:";
     strcpy(sign_request + strlen("SQNHCESIGN:"), urc);
 
-#ifdef DEBUG
-    Serial5.printf("Got URC: %s\r\n", sign_request);
-#endif
+    Log5.Debugf("Got URC: %s\r\n", sign_request);
 
     // Grab the ctx id
     // +1 for null termination
@@ -730,9 +728,7 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc, char *commandBuffer
 
     if (!got_ctx_id)
     {
-#ifdef DEBUG
-        Serial5.println("no ctx_id");
-#endif
+        Log5.Error("no ctx_id");
         return false;
     }
 
@@ -745,10 +741,7 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc, char *commandBuffer
 
     if (!got_digest)
     {
-#ifdef DEBUG
-        Serial5.println("no digest");
-#endif
-
+        Log5.Error("No Digest");
         return false;
     }
 
@@ -767,9 +760,7 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc, char *commandBuffer
 
     if (result != ATCA_SUCCESS)
     {
-#ifdef DEBUG
-        Serial5.println("ECC Signing failed");
-#endif
+        Log5.Error("ECC Signing Failed");
         return false;
     }
 
@@ -789,8 +780,7 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc, char *commandBuffer
 
     // NULL terminate
     signature[HCESIGN_DIGEST_LENGTH * 2] = 0;
-    uint32_t command_length =
-        sprintf(commandBuffer, HCESIGN, atoi(ctx_id_buffer), signature);
+    sprintf(commandBuffer, HCESIGN, atoi(ctx_id_buffer), signature);
 
     return true;
 }

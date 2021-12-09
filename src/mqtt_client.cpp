@@ -14,7 +14,7 @@
 #define MQTT_CONFIGURE_TLS_ECC "AT+SQNSMQTTCFG=0,\"%s\",,,1"
 #define MQTT_CONNECT "AT+SQNSMQTTCONNECT=0,\"%s\",%u"
 #define MQTT_DISCONNECT "AT+SQNSMQTTDISCONNECT=0"
-#define MQTT_PUBLISH "AT+SQNSMQTTPUBLISH=0,\"%s\",%u,%u"
+#define MQTT_PUBLISH "AT+SQNSMQTTPUBLISH=0,\"%s\",%u,%lu"
 #define MQTT_SUSBCRIBE "AT+SQNSMQTTSUBSCRIBE=0,\"%s\",%u"
 #define MQTT_RECEIVE "AT+SQNSMQTTRCVMESSAGE=0,\"%s\""
 #define MQTT_ON_MESSAGE_URC "SQNSMQTTONMESSAGE"
@@ -63,7 +63,7 @@
 #define MQTT_RECEIVE_LENGTH 155
 
 // Just arbitrary, but will fit 'ordinary' responses and their termination
-#define MQTT_DEFAULT_RESPONSE_LENGTH 48
+#define MQTT_DEFAULT_RESPONSE_LENGTH 256
 
 // This is the index in characters, including delimiter in the connection URC.
 #define MQTT_CONNECTION_RC_INDEX 2
@@ -92,6 +92,8 @@ static void (*disconnected_callback)(void) = NULL;
 
 volatile static bool signingRequestFlag = false;
 static char signingRequestBuffer[MQTT_SIGNING_BUFFER];
+
+static bool usingEcc = false;
 
 /**
  * @brief Called on MQTT broker connection URC. Will check the URC to see if the
@@ -146,6 +148,7 @@ bool MqttClientClass::pollSign(void)
     bool ret = false;
     if (signingRequestFlag)
     {
+        Log5.Debug("Signing");
         ret = SequansController.writeCommand(signingRequestBuffer);
         signingRequestFlag = false;
     }
@@ -187,6 +190,8 @@ bool MqttClientClass::beginAWS()
     }
 
     Log5.Debugf("Connecting to AWS with endpoint = %s and thingname = %s\n", endpoint, thingName);
+
+    usingEcc = true;
 
     return this->begin((char *)(thingName), (char *)(endpoint), 8883, true, true);
 }
@@ -256,6 +261,7 @@ bool MqttClientClass::begin(const char *client_id,
 
         if (use_ecc)
         {
+            usingEcc = true;
 
             while (pollSign() == false)
                 ;
@@ -363,6 +369,20 @@ bool MqttClientClass::publish(const char *topic,
     {
     }
 
+    // Wait for a signing request if using the ECC
+    if (usingEcc)
+    {
+        uint32_t start = millis();
+        while (pollSign() == false)
+        {
+            if (millis() - start > 5000)
+            {
+                Log5.Error("Timed out waiting for pub signing");
+                return false;
+            }
+        }
+    }
+
     // We do this as a trick to get an termination sequence after the URC
     SequansController.writeCommand("AT");
 
@@ -372,7 +392,7 @@ bool MqttClientClass::publish(const char *topic,
 
     if (result != OK)
     {
-        Log5.Error("Failed to get publish result");
+        Log5.Errorf("Failed to get publish result, result was %d\n", result);
         return false;
     }
 
@@ -453,7 +473,7 @@ bool MqttClientClass::subscribe(const char *topic,
     return true;
 }
 
-void MqttClientClass::onReceive(void (*callback)(void))
+void MqttClientClass::onReceive(void (*callback)(char *))
 {
     if (callback != NULL)
     {

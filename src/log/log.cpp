@@ -2,6 +2,9 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wvarargs"
+
 #define __ERR_LEVEL_FMT "[ERROR]"
 #define __INFO_LEVEL_FMT "[INFO]"
 #define __DEBUG_LEVEL_FMT "[DEBUG]"
@@ -68,6 +71,7 @@ void Log::Infof(const char *format, ...)
 
 		fdev_setup_stream(&f, printf_putchar, NULL, _FDEV_SETUP_WRITE);
 		fdev_set_udata(&f, this->lUart);
+
 		va_start(ap, nFormat);
 		vfprintf(&f, nFormat, ap);
 	}
@@ -153,3 +157,4 @@ void Log::Warnf(const char *format, ...)
 		vfprintf(&f, nFormat, ap);
 	}
 }
+#pragma GCC diagnostic pop

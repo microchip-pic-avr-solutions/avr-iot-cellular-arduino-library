@@ -34,7 +34,7 @@ LteClass Lte = LteClass::instance();
 static void (*connected_callback)(void) = NULL;
 static void (*disconnected_callback)(void) = NULL;
 
-static void connectionStatus(void)
+static void connectionStatus(char *)
 {
     // +1 for null termination
     char buffer[CEREG_DATA_LENGTH + 1];
@@ -76,7 +76,7 @@ void LteClass::begin(void)
     SequansController.retryCommand(AT_COMMAND_CONNECT);
 
     // This is convenient when the MCU has been issued a reset, but the lte
-    // modem is alerady connected, which will be the case during development for
+    // modem is already connected, which will be the case during development for
     // example. In that way, the user gets the callback upon start and doesn't
     // have to check themselves
     if (isConnected() && connected_callback != NULL)

@@ -1,0 +1,83 @@
+// Jenkinsfile v2.0.0
+pipeline {
+    agent {
+        kubernetes {
+            defaultContainer 'arduino-gcc'
+            yamlFile 'cloudprovider.yaml'
+        }
+    }
+
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+    }
+
+    stages {
+        stage('setup') {
+            steps {
+                checkout scm
+                script {
+                    // See if we can use the git tag for the release name
+                    try {
+                        RELEASE_NAME = gitTagName()
+                    } catch (err) {
+                        // No tag exist, use the commit instead
+                        RELEASE_NAME = getCommit()
+                    }
+                    currentBuild.displayName = "#${BUILD_NUMBER}, ${JOB_NAME}, ${RELEASE_NAME}"
+                }
+            }
+        }
+
+        stage('build-cryptoauthlib') {
+            steps {
+                sh 'chmod +x ./scripts/inject_cryptoauthlib.sh'
+                sh './scripts/inject_cryptoauthlib.sh'
+            }
+        }
+
+        stage('build-examples') {
+            steps {
+                sh 'chmod +x ./scripts/compile_examples.sh'
+                sh './scripts/compile_examples.sh'
+            }
+        }
+
+        stage('bundle') {
+            steps {
+                sh 'chmod +x ./scripts/bundle.sh'
+                sh './scripts/bundle.sh $RELEASE_NAME'
+            }
+        }
+    }
+
+    post {
+        success {
+            archiveArtifacts artifacts: '**/avr-iot-cellular.zip'
+        }
+    }
+}
+
+String gitTagName() {
+    commit = getCommit()
+    if (commit) {
+        desc = sh(script: "git describe --tags ${commit}", returnStdout:false)?.trim()
+    }
+    if (isTag(decs)) {
+        return desc
+    } else {
+        return commit
+    }
+}
+
+String getCommit() {
+    return sh(script: 'git rev-parse HEAD', returnStdout: true)?.trim()
+}
+
+@NonCPS
+boolean isTag(String desc) {
+    match = desc =~ /.+-[0-9]+-g[0-0A-Fa-f]{6,}$/
+    result = !match
+    match = null
+    return result
+}

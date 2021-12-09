@@ -10,7 +10,7 @@
 #include "ecc608/ecc608.h"
 #include "log/log.h"
 
-#define MQTT_USE_AWS false
+#define MQTT_USE_AWS true
 #define MQTT_SUB_TOPIC "mchp_topic_sub"
 #define MQTT_PUB_TOPIC "mchp_topic_pub"
 
@@ -86,8 +86,13 @@ void loop()
             Log5.Info(message);
         }
 
-        // Publishing can fail due to network issues, so to be on the safe side
-        // one should check the return value to see if the message got published
+// Publishing can fail due to network issues, so to be on the safe side
+// one should check the return value to see if the message got published
+#if ((MQTT_USE_ECC) || (MQTT_USE_AWS))
+        // If we are using the ECC (secure element), we need to poll for situations where the Sequans modem wants something signed.
+        MqttClient.pollSign();
+#endif
+
         bool publishedSuccessfully =
             MqttClient.publish(MQTT_PUB_TOPIC, "hello world");
 
@@ -95,12 +100,7 @@ void loop()
         {
             Log5.Error("Failed to publish");
         }
-
-#if ((MQTT_USE_ECC) || (MQTT_USE_AWS))
-        // If we are using the ECC (secure element), we need to poll for situations where the Sequans modem wants something signed.
-        MqttClient.pollSign();
-#endif
     }
 
-    delay(1000);
+    delay(200);
 }
