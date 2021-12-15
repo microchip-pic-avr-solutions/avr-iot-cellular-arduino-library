@@ -19,12 +19,12 @@ pipeline {
                 script {
                     // See if we can use the git tag for the release name
                     try {
-                        RELEASE_NAME = gitTagName()
+                        env.RELEASE_NAME = gitTagName()
                     } catch (err) {
                         // No tag exist, use the commit instead
-                        RELEASE_NAME = getCommit()
+                        env.RELEASE_NAME = getCommit()
                     }
-                    currentBuild.displayName = "#${BUILD_NUMBER}, ${JOB_NAME}, ${RELEASE_NAME}"
+                    currentBuild.displayName = "#${BUILD_NUMBER}, ${JOB_NAME}, ${env.RELEASE_NAME}"
                 }
             }
         }
@@ -53,7 +53,7 @@ pipeline {
 
     post {
         success {
-            archiveArtifacts artifacts: '**/avr-iot-cellular.zip'
+            archiveArtifacts artifacts: '**/avr-iot-cellular-*.zip'
         }
     }
 }
