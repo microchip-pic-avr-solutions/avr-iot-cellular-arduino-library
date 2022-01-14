@@ -13,6 +13,7 @@ fi
 
 arduino-cli.exe upload \
                 --input-dir $BUILD_DIR \
+                -v \
                 -t \
                 -p $PORT \
                 -P nedbg \

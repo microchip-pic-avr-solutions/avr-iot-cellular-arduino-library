@@ -27,7 +27,7 @@ void setup() {
 
     Serial5.begin(115200);
 
-    ATCA_STATUS status;
+    int status;
 
     static ATCAIfaceCfg cfg_atecc608b_i2c = {ATCA_I2C_IFACE,
                                              ATECC608B,
