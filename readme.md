@@ -13,18 +13,12 @@ Publishing works fine when using default AWS' certificates (from onboarding a de
 
 1. Download Arduino IDE and grab [DxCore](https://github.com/SpenceKonde/DxCore/blob/master/Installation.md).
 2. Clone this repo to one's Arduino library [folder](https://www.arduino.cc/en/hacking/libraries) (Usually `Documents\Arduino\libraries` on Windows): `git clone --recursive https://bitbucket.microchip.com/scm/mcu8mass/avr-iot-cellular-arduino-firmware.git` 
-3. Build cryptoauthlib archive and place headers in `src` folder with the command: `./scripts/inject_cryptoauthlib.sh` (The `./scripts/clear_cryptoauthlib.sh` removes all the cryptoauthlib related files from the source directory). Note that this depends on make and cmake. This is a somewhat awkward setup, but we do this because of three things:
+3. Build cryptoauthlib archive and place headers in `src` folder with the command: `./scripts/inject_cryptoauthlib.sh` (The `./scripts/clear_cryptoauthlib.sh` removes all the cryptoauthlib related files from the source directory). *Note that this depends on make, cmake, gcc-avr and avr-libc*. This is a somewhat awkward setup, but we do this because of three things:
     - Arduino doesn't allow us to specify include paths from the library (it's fixed at the source folder), so we have to 'inject' the headers from cryptoauthlib in the source folder and not some sub folder.
     - Compile time is reduced significantly by using an archive for cryptoauthlib. There are a lot of source files in the cryptoauthlib, and having them be compiled each time the user uploads the sketch will slow down development for the users (especially in the Arduino IDE on Windows for some reason, compiling through arduino-cli within wsl was a lot quicker).
     - Easier to use for the user. In this way, the library can just be downloaded and used. **We only need to make sure that we do the 'injecting' before we create a new release.**
 4. Provision your board (**todo more here once iot-provisioning iot-provisioning has support for lte-m**). The board needs to be provisioned, which there are some details about below in the provisioning section, as well as on confluence.
 5. Open up one of the examples in `src/examples` in the Arduino IDE. Modify your setup from the `tools` menu in Arduino IDE to set the board, chip and port and upload the sketch. If it complains about TWI1, look below.
-
-
-## Things which need to be merged into DxCore
-
-- This might have changed now, but currently there are no TWI1 support in DxCore. This is begin worked on in one of the issues and should be patched in soon. For making this to work at the moment you need to copy the contents of the patch in this [issue](https://github.com/SpenceKonde/DxCore/issues/54#issuecomment-860186363) by MX682X. Copy his source files to `<place where DxCore is located>/DxCore/hardware/megaavr/x.x.x/libraries/Wire/src`.
-- Static linking support, this is merged into master of DxCore, but not upstream in a version yet. The file is [here](https://github.com/SpenceKonde/DxCore/blob/master/megaavr/platform.txt). If it is not yet upstream, you need to replace the platform.txt in DxCore root with the file linked for cryptoauthlib to link correctly.
 
 
 ## Provisioning: security profiles and certificates
