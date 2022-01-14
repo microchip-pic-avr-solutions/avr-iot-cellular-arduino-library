@@ -2,7 +2,7 @@
 
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 
-PORT=/dev/ttyACM0
+PORT=COM4
 BUILD_DIR=$SCRIPTPATH/../build
 
 # Do path conversion for WSL
@@ -11,7 +11,7 @@ if grep -q microsoft /proc/version; then
 fi
 
 
-arduino-cli upload \
+arduino-cli.exe upload \
                 --input-dir $BUILD_DIR \
                 -t \
                 -p $PORT \
