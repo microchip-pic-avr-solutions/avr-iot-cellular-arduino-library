@@ -23,6 +23,8 @@ private:
 public:
 	Log(UartClass *uart);
 
+	void begin(unsigned long baud);
+
 	void setOutputUart(UartClass *uart);
 	void setLogLevel(LogLevels level);
 
@@ -39,6 +41,9 @@ public:
 
 	void Debug(const char str[]);
 	void Debugf(const char *format, ...);
+
+	void Raw(const char str[]);
+	void Rawf(const char *format, ...);
 };
 
 #if defined(USART5)

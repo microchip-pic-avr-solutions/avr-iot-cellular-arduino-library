@@ -2,30 +2,34 @@
 #include <atca_helpers.h>
 #include <atcacert/atcacert_client.h>
 #include <cryptoauthlib.h>
+#include "log/log.h"
 
 #include "cert_def_1_signer.h"
 #include "cert_def_3_device.h"
 
-void printCertificate(uint8_t *certificate, uint16_t size) {
+void printCertificate(uint8_t *certificate, uint16_t size)
+{
     char buffer[1024];
     size_t buffer_size = sizeof(buffer);
     ATCA_STATUS result =
         atcab_base64encode(certificate, size, buffer, &buffer_size);
 
-    if (result != ATCA_SUCCESS) {
-        Serial5.printf("Failed to encode into base64: %x\r\n", result);
+    if (result != ATCA_SUCCESS)
+    {
+        LOG.Errorf("Failed to encode into base64: %x\r\n", result);
         return;
     }
 
     buffer[buffer_size] = 0;
-    Serial5.printf(
+    LOG.Rawf(
         "-----BEGIN CERTIFICATE-----\r\n%s\r\n-----END CERTIFICATE-----\r\n",
         buffer);
 }
 
-void setup() {
+void setup()
+{
 
-    Serial5.begin(115200);
+    LOG.begin(115200);
 
     ATCA_STATUS status;
 
@@ -40,21 +44,25 @@ void setup() {
                                              20,
                                              NULL};
 
-    if (ATCA_SUCCESS != (status = atcab_init(&cfg_atecc608b_i2c))) {
-        Serial5.printf("Failed to init: %d\r\n", status);
+    if (ATCA_SUCCESS != (status = atcab_init(&cfg_atecc608b_i2c)))
+    {
+        LOG.Errorf("Failed to init: %d\r\n", status);
         return;
-    } else {
-        Serial5.printf("Initialized ECC\r\n");
+    }
+    else
+    {
+        LOG.Errorf("Initialized ECC\r\n");
     }
 
     // Retrieve public root key
     uint8_t public_key[ATCA_PUB_KEY_SIZE];
-    if (ATCA_SUCCESS != (status = atcab_get_pubkey(0, public_key))) {
-        Serial5.printf("Failed to get public key: %x\r\n", status);
+    if (ATCA_SUCCESS != (status = atcab_get_pubkey(0, public_key)))
+    {
+        LOG.Errorf("Failed to get public key: %x\r\n", status);
         return;
     }
 
-    Serial5.println("\r\n\r\n");
+    LOG.Raw("\r\n\r\n");
 
     // Retrive sign certificate
     uint8_t buffer[g_cert_def_1_signer.cert_template_size + 4];
@@ -62,24 +70,30 @@ void setup() {
 
     if (ATCA_SUCCESS !=
         (status = atcacert_read_cert(
-             &g_cert_def_1_signer, public_key, buffer, &size))) {
-        Serial5.printf("Failed to read signing certificate: %d\r\n", status);
+             &g_cert_def_1_signer, public_key, buffer, &size)))
+    {
+        LOG.Errorf("Failed to read signing certificate: %d\r\n", status);
         return;
-    } else {
-        Serial5.println("Printing signing certificate...");
+    }
+    else
+    {
+        LOG.Info("Printing signing certificate...");
         printCertificate(buffer, size);
     }
 
-    Serial5.println("\r\n\r\n");
+    LOG.Raw("\r\n\r\n");
 
     // Retrive device certificate
     if (ATCA_SUCCESS !=
         (status = atcacert_read_cert(
-             &g_cert_def_3_device, public_key, buffer, &size))) {
-        Serial5.printf("Failed to read device certificate: %d\r\n", status);
+             &g_cert_def_3_device, public_key, buffer, &size)))
+    {
+        LOG.Errorf("Failed to read device certificate: %d\r\n", status);
         return;
-    } else {
-        Serial5.println("Printing device certificate...");
+    }
+    else
+    {
+        LOG.Info("Printing device certificate...");
         printCertificate(buffer, size);
     }
 }

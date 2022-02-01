@@ -56,9 +56,9 @@ void receive(void) { callback_flags |= RECEIVE_MSG_FLAG; }
 
 void setup()
 {
-    Serial5.begin(115200);
-    Log5.setLogLevel(LogLevels::INFO);
-    Log5.Info("Starting initialization of MQTT Interrupt");
+    LOG.begin(115200);
+    LOG.setLogLevel(LogLevels::INFO);
+    LOG.Info("Starting initialization of MQTT Interrupt");
 
     pinMode(CELL_LED, OUTPUT);
     pinMode(CONNECTION_LED, OUTPUT);
@@ -101,17 +101,17 @@ void loop()
                                  MQTT_USE_ECC))
 #endif
             {
-                Log5.Info("Connecting to broker...");
+                LOG.Info("Connecting to broker...");
                 while (!MqttClient.isConnected())
                 {
-                    Log5.Info("Connecting...");
+                    LOG.Info("Connecting...");
                     delay(500);
                 }
                 MqttClient.subscribe(MQTT_SUB_TOPIC);
             }
             else
             {
-                Log5.Error("Failed to connect to broker");
+                LOG.Error("Failed to connect to broker");
             }
 
             break;
@@ -183,15 +183,15 @@ void loop()
                                        buffer,
                                        sizeof(buffer)))
             {
-                Log5.Infof("I got the messsage: %s\r\n",
-                           (char *)buffer);
+                LOG.Infof("I got the messsage: %s\r\n",
+                          (char *)buffer);
 
                 // We publish the message back
                 MqttClient.publish(MQTT_PUB_TOPIC, buffer);
             }
             else
             {
-                Log5.Error("Failed to read message\r\n");
+                LOG.Error("Failed to read message\r\n");
             }
 
             break;

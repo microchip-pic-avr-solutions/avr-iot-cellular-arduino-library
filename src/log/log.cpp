@@ -29,6 +29,11 @@ Log::Log(UartClass *uart)
 	this->lUart = uart;
 }
 
+void Log::begin(unsigned long baud)
+{
+	this->lUart->begin(baud);
+}
+
 void Log::setLogLevel(LogLevels level)
 {
 	this->lLogLevel = level;
@@ -106,6 +111,27 @@ void Log::Debugf(const char *format, ...)
 		va_start(ap, nFormat);
 		vfprintf(&f, nFormat, ap);
 	}
+}
+
+void Log::Raw(const char str[])
+{
+	if (lLogLevel >= LogLevels::DEBUG)
+	{
+		this->print(str, __DEBUG_LEVEL_FMT);
+	}
+
+	this->lUart->print(str);
+}
+
+void Log::Rawf(const char *format, ...)
+{
+	FILE f;
+	va_list ap;
+
+	fdev_setup_stream(&f, printf_putchar, NULL, _FDEV_SETUP_WRITE);
+	fdev_set_udata(&f, this->lUart);
+	va_start(ap, format);
+	vfprintf(&f, format, ap);
 }
 
 void Log::Error(const char str[])

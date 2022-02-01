@@ -29,20 +29,20 @@ bool connectedToBroker = false;
 
 void setup()
 {
-    Serial3.begin(115200);
-    Log3.setLogLevel(LogLevels::INFO);
-    Log3.Info("Starting initialization of MQTT Polling");
+    LOG.begin(115200);
+    LOG.setLogLevel(LogLevels::INFO);
+    LOG.Info("Starting initialization of MQTT Polling");
 
     // Start LTE modem and wait until we are connected to the operator
     Lte.begin();
 
     while (!Lte.isConnected())
     {
-        Log3.Info("Not connected to operator yet...");
+        LOG.Info("Not connected to operator yet...");
         delay(5000);
     }
 
-    Log3.Info("Connected to operator!");
+    LOG.Info("Connected to operator!");
 
 // Attempt to connect to broker
 #if (MQTT_USE_AWS)
@@ -54,18 +54,18 @@ void setup()
 
     if (connectedToBroker)
     {
-        Log3.Info("Connecting to broker...");
+        LOG.Info("Connecting to broker...");
         while (!MqttClient.isConnected())
         {
-            Log3.Info("Connecting...");
+            LOG.Info("Connecting...");
             delay(500);
         }
-        Log3.Info("Connected to broker!");
+        LOG.Info("Connected to broker!");
         MqttClient.subscribe(MQTT_SUB_TOPIC);
     }
     else
     {
-        Log3.Error("Failed to connect to broker");
+        LOG.Error("Failed to connect to broker");
     }
 }
 
@@ -82,8 +82,8 @@ void loop()
         // message
         if (message != "")
         {
-            Log3.Info("Got new message: ");
-            Log3.Info(message);
+            LOG.Info("Got new message: ");
+            LOG.Info(message);
         }
 
 // Publishing can fail due to network issues, so to be on the safe side
@@ -98,7 +98,7 @@ void loop()
 
         if (!publishedSuccessfully)
         {
-            Log3.Error("Failed to publish");
+            LOG.Error("Failed to publish");
         }
     }
 
