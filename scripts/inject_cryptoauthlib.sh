@@ -4,7 +4,7 @@ SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 CRYPTOAUTH_PATH=$SCRIPTPATH/../lib/cryptoauth
 SRC_PATH=$SCRIPTPATH/../src
 MCU64=avr128db64
-MCU48=avr12db48
+MCU48=avr128db48
 
 # Build cryptoauthlib for AVR128DB64
 pushd $CRYPTOAUTH_PATH
