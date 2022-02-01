@@ -3,20 +3,35 @@
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 CRYPTOAUTH_PATH=$SCRIPTPATH/../lib/cryptoauth
 SRC_PATH=$SCRIPTPATH/../src
-MCU=avr128db64
+MCU64=avr128db64
+MCU48=avr12db48
 
-# Build cryptoauthlib
+# Build cryptoauthlib for AVR128DB64
 pushd $CRYPTOAUTH_PATH
-    mkdir build
-    pushd build
+    mkdir build64
+    pushd build64
         cmake -Wno-dev ..
         make
     popd 
 popd 
 
-# Copy static library in designated folder
-mkdir $SRC_PATH/$MCU
-cp $CRYPTOAUTH_PATH/build/cryptoauthlib/lib/libcryptoauth.a $SRC_PATH/$MCU/
+# Build cryptoauthlib for AVR128DB48
+pushd $CRYPTOAUTH_PATH
+    mkdir build48
+    pushd build48
+        cmake -Wno-dev ..
+        make
+    popd 
+popd 
+
+
+# Copy static library in designated folder for AVR128DB64
+mkdir $SRC_PATH/$MCU64
+cp $CRYPTOAUTH_PATH/build64/cryptoauthlib/lib/libcryptoauth.a $SRC_PATH/$MCU64/
+
+# Copy static library in designated folder for AVR128DB48
+mkdir $SRC_PATH/$MCU48
+cp $CRYPTOAUTH_PATH/build48/cryptoauthlib/lib/libcryptoauth.a $SRC_PATH/$MCU48/
 
 # Copy sources
 cp -r $CRYPTOAUTH_PATH/cryptoauthlib/lib/ $SRC_PATH/cryptoauthlib/
