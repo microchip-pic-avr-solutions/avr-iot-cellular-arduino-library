@@ -45,3 +45,18 @@ public:
 extern Log Log5;
 #define HAVE_LOG5
 #endif
+
+#if defined(USART3)
+extern Log Log3;
+#define HAVE_LOG3
+#endif
+
+#ifdef __AVR_AVR128DB48__
+#define LOG Log3
+#else
+#ifdef __AVR_AVR128DB64__
+#define LOG Log5
+#else
+#error "INCOMPATIBLE_DEVICE_SELECTED"
+#endif
+#endif

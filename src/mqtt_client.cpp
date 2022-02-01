@@ -136,7 +136,7 @@ static void internalHandleSigningRequest(char *urc)
     bool ret = SequansController.genSigningRequestCmd(urc, signingRequestBuffer);
     if (ret != true)
     {
-        Log5.Error("Unable to handle signature request");
+        LOG.Error("Unable to handle signature request");
         return;
     }
     signingRequestFlag = true;
@@ -148,7 +148,7 @@ bool MqttClientClass::pollSign(void)
     bool ret = false;
     if (signingRequestFlag)
     {
-        Log5.Debug("Signing");
+        LOG.Debug("Signing");
         ret = SequansController.writeCommand(signingRequestBuffer);
         signingRequestFlag = false;
     }
@@ -163,7 +163,7 @@ bool MqttClientClass::beginAWS()
     uint8_t err = ECC608.initializeHW();
     if (err != ATCA_SUCCESS)
     {
-        Log5.Error("Could not initialize ECC HW");
+        LOG.Error("Could not initialize ECC HW");
         return false;
     }
 
@@ -177,7 +177,7 @@ bool MqttClientClass::beginAWS()
     err = ECC608.getThingName(thingName, &thingNameLen);
     if (err != ECC608.ERR_OK)
     {
-        Log5.Error("Could not retrieve thingname from the ECC");
+        LOG.Error("Could not retrieve thingname from the ECC");
         return false;
     }
 
@@ -185,11 +185,11 @@ bool MqttClientClass::beginAWS()
     err = ECC608.getEndpoint(endpoint, &endpointLen);
     if (err != ECC608.ERR_OK)
     {
-        Log5.Error("Could not retrieve endpoint from the ECC");
+        LOG.Error("Could not retrieve endpoint from the ECC");
         return false;
     }
 
-    Log5.Debugf("Connecting to AWS with endpoint = %s and thingname = %s\n", endpoint, thingName);
+    LOG.Debugf("Connecting to AWS with endpoint = %s and thingname = %s\n", endpoint, thingName);
 
     usingEcc = true;
 
@@ -235,7 +235,7 @@ bool MqttClientClass::begin(const char *client_id,
 
         if (!SequansController.writeCommand(command))
         {
-            Log5.Error("Failed to configure MQTT");
+            LOG.Error("Failed to configure MQTT");
             return false;
         }
     }
@@ -252,7 +252,7 @@ bool MqttClientClass::begin(const char *client_id,
     sprintf(command, MQTT_CONNECT, host, port);
     if (!SequansController.retryCommand(command))
     {
-        Log5.Error("Failed to request connection to MQTT broker\r\n");
+        LOG.Error("Failed to request connection to MQTT broker\r\n");
         return false;
     }
 
@@ -281,7 +281,7 @@ bool MqttClientClass::begin(const char *client_id,
                                                      sizeof(connection_response));
         if (res != OK)
         {
-            Log5.Errorf("Non-OK Response when writing AT. Err = %d\n", res);
+            LOG.Errorf("Non-OK Response when writing AT. Err = %d\n", res);
             return false;
         }
 
@@ -377,7 +377,7 @@ bool MqttClientClass::publish(const char *topic,
         {
             if (millis() - start > 5000)
             {
-                Log5.Error("Timed out waiting for pub signing");
+                LOG.Error("Timed out waiting for pub signing");
                 return false;
             }
         }
@@ -392,7 +392,7 @@ bool MqttClientClass::publish(const char *topic,
 
     if (result != OK)
     {
-        Log5.Errorf("Failed to get publish result, result was %d\n", result);
+        LOG.Errorf("Failed to get publish result, result was %d\n", result);
         return false;
     }
 
@@ -404,13 +404,13 @@ bool MqttClientClass::publish(const char *topic,
 
     if (!got_rc)
     {
-        Log5.Errorf("Failed to get status code: %s \r\n", rc_buffer);
+        LOG.Errorf("Failed to get status code: %s \r\n", rc_buffer);
         return false;
     }
 
     if (atoi(rc_buffer) != 0)
     {
-        Log5.Errorf("Status code (rc) != 0: %d\r\n", atoi(rc_buffer));
+        LOG.Errorf("Status code (rc) != 0: %d\r\n", atoi(rc_buffer));
         return false;
     }
 

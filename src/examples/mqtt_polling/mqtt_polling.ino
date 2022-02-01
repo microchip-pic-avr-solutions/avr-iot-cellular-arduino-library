@@ -10,7 +10,7 @@
 #include "ecc608/ecc608.h"
 #include "log/log.h"
 
-#define MQTT_USE_AWS true
+#define MQTT_USE_AWS false
 #define MQTT_SUB_TOPIC "mchp_topic_sub"
 #define MQTT_PUB_TOPIC "mchp_topic_pub"
 
@@ -29,20 +29,20 @@ bool connectedToBroker = false;
 
 void setup()
 {
-    Serial5.begin(115200);
-    Log5.setLogLevel(LogLevels::INFO);
-    Log5.Info("Starting initialization of MQTT Polling");
+    Serial3.begin(115200);
+    Log3.setLogLevel(LogLevels::INFO);
+    Log3.Info("Starting initialization of MQTT Polling");
 
     // Start LTE modem and wait until we are connected to the operator
     Lte.begin();
 
     while (!Lte.isConnected())
     {
-        Log5.Info("Not connected to operator yet...");
+        Log3.Info("Not connected to operator yet...");
         delay(5000);
     }
 
-    Log5.Info("Connected to operator!");
+    Log3.Info("Connected to operator!");
 
 // Attempt to connect to broker
 #if (MQTT_USE_AWS)
@@ -54,18 +54,18 @@ void setup()
 
     if (connectedToBroker)
     {
-        Log5.Info("Connecting to broker...");
+        Log3.Info("Connecting to broker...");
         while (!MqttClient.isConnected())
         {
-            Log5.Info("Connecting...");
+            Log3.Info("Connecting...");
             delay(500);
         }
-        Log5.Info("Connected to broker!");
+        Log3.Info("Connected to broker!");
         MqttClient.subscribe(MQTT_SUB_TOPIC);
     }
     else
     {
-        Log5.Error("Failed to connect to broker");
+        Log3.Error("Failed to connect to broker");
     }
 }
 
@@ -82,8 +82,8 @@ void loop()
         // message
         if (message != "")
         {
-            Log5.Info("Got new message: ");
-            Log5.Info(message);
+            Log3.Info("Got new message: ");
+            Log3.Info(message);
         }
 
 // Publishing can fail due to network issues, so to be on the safe side
@@ -98,9 +98,9 @@ void loop()
 
         if (!publishedSuccessfully)
         {
-            Log5.Error("Failed to publish");
+            Log3.Error("Failed to publish");
         }
     }
 
-    delay(200);
+    delay(2000);
 }

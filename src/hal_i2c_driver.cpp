@@ -10,12 +10,28 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+#ifdef __AVR_AVR128DB48__ // MINI
+
+#define WIRE Wire
+#define WIRE_MUX 2
+
+#else
+#ifdef __AVR_AVR128DB64__ // Non-Mini
+
+#define WIRE Wire1
+#define WIRE_MUX 2
+
+#else
+#error "INCOMPATIBLE_DEVICE_SELECTED"
+#endif
+#endif
+
 ATCA_STATUS hal_i2c_init(ATCAIface iface, ATCAIfaceCfg *cfg)
 {
 
-    Wire1.swap(2);
-    Wire1.setClock(cfg->atcai2c.baud);
-    Wire1.begin();
+    WIRE.swap(WIRE_MUX);
+    WIRE.setClock(cfg->atcai2c.baud);
+    WIRE.begin();
 
     return ATCA_SUCCESS;
 }
@@ -28,7 +44,7 @@ ATCA_STATUS hal_i2c_send(ATCAIface iface,
                          int txlength)
 {
 
-    Wire1.beginTransmission(word_address);
+    WIRE.beginTransmission(word_address);
 
     // Custom implementation of writing n bytes since the one provided from the
     // Wire library doesn't take failing to send a single byte into
@@ -38,14 +54,14 @@ ATCA_STATUS hal_i2c_send(ATCAIface iface,
 #pragma GCC diagnostic ignored "-Wsign-compare"
     while (index < txlength)
     {
-        if (Wire1.write(txdata[index]))
+        if (WIRE.write(txdata[index]))
         {
             index++;
         }
     }
 #pragma GCC diagnostic pop
 
-    Wire1.endTransmission();
+    WIRE.endTransmission();
 
     // The Wire interface blocks and checks the TWIx.MSTATUS flag for WIF, which
     // give us the indication that the transmit was completed, so we return
@@ -67,14 +83,14 @@ ATCA_STATUS hal_i2c_receive(ATCAIface iface,
 
     // Serial5.printf("-- Start --\r\nAddress: %x\r\n", word_address);
 
-    *rxlength = Wire1.requestFrom(word_address, (size_t)(*rxlength));
+    *rxlength = WIRE.requestFrom(word_address, (size_t)(*rxlength));
 
     int value;
     size_t i = 0;
 
     while (i < *rxlength)
     {
-        value = Wire1.read();
+        value = WIRE.read();
 
         if (value != -1)
         {
@@ -96,6 +112,6 @@ hal_i2c_control(ATCAIface iface, uint8_t option, void *param, size_t paramlen)
 
 ATCA_STATUS hal_i2c_release(void *hal_data)
 {
-    Wire1.end();
+    WIRE.end();
     return ATCA_SUCCESS;
 }

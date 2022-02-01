@@ -14,6 +14,10 @@
 Log Log5(&Serial5);
 #endif
 
+#ifdef HAVE_LOG3
+Log Log3(&Serial3);
+#endif
+
 int16_t printf_putchar(char c, FILE *fp)
 {
 	((class Print *)(fdev_get_udata(fp)))->write((uint8_t)c);

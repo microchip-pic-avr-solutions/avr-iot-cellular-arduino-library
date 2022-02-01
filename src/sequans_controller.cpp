@@ -12,6 +12,28 @@
 #include <Arduino.h>
 #include <pins_arduino.h>
 
+#ifdef __AVR_AVR128DB48__ // MINI
+
+#define TX_PIN PIN_PC0
+
+#define CTS_PIN PIN_PC4
+#define CTS_PIN_bm PIN4_bm
+#define CTS_INT_bm PORT_INT4_bm
+
+#define RING_PIN PIN_PC6
+#define RING_INT_bm PORT_INT6_bm
+
+#define RTS_PORT PORTC
+#define RTS_PIN PIN_PC7
+#define RTS_PIN_bm PIN7_bm
+
+#define RESET_PIN PIN_PC5
+
+#define HWSERIALAT USART1
+
+#else
+#ifdef __AVR_AVR128DB64__ // Non-Mini
+
 #define TX_PIN PIN_PC0
 #define CTS_PIN PIN_PC6
 #define RING_PIN PIN_PC4
@@ -25,6 +47,12 @@
 #define RING_PIN PIN_PC4
 
 #define HWSERIALAT USART1
+
+#else
+#error "INCOMPATIBLE_DEVICE_SELECTED"
+#endif
+#endif
+
 #define SEQUANS_MODULE_BAUD_RATE 115200
 
 // Sizes for the circular buffers
@@ -319,7 +347,6 @@ void SequansControllerClass::begin(void)
 {
 
     // PIN SETUP
-
     pinConfigure(TX_PIN, PIN_DIR_OUTPUT | PIN_PULLUP_ON);
 
     // Request to send (RTS) and clear to send (CTS) are the control lines
@@ -361,7 +388,16 @@ void SequansControllerClass::begin(void)
 
     flowControlUpdate();
 
+// Turn off the Status LED
+#ifdef __AVR_AVR128DB48__
+    PORTA.OUTSET |= PIN0_bm;
+#else
+#ifdef __AVR_AVR128DB64__
     PORTG.OUTSET |= PIN2_bm;
+#else
+#error "INCOMPATIBLE_DEVICE_SELECTED"
+#endif
+#endif
 }
 
 void SequansControllerClass::end(void)
@@ -717,7 +753,7 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc, char *commandBuffer
     char sign_request[HCESIGN_REQUEST_LENGTH] = "SQNHCESIGN:";
     strcpy(sign_request + strlen("SQNHCESIGN:"), urc);
 
-    Log5.Debugf("Got URC: %s\r\n", sign_request);
+    LOG.Debugf("Got URC: %s\r\n", sign_request);
 
     // Grab the ctx id
     // +1 for null termination
@@ -728,7 +764,7 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc, char *commandBuffer
 
     if (!got_ctx_id)
     {
-        Log5.Error("no ctx_id");
+        LOG.Error("no ctx_id");
         return false;
     }
 
@@ -741,7 +777,7 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc, char *commandBuffer
 
     if (!got_digest)
     {
-        Log5.Error("No Digest");
+        LOG.Error("No Digest");
         return false;
     }
 
@@ -760,7 +796,7 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc, char *commandBuffer
 
     if (result != ATCA_SUCCESS)
     {
-        Log5.Error("ECC Signing Failed");
+        LOG.Error("ECC Signing Failed");
         return false;
     }
 
