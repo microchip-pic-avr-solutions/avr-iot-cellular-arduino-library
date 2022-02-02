@@ -88,7 +88,7 @@
 
 #define HCESIGN "AT+SQNHCESIGN=%u,0,64,\"%s\""
 
-static const char OK_TERMINATION[] = "OK\r\n";
+static const char OK_TERMINATION[] = "\r\nOK\r\n";
 static const char ERROR_TERMINATION[] = "ERROR\r\n";
 
 static uint8_t rx_buffer[RX_BUFFER_SIZE];
@@ -552,8 +552,9 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
             char *ok_index = strstr(out_buffer, OK_TERMINATION);
             if (ok_index != NULL)
             {
-                // Terminate and omit the rest from the OK index
-                memset(ok_index, 0, 1);
+                // Terminate and omit the rest from the OK index.
+                memset(ok_index, '\0', 1);
+
                 return OK;
             }
 
