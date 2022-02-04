@@ -6,6 +6,9 @@
 #include "cert_def_1_signer.h"
 #include "cert_def_3_device.h"
 
+#define CELL_LED       PIN_PG2
+#define CONNECTION_LED PIN_PG3
+
 void printCertificate(uint8_t *certificate, uint16_t size) {
     char buffer[1024];
     size_t buffer_size = sizeof(buffer);
@@ -24,6 +27,13 @@ void printCertificate(uint8_t *certificate, uint16_t size) {
 }
 
 void setup() {
+
+    pinMode(CELL_LED, OUTPUT);
+    pinMode(CONNECTION_LED, OUTPUT);
+
+    // These pins is active low
+    digitalWrite(CELL_LED, LOW);
+    digitalWrite(CONNECTION_LED, LOW);
 
     Serial5.begin(115200);
 

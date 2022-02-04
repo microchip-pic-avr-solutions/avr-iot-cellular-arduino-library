@@ -7,3 +7,4 @@ src/cert*
 atca*
 libcryptoauth.a
 .vscode
+.ccls-cache

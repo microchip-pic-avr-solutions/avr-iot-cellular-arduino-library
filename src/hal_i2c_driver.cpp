@@ -10,8 +10,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-ATCA_STATUS hal_i2c_init(ATCAIface iface, ATCAIfaceCfg *cfg)
-{
+ATCA_STATUS hal_i2c_init(ATCAIface iface, ATCAIfaceCfg *cfg) {
 
     Wire1.swap(2);
     Wire1.setClock(cfg->atcai2c.baud);
@@ -25,8 +24,7 @@ ATCA_STATUS hal_i2c_post_init(ATCAIface iface) { return ATCA_SUCCESS; }
 ATCA_STATUS hal_i2c_send(ATCAIface iface,
                          uint8_t word_address,
                          uint8_t *txdata,
-                         int txlength)
-{
+                         int txlength) {
 
     Wire1.beginTransmission(word_address);
 
@@ -36,10 +34,8 @@ ATCA_STATUS hal_i2c_send(ATCAIface iface,
     size_t index = 0;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsign-compare"
-    while (index < txlength)
-    {
-        if (Wire1.write(txdata[index]))
-        {
+    while (index < txlength) {
+        if (Wire1.write(txdata[index])) {
             index++;
         }
     }
@@ -56,8 +52,7 @@ ATCA_STATUS hal_i2c_send(ATCAIface iface,
 ATCA_STATUS hal_i2c_receive(ATCAIface iface,
                             uint8_t word_address,
                             uint8_t *rxdata,
-                            uint16_t *rxlength)
-{
+                            uint16_t *rxlength) {
 
     // TODO: Somehow, the TWI driver gets into an infinite loop if we don't
     // delay some here. This might be due to two operations happening quickly
@@ -72,12 +67,10 @@ ATCA_STATUS hal_i2c_receive(ATCAIface iface,
     int value;
     size_t i = 0;
 
-    while (i < *rxlength)
-    {
+    while (i < *rxlength) {
         value = Wire1.read();
 
-        if (value != -1)
-        {
+        if (value != -1) {
             rxdata[i] = (uint8_t)value;
             i++;
         }
@@ -89,13 +82,11 @@ ATCA_STATUS hal_i2c_receive(ATCAIface iface,
 }
 
 ATCA_STATUS
-hal_i2c_control(ATCAIface iface, uint8_t option, void *param, size_t paramlen)
-{
+hal_i2c_control(ATCAIface iface, uint8_t option, void *param, size_t paramlen) {
     return ATCA_UNIMPLEMENTED;
 }
 
-ATCA_STATUS hal_i2c_release(void *hal_data)
-{
+ATCA_STATUS hal_i2c_release(void *hal_data) {
     Wire1.end();
     return ATCA_SUCCESS;
 }
