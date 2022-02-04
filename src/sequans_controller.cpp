@@ -103,8 +103,9 @@ void (*urc_current_callback)(char *urc);
 static uint8_t number_of_retries = 5;
 static double sleep_between_retries_ms = 20;
 
-// Sleep Modes
-static volatile uint8_t sleep_mode = 0;
+// Power save modes
+static volatile uint8_t power_save_mode = 0;
+static void (*ring_line_callback)(void);
 
 // Singleton. Defined for use of rest of library
 
@@ -115,9 +116,9 @@ static volatile uint8_t sleep_mode = 0;
  * target that no more data should be sent
  */
 static void flowControlUpdate(void) {
-    // If we are in a sleep mode, flow control is disabled until we get a RING0
-    // ack
-    if (sleep_mode == 1) {
+    // If we are in a power save mode, flow control is disabled until we get a
+    // RING0 ack
+    if (power_save_mode == 1) {
         return;
     }
 
@@ -146,15 +147,13 @@ ISR(PORTC_PORT_vect) {
             // before we enable interrupt
             HWSERIALAT.CTRLA |= USART_DREIE_bm;
         }
+    } else if (VPORTC.INTFLAGS & RING_INT_bm) {
+        if (VPORTC.IN & RING_PIN) {
+            if (ring_line_callback != NULL) {
+                ring_line_callback();
+            }
+        }
     }
-    // if (VPORTC.INTFLAGS & RING_INT_bm)
-    // {
-    //     if (VPORTC.IN & RING_PIN)
-    //     {
-    //         // Rising Edge => Wake Up
-    //         SequansController.setSleepMode(0);
-    //     }
-    // }
 
     VPORTC.INTFLAGS = 0xff;
 }
@@ -268,18 +267,6 @@ ISR(USART1_DRE_vect) {
     }
 }
 
-void SequansControllerClass::setSleepMode(uint8_t sm) {
-    if (sm == 0) {
-        digitalWrite(PIN_PC7, LOW);
-
-        sleep_mode = 0;
-    } else {
-        digitalWrite(PIN_PC7, HIGH);
-
-        sleep_mode = 1;
-    }
-}
-
 void SequansControllerClass::begin(void) {
 
     // PIN SETUP
@@ -295,7 +282,6 @@ void SequansControllerClass::begin(void) {
     //
     // Both pins are active low.
 
-    // We assert RTS high until we are ready to receive more data
     pinConfigure(RTS_PIN, PIN_DIR_OUTPUT);
     digitalWrite(RTS_PIN, HIGH);
 
@@ -627,6 +613,30 @@ bool SequansControllerClass::readNotification(char *buffer,
     urc_read = true;
 
     return true;
+}
+
+void SequansControllerClass::setPowerSaveMode(const uint8_t mode,
+                                              void (*ring_callback)(void)) {
+    if (mode == 0) {
+        ring_line_callback = NULL;
+        power_save_mode = 0;
+
+        // Clear interrupt
+        pinConfigure(RING_PIN, PIN_DIR_INPUT);
+
+        RTS_PORT.OUTCLR |= RTS_PIN_bm;
+    } else if (mode == 1) {
+
+        if (ring_callback != NULL) {
+            ring_line_callback = ring_callback;
+
+            // Enable interrupt on rising edge on RING0
+            pinConfigure(RING_PIN, PIN_DIR_INPUT | PIN_INT_RISE);
+        }
+
+        power_save_mode = 1;
+        RTS_PORT.OUTSET |= RTS_PIN_bm;
+    }
 }
 
 bool SequansControllerClass::genSigningRequestCmd(char *urc,
