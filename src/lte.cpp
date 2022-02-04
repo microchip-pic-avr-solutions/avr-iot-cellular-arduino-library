@@ -1,3 +1,4 @@
+#include "log.h"
 #include "lte.h"
 #include "sequans_controller.h"
 #include <Arduino.h>
@@ -25,11 +26,9 @@
 #define STAT_REGISTERED_HOME_NETWORK '1'
 #define STAT_REGISTERED_ROAMING      '5'
 
-#define RESPONSE_CONNECTION_STATUS_SIZE 24
+#define RESPONSE_CONNECTION_STATUS_SIZE 48
 
 #define CEREG_DATA_LENGTH 2
-
-#define CEREG_N_OK 2
 
 // When the CEREG appears as an URC, it only includes the stat, but there will
 // be a space before the data, hence this value since this index is character
@@ -118,9 +117,15 @@ bool LteClass::isConnected(void) {
 
     char response[RESPONSE_CONNECTION_STATUS_SIZE];
 
-    ResponseResult res = SequansController.readResponse(
+    ResponseResult response_result = SequansController.readResponse(
         response, RESPONSE_CONNECTION_STATUS_SIZE);
-    if (res != CEREG_N_OK) {
+
+    if (response_result != ResponseResult::OK) {
+        char response_result_string[18] = "";
+        SequansController.responseResultToString(response_result,
+                                                 response_result_string);
+        Log.warnf("Did not get a valid response when querying CEREG: %s\r\n",
+                  response_result_string);
         return false;
     }
 
@@ -161,6 +166,9 @@ bool LteClass::configurePowerSaveMode(
     const AwakeUnitMultiplier awake_multiplier,
     const uint8_t awake_value) {
 
+    // We have to have this here as this method can be called before
+    // Lte.begin(), so we need the SequansController to be up and running.
+    SequansController.begin();
     SequansController.clearReceiveBuffer();
 
     // First we disable EDRX
@@ -202,7 +210,7 @@ bool LteClass::configurePowerSaveMode(
     // Now we can embed the values for the awake and sleep periode in the
     // power saving mode configuration command
     char command[AT_COMMAND_SET_PSM_SIZE + 1]; // + 1 for null termination
-    sprintf(command, sleep_parameter, awake_parameter);
+    sprintf(command, AT_COMMAND_SET_PSM, sleep_parameter, awake_parameter);
 
     return SequansController.retryCommand(command);
 }
@@ -253,9 +261,6 @@ bool LteClass::attemptToEnterPowerSaveMode(const uint32_t waiting_time_ms) {
             is_in_power_save_mode = true;
             return true;
         }
-
-        // TODO: temp
-        Serial5.println("Waiting...");
 
     } while (waiting_time_passed_ms < waiting_time_ms);
 

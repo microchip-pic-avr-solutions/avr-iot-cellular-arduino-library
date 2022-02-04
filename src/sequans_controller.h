@@ -16,13 +16,13 @@
 #define URC_IDENTIFIER_START_CHARACTER '+'
 #define URC_IDENTIFIER_END_CHARACTER   ':'
 
-typedef enum {
-    OK,
+enum class ResponseResult {
+    OK = 0,
     ERROR,
     BUFFER_OVERFLOW,
     TIMEOUT,
     SERIAL_READ_ERROR
-} ResponseResult;
+};
 
 class SequansControllerClass {
 
@@ -192,6 +192,13 @@ class SequansControllerClass {
      * used as a measure to figure out when the modem is in deep sleep.
      */
     void setPowerSaveMode(const uint8_t mode, void (*ring_callback)(void));
+
+    /**
+     * @brief Formats a string based on the @p response_result value and places
+     * it in @p response_string. @p response_string has to be pre-allocated.
+     */
+    void responseResultToString(const ResponseResult response_result,
+                                char *response_string);
 
     bool genSigningRequestCmd(char *urc, char *commandBuffer);
 };

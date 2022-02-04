@@ -19,6 +19,9 @@ class LogClass {
 
     void setLogLevel(const LogLevel log_level);
 
+    void begin(const unsigned long baud_rate);
+    void end();
+
     void info(const char str[]);
     void infof(const char *format, ...);
 

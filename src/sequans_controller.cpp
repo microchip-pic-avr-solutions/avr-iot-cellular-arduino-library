@@ -368,19 +368,23 @@ bool SequansControllerClass::writeByte(const uint8_t data) {
 bool SequansControllerClass::writeCommand(const char *command) {
 
     Log.debugf("Sending AT command: %s\r\n", command);
-
     return writeBytes((uint8_t *)command, strlen(command));
 }
 
 bool SequansControllerClass::retryCommand(const char *command,
                                           uint8_t retries) {
     uint8_t retry_count = 0;
-
-    Log.debugf("Sending AT command: %s\r\n", command);
+    ResponseResult response;
 
     do {
         writeCommand(command);
-    } while (SequansController.readResponse() != OK && retry_count++ < retries);
+        response = SequansController.readResponse();
+
+    } while (response != ResponseResult::OK && retry_count++ < retries);
+
+    char response_string[18];
+    responseResultToString(response, response_string);
+    Log.debugf("Command response: %s\r\n", response_string);
 
     return retry_count < retries;
 }
@@ -427,7 +431,7 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
             i--;
 
             if (retry_count == number_of_retries) {
-                return TIMEOUT;
+                return ResponseResult::TIMEOUT;
             }
 
             continue;
@@ -452,7 +456,7 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
             if (ok_index != NULL) {
                 // Terminate and omit the rest from the OK index
                 memset(ok_index, 0, 1);
-                return OK;
+                return ResponseResult::OK;
             }
 
             char *error_index = strstr(out_buffer, ERROR_TERMINATION);
@@ -460,14 +464,14 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
             if (error_index != NULL) {
                 // Terminate and omit the rest from the ERROR index
                 memset(error_index, 0, 1);
-                return ERROR;
+                return ResponseResult::ERROR;
             }
         }
     }
 
     // Didn't find the end marker within the number of bytes given for the
     // response. Caller should increase the buffer size.
-    return BUFFER_OVERFLOW;
+    return ResponseResult::BUFFER_OVERFLOW;
 }
 
 ResponseResult SequansControllerClass::readResponse(void) {
@@ -480,14 +484,9 @@ ResponseResult SequansControllerClass::readResponse(void) {
     do {
         response = readResponse(termination_buffer, sizeof(termination_buffer));
 
-        if (response != ResponseResult::OK) {
-            Log.debugf("Response: %s\r\n", termination_buffer);
-        } else {
-            Log.debug("Response: OK\r\n");
-        }
-
         // Keep looping until response is OK or ERROR or no retries left
-    } while (response == TIMEOUT && retry_count++ < number_of_retries);
+    } while (response == ResponseResult::TIMEOUT &&
+             retry_count++ < number_of_retries);
 
     return response;
 }
@@ -717,4 +716,27 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc,
     sprintf(commandBuffer, HCESIGN, atoi(ctx_id_buffer), signature);
 
     return true;
+}
+
+void SequansControllerClass::responseResultToString(
+    const ResponseResult response_result,
+    char *response_string) {
+
+    switch (response_result) {
+    case ResponseResult::OK:
+        strcpy(response_string, "OK");
+        break;
+    case ResponseResult::ERROR:
+        strcpy(response_string, "ERROR");
+        break;
+    case ResponseResult::BUFFER_OVERFLOW:
+        strcpy(response_string, "BUFFER_OVERFLOW");
+        break;
+    case ResponseResult::TIMEOUT:
+        strcpy(response_string, "TIMEOUT");
+        break;
+    case ResponseResult::SERIAL_READ_ERROR:
+        strcpy(response_string, "SERIAL_READ_ERROR");
+        break;
+    }
 }

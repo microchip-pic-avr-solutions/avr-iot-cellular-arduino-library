@@ -62,7 +62,7 @@ HttpClientClass HttpClient = HttpClientClass::instance();
  * @param buffer_size Size of buffer to place HTTP response in.
  *
  * @return Relays the return code from SequansController.readResponse().
- *         SEQUANS_CONTROLLER_RESPONSE_OK if ok.
+ *         ResponseResult::OK if ok.
  */
 static ResponseResult waitAndRetrieveHttpResponse(char *buffer,
                                                   const size_t buffer_size) {
@@ -113,15 +113,15 @@ static HttpResponse sendData(const char *endpoint,
     ResponseResult response_result;
     do {
         response_result = SequansController.readResponse();
-    } while (response_result == TIMEOUT);
+    } while (response_result == ResponseResult::TIMEOUT);
 
-    if (response_result != OK) {
+    if (response_result != ResponseResult::OK) {
         return httpResponse;
     }
 
     char http_response[HTTP_RESPONSE_MAX_LENGTH] = "";
     if (waitAndRetrieveHttpResponse(http_response, HTTP_RESPONSE_MAX_LENGTH) !=
-        OK) {
+        ResponseResult::OK) {
         return httpResponse;
     }
 
@@ -170,13 +170,13 @@ static HttpResponse queryData(const char *endpoint, const uint8_t method) {
     sprintf(command, HTTP_QUERY, method, endpoint);
     SequansController.writeCommand(command);
 
-    if (SequansController.readResponse() != OK) {
+    if (SequansController.readResponse() != ResponseResult::OK) {
         return httpResponse;
     }
 
     char http_response[HTTP_RESPONSE_MAX_LENGTH] = "";
     if (waitAndRetrieveHttpResponse(http_response, HTTP_RESPONSE_MAX_LENGTH) !=
-        OK) {
+        ResponseResult::OK) {
         return httpResponse;
     }
 
@@ -286,7 +286,8 @@ int16_t HttpClientClass::readBody(char *buffer, const uint32_t buffer_size) {
     // Now we are ready to receive the payload. We only check for error and
     // not overflow in the receive buffer in comparison to our buffer as we
     // know the size of what we want to receive
-    if (SequansController.readResponse(buffer, buffer_size) == ERROR) {
+    if (SequansController.readResponse(buffer, buffer_size) ==
+        ResponseResult::ERROR) {
         return 0;
     }
 

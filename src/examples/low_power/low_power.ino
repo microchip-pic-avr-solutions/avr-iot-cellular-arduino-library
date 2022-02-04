@@ -9,14 +9,12 @@
 #define RTS_PORT   PORTC
 #define RTS_PIN_bm PIN7_bm
 
+void power_save_abrupted(void) { Log.info("Power save abrupted"); }
+
 void setup() {
 
-    SerialDebug.begin(115200);
-
-    SequansController.begin();
-
-    delay(1000);
-
+    Serial5.begin(115200);
+    Log.begin(115200);
     Log.setLogLevel(LogLevel::DEBUG);
 
     if (!Lte.configurePowerSaveMode(SleepUnitMultiplier::ONE_MINUTE,
@@ -28,17 +26,16 @@ void setup() {
         return;
     }
 
+    Lte.onPowerSaveAbrupted(power_save_abrupted);
+
     // Start LTE modem and wait until we are connected to the operator
-    /*
     Lte.begin();
     while (!Lte.isConnected()) {
-        SerialDebug.println("Not connected to operator yet...");
+        Log.info("Not connected yet...\r\n");
         delay(1000);
     }
 
-    SerialDebug.println("Connected!");
-
-    */
+    Log.info("Connected!\r\n");
 }
 
 void loop() { debugBridgeUpdate(); }

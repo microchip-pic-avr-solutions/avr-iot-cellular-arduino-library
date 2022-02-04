@@ -101,7 +101,11 @@ class LteClass {
                                 const uint8_t awake_value);
 
     /**
-     * @brief Will attempt to put the LTE modem in power save mode.
+     * @brief Will attempt to put the LTE modem in power save mode. If this
+     * method is called before begin(), the modem will be put in low power mode
+     * until brought back by endPowerSaveMode(), no automatic periodicity will
+     * happen as is the case when begin() is called first and the modem is
+     * connected to the network.
      *
      * @note Will wait for @p waiting_time to see if the modem gets to low power
      * mode. If no previous configuration is set, the modem will not be able to

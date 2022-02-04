@@ -31,6 +31,12 @@ void LogClass::setLogLevel(const LogLevel log_level) {
     this->log_level = log_level;
 }
 
+void LogClass::begin(const unsigned long baud_rate) {
+    this->uart->begin(baud_rate);
+}
+
+void LogClass::end(void) { this->uart->end(); }
+
 void LogClass::info(const char str[]) {
     if (log_level >= LogLevel::INFO) {
         this->print(str, INFO_LEVEL_FMT);

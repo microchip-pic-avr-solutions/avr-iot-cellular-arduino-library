@@ -256,10 +256,11 @@ bool MqttClientClass::begin(const char *client_id,
         SequansController.writeCommand("AT");
 
         char connection_response[MQTT_DEFAULT_RESPONSE_LENGTH * 4];
-        uint8_t res = SequansController.readResponse(
+        ResponseResult result = SequansController.readResponse(
             connection_response, sizeof(connection_response));
-        if (res != OK) {
-            Log.errorf("Non-OK Response when writing AT. Err = %d\n", res);
+
+        if (result != ResponseResult::OK) {
+            Log.errorf("Non-OK Response when writing AT. Err = %d\n", result);
             return false;
         }
 
@@ -346,7 +347,7 @@ bool MqttClientClass::publish(const char *topic,
     ResponseResult result = SequansController.readResponse(
         publish_response, sizeof(publish_response));
 
-    if (result != OK) {
+    if (result != ResponseResult::OK) {
         Log.errorf("Failed to get publish result, result was %d\n", result);
         return false;
     }
@@ -385,7 +386,7 @@ bool MqttClientClass::subscribe(const char *topic,
     sprintf(command, MQTT_SUSBCRIBE, topic, quality_of_service);
     SequansController.writeCommand(command);
 
-    if (SequansController.readResponse() != OK) {
+    if (SequansController.readResponse() != ResponseResult::OK) {
         return false;
     }
 
@@ -397,7 +398,8 @@ bool MqttClientClass::subscribe(const char *topic,
 
     char subscribe_response[MQTT_DEFAULT_RESPONSE_LENGTH];
     if (SequansController.readResponse(subscribe_response,
-                                       sizeof(subscribe_response)) != OK) {
+                                       sizeof(subscribe_response)) !=
+        ResponseResult::OK) {
         return false;
     }
 
@@ -497,7 +499,7 @@ bool MqttClientClass::readMessage(const char *topic,
     ResponseResult result =
         SequansController.readResponse((char *)buffer, buffer_size);
 
-    return (result == OK);
+    return (result == ResponseResult::OK);
 }
 
 String MqttClientClass::readMessage(const char *topic, const uint16_t size) {
