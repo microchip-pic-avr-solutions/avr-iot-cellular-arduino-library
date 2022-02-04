@@ -1,5 +1,5 @@
 #include "ecc608/ecc608.h"
-#include "log/log.h"
+#include "log.h"
 #include "mqtt_client.h"
 #include "sequans_controller.h"
 
@@ -130,7 +130,7 @@ static void internalHandleSigningRequest(char *urc) {
     bool ret =
         SequansController.genSigningRequestCmd(urc, signingRequestBuffer);
     if (ret != true) {
-        Log5.Error("Unable to handle signature request");
+        Log.error("Unable to handle signature request");
         return;
     }
     signingRequestFlag = true;
@@ -140,7 +140,7 @@ static void internalHandleSigningRequest(char *urc) {
 bool MqttClientClass::pollSign(void) {
     bool ret = false;
     if (signingRequestFlag) {
-        Log5.Debug("Signing");
+        Log.debug("Signing");
         ret = SequansController.writeCommand(signingRequestBuffer);
         signingRequestFlag = false;
     }
@@ -153,7 +153,7 @@ bool MqttClientClass::beginAWS() {
     // -- Initialize the ECC
     uint8_t err = ECC608.initializeHW();
     if (err != ATCA_SUCCESS) {
-        Log5.Error("Could not initialize ECC HW");
+        Log.error("Could not initialize ECC HW");
         return false;
     }
 
@@ -166,20 +166,20 @@ bool MqttClientClass::beginAWS() {
     // -- Get the thingname
     err = ECC608.getThingName(thingName, &thingNameLen);
     if (err != ECC608.ERR_OK) {
-        Log5.Error("Could not retrieve thingname from the ECC");
+        Log.error("Could not retrieve thingname from the ECC");
         return false;
     }
 
     // -- Get the endpoint
     err = ECC608.getEndpoint(endpoint, &endpointLen);
     if (err != ECC608.ERR_OK) {
-        Log5.Error("Could not retrieve endpoint from the ECC");
+        Log.error("Could not retrieve endpoint from the ECC");
         return false;
     }
 
-    Log5.Debugf("Connecting to AWS with endpoint = %s and thingname = %s\n",
-                endpoint,
-                thingName);
+    Log.debugf("Connecting to AWS with endpoint = %s and thingname = %s\n",
+               endpoint,
+               thingName);
 
     usingEcc = true;
 
@@ -217,7 +217,7 @@ bool MqttClientClass::begin(const char *client_id,
         sprintf(command, MQTT_CONFIGURE, client_id);
 
         if (!SequansController.writeCommand(command)) {
-            Log5.Error("Failed to configure MQTT");
+            Log.error("Failed to configure MQTT");
             return false;
         }
     }
@@ -234,7 +234,7 @@ bool MqttClientClass::begin(const char *client_id,
 
     sprintf(command, MQTT_CONNECT, host, port);
     if (!SequansController.retryCommand(command)) {
-        Log5.Error("Failed to request connection to MQTT broker\r\n");
+        Log.error("Failed to request connection to MQTT broker\r\n");
         return false;
     }
 
@@ -259,7 +259,7 @@ bool MqttClientClass::begin(const char *client_id,
         uint8_t res = SequansController.readResponse(
             connection_response, sizeof(connection_response));
         if (res != OK) {
-            Log5.Errorf("Non-OK Response when writing AT. Err = %d\n", res);
+            Log.errorf("Non-OK Response when writing AT. Err = %d\n", res);
             return false;
         }
 
@@ -333,7 +333,7 @@ bool MqttClientClass::publish(const char *topic,
         uint32_t start = millis();
         while (pollSign() == false) {
             if (millis() - start > 5000) {
-                Log5.Error("Timed out waiting for pub signing");
+                Log.error("Timed out waiting for pub signing");
                 return false;
             }
         }
@@ -347,7 +347,7 @@ bool MqttClientClass::publish(const char *topic,
         publish_response, sizeof(publish_response));
 
     if (result != OK) {
-        Log5.Errorf("Failed to get publish result, result was %d\n", result);
+        Log.errorf("Failed to get publish result, result was %d\n", result);
         return false;
     }
 
@@ -358,12 +358,12 @@ bool MqttClientClass::publish(const char *topic,
         publish_response, 2, rc_buffer, sizeof(rc_buffer));
 
     if (!got_rc) {
-        Log5.Errorf("Failed to get status code: %s \r\n", rc_buffer);
+        Log.errorf("Failed to get status code: %s \r\n", rc_buffer);
         return false;
     }
 
     if (atoi(rc_buffer) != 0) {
-        Log5.Errorf("Status code (rc) != 0: %d\r\n", atoi(rc_buffer));
+        Log.errorf("Status code (rc) != 0: %d\r\n", atoi(rc_buffer));
         return false;
     }
 

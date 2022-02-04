@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <log.h>
 #include <lte.h>
 #include <sequans_controller.h>
 
@@ -12,17 +13,32 @@ void setup() {
 
     SerialDebug.begin(115200);
 
+    SequansController.begin();
+
+    delay(1000);
+
+    Log.setLogLevel(LogLevel::DEBUG);
+
+    if (!Lte.configurePowerSaveMode(SleepUnitMultiplier::ONE_MINUTE,
+                                    1,
+                                    AwakeUnitMultiplier::ONE_MINUTE,
+                                    1)) {
+
+        Log.warn("Not able to configure power save mode\r\n");
+        return;
+    }
+
     // Start LTE modem and wait until we are connected to the operator
-    /*Lte.begin();
+    /*
+    Lte.begin();
     while (!Lte.isConnected()) {
-        Serial5.println("Not connected to operator yet...");
+        SerialDebug.println("Not connected to operator yet...");
         delay(1000);
     }
 
-    Serial5.println("Connected!");
-    */
+    SerialDebug.println("Connected!");
 
-    SequansController.begin();
+    */
 }
 
 void loop() { debugBridgeUpdate(); }
@@ -53,11 +69,13 @@ void debugBridgeUpdate(void) {
         case ENTER_CHARACTER:
 
             if (strstr(input_buffer, "pw_enable")) {
-                SequansController.setPowerSaveMode(1, NULL);
-                Serial5.println("Enabling low power, pulling rts high");
+                Log.info("Attempting to enter power save mode. "
+                         "Waiting for success...\r\n");
+                Log.infof("Success: %d\r\n", Lte.attemptToEnterPowerSaveMode());
+
             } else if (strstr(input_buffer, "pw_disable")) {
-                SequansController.setPowerSaveMode(0, NULL);
-                Serial5.println("Disabling low power, pulling rts low");
+                Log.info("Ending power save\r\n");
+                Lte.endPowerSaveMode();
             } else {
                 SequansController.writeCommand(input_buffer);
             }

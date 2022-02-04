@@ -1,6 +1,6 @@
 #include "sequans_controller.h"
 
-#include "log/log.h"
+#include "log.h"
 #include <avr/interrupt.h>
 #include <avr/io.h>
 #include <stddef.h>
@@ -366,12 +366,17 @@ bool SequansControllerClass::writeByte(const uint8_t data) {
 }
 
 bool SequansControllerClass::writeCommand(const char *command) {
+
+    Log.debugf("Sending AT command: %s\r\n", command);
+
     return writeBytes((uint8_t *)command, strlen(command));
 }
 
 bool SequansControllerClass::retryCommand(const char *command,
                                           uint8_t retries) {
     uint8_t retry_count = 0;
+
+    Log.debugf("Sending AT command: %s\r\n", command);
 
     do {
         writeCommand(command);
@@ -432,7 +437,7 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
         retry_count = 0;
         out_buffer[i] = (uint8_t)readByte();
 
-        // We won't check for the buffer having a termination until at least twi
+        // We won't check for the buffer having a termination until at least 2
         // bytes are in it
         if (i == 0) {
             continue;
@@ -474,6 +479,13 @@ ResponseResult SequansControllerClass::readResponse(void) {
 
     do {
         response = readResponse(termination_buffer, sizeof(termination_buffer));
+
+        if (response != ResponseResult::OK) {
+            Log.debugf("Response: %s\r\n", termination_buffer);
+        } else {
+            Log.debug("Response: OK\r\n");
+        }
+
         // Keep looping until response is OK or ERROR or no retries left
     } while (response == TIMEOUT && retry_count++ < number_of_retries);
 
@@ -644,7 +656,7 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc,
     char sign_request[HCESIGN_REQUEST_LENGTH] = "SQNHCESIGN:";
     strcpy(sign_request + strlen("SQNHCESIGN:"), urc);
 
-    Log5.Debugf("Got URC: %s\r\n", sign_request);
+    Log.debugf("Got URC: %s\r\n", sign_request);
 
     // Grab the ctx id
     // +1 for null termination
@@ -654,7 +666,7 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc,
         sign_request, 0, ctx_id_buffer, sizeof(ctx_id_buffer));
 
     if (!got_ctx_id) {
-        Log5.Error("no ctx_id");
+        Log.error("no ctx_id");
         return false;
     }
 
@@ -666,7 +678,7 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc,
         sign_request, 3, digest, HCESIGN_DIGEST_LENGTH + 1);
 
     if (!got_digest) {
-        Log5.Error("No Digest");
+        Log.error("No Digest");
         return false;
     }
 
@@ -683,7 +695,7 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc,
     ATCA_STATUS result = atcab_sign(0, message_to_sign, (uint8_t *)digest);
 
     if (result != ATCA_SUCCESS) {
-        Log5.Error("ECC Signing Failed");
+        Log.error("ECC Signing Failed");
         return false;
     }
 

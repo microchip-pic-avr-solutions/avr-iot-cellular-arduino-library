@@ -197,8 +197,10 @@ bool LteClass::configurePowerSaveMode(
             min(awake_value, PSM_VALUE_MAX);
     uint8_to_bits(value, awake_parameter);
 
-    // Now we can embed the values for the awake and sleep periode in the power
-    // saving mode configuration command
+    // Serial5.printf("The value to write is: %s\r\n", awake_parameter);
+
+    // Now we can embed the values for the awake and sleep periode in the
+    // power saving mode configuration command
     char command[AT_COMMAND_SET_PSM_SIZE + 1]; // + 1 for null termination
     sprintf(command, sleep_parameter, awake_parameter);
 
@@ -251,6 +253,9 @@ bool LteClass::attemptToEnterPowerSaveMode(const uint32_t waiting_time_ms) {
             is_in_power_save_mode = true;
             return true;
         }
+
+        // TODO: temp
+        Serial5.println("Waiting...");
 
     } while (waiting_time_passed_ms < waiting_time_ms);
 

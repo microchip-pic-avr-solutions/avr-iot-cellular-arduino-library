@@ -104,11 +104,8 @@ class LteClass {
      * @brief Will attempt to put the LTE modem in power save mode.
      *
      * @note Will wait for @p waiting_time to see if the modem gets to low power
-     * mode.
-     *
-     * If no previous configuration is set, the modem will sleep with the
-     * default configuration of 10 minutes with sleep and 1 minute awake
-     * receiving messages before going back to sleep.
+     * mode. If no previous configuration is set, the modem will not be able to
+     * go into power save mode.
      *
      * @note The power save mode can be abrupted if a new message arrives from
      * the network (for example a MQTT message). Such messages have to be
