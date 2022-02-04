@@ -9,18 +9,18 @@
 #define RTS_PORT   PORTC
 #define RTS_PIN_bm PIN7_bm
 
-void power_save_abrupted(void) { Log.info("Power save abrupted"); }
+bool power_save_got_abrupted = false;
+void power_save_abrupted(void) { power_save_got_abrupted = true; }
 
 void setup() {
 
-    Serial5.begin(115200);
     Log.begin(115200);
     Log.setLogLevel(LogLevel::DEBUG);
 
     if (!Lte.configurePowerSaveMode(SleepUnitMultiplier::ONE_MINUTE,
-                                    1,
-                                    AwakeUnitMultiplier::ONE_MINUTE,
-                                    1)) {
+                                    3,
+                                    AwakeUnitMultiplier::TWO_SECONDS,
+                                    8)) {
 
         Log.warn("Not able to configure power save mode\r\n");
         return;
@@ -30,15 +30,20 @@ void setup() {
 
     // Start LTE modem and wait until we are connected to the operator
     Lte.begin();
-    while (!Lte.isConnected()) {
-        Log.info("Not connected yet...\r\n");
-        delay(1000);
-    }
+    while (!Lte.isConnected()) { delay(1000); }
 
     Log.info("Connected!\r\n");
 }
 
-void loop() { debugBridgeUpdate(); }
+void loop() {
+
+    if (power_save_got_abrupted) {
+        Log.info("Power save abrupted\r\n");
+        power_save_got_abrupted = false;
+    }
+
+    debugBridgeUpdate();
+}
 
 // ------------------------------ DEBUG BRIDGE ----------------------------- //
 

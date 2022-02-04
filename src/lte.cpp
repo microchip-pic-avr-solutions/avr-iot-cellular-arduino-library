@@ -7,7 +7,7 @@
 #define AT_COMMAND_DISCONNECT         "AT+CFUN=0"
 #define AT_COMMAND_CONNECTION_STATUS  "AT+CEREG?"
 #define AT_COMMAND_DISABLE_CEREG_URC  "AT+CEREG=0"
-#define AT_COMMAND_ENABLE_CEREG_URC   "AT+CEREG=2"
+#define AT_COMMAND_ENABLE_CEREG_URC   "AT+CEREG=5"
 #define AT_COMMAND_DISABLE_CREG_URC   "AT+CREG=0"
 #define AT_COMMAND_DISABLE_EDRX       "AT+SQNEDRX=0"
 #define AT_COMMAND_SET_PSM            "AT+CPSMS=1,,,\"%s\",\"%s\""
@@ -26,7 +26,12 @@
 #define STAT_REGISTERED_HOME_NETWORK '1'
 #define STAT_REGISTERED_ROAMING      '5'
 
-#define RESPONSE_CONNECTION_STATUS_SIZE 48
+// This includes null termination
+#define TIMER_LENGTH       11
+#define TIMER_ACTIVE_INDEX 7
+#define TIMER_SLEEP_INDEX  8
+
+#define RESPONSE_CONNECTION_STATUS_SIZE 70
 
 #define CEREG_DATA_LENGTH 2
 
@@ -53,7 +58,7 @@ static void (*connected_callback)(void) = NULL;
 static void (*disconnected_callback)(void) = NULL;
 static void (*power_save_abrupted_callback)(void) = NULL;
 
-static bool ring_line_asserted = false;
+static bool ring_line_activity = false;
 static bool is_in_power_save_mode = false;
 
 static void connectionStatus(char *) {
@@ -142,8 +147,45 @@ bool LteClass::isConnected(void) {
         stat_token[0] == STAT_REGISTERED_ROAMING) {
         return true;
     }
+}
 
-    return false;
+bool LteClass::getPeriods(uint32_t &active_period, uint32_t &sleep_period) {
+
+    SequansController.clearReceiveBuffer();
+    SequansController.writeCommand(AT_COMMAND_CONNECTION_STATUS);
+
+    char response[RESPONSE_CONNECTION_STATUS_SIZE];
+
+    ResponseResult response_result = SequansController.readResponse(
+        response, RESPONSE_CONNECTION_STATUS_SIZE);
+
+    if (response_result != ResponseResult::OK) {
+        char response_result_string[18] = "";
+        SequansController.responseResultToString(response_result,
+                                                 response_result_string);
+        Log.warnf("Did not get a valid response when querying CEREG: %s\r\n",
+                  response_result_string);
+        return false;
+    }
+
+    // Find the stat token in the response
+    char active_timer_token[TIMER_LENGTH];
+    bool found_token = SequansController.extractValueFromCommandResponse(
+        response, TIMER_ACTIVE_INDEX, active_timer_token, TIMER_LENGTH);
+
+    if (!found_token) {
+        return false;
+    }
+
+    char sleep_timer_token[TIMER_LENGTH];
+    found_token = SequansController.extractValueFromCommandResponse(
+        response, TIMER_SLEEP_INDEX, sleep_timer_token, TIMER_LENGTH);
+
+    if (!found_token) {
+        return false;
+    }
+
+    // TODO: fill the numbers
 }
 
 /**
@@ -217,7 +259,7 @@ bool LteClass::configurePowerSaveMode(
 
 static void ring_line_callback(void) {
 
-    ring_line_asserted = true;
+    ring_line_activity = true;
 
     if (is_in_power_save_mode) {
         is_in_power_save_mode = false;
@@ -237,7 +279,7 @@ bool LteClass::attemptToEnterPowerSaveMode(const uint32_t waiting_time_ms) {
     SequansController.clearReceiveBuffer();
     SequansController.setPowerSaveMode(1, ring_line_callback);
 
-    ring_line_asserted = false;
+    ring_line_activity = false;
 
     // Now we wait until the ring line to stabilize
     uint32_t time_passed_since_ring_activity_ms = 0;
@@ -246,9 +288,9 @@ bool LteClass::attemptToEnterPowerSaveMode(const uint32_t waiting_time_ms) {
     do {
         delay(PSM_WAITING_TIME_DELTA_MS);
 
-        if (ring_line_asserted) {
+        if (ring_line_activity) {
             time_passed_since_ring_activity_ms = 0;
-            ring_line_asserted = false;
+            ring_line_activity = false;
         } else {
             time_passed_since_ring_activity_ms += PSM_WAITING_TIME_DELTA_MS;
         }

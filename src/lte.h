@@ -71,6 +71,9 @@ class LteClass {
 
     bool isConnected(void);
 
+    // TODO: experimental
+    bool getPeriods(uint32_t &active_period, uint32_t &sleep_period);
+
     /**
      * @brief Will set up configuration to put the LTE modem in a periodic
      * sleep and thus save power.
@@ -120,7 +123,7 @@ class LteClass {
      *
      * @return true if the LTE modem was put in power save mode.
      */
-    bool attemptToEnterPowerSaveMode(const uint32_t waiting_time_ms = 30000);
+    bool attemptToEnterPowerSaveMode(const uint32_t waiting_time_ms = 60000);
 
     /**
      * @brief Stops the power save mode.

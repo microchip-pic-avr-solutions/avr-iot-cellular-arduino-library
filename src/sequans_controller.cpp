@@ -22,6 +22,7 @@
 #define RTS_PIN     PIN_PC7
 #define RTS_PIN_bm  PIN7_bm
 #define RESET_PIN   PIN_PE1
+#define RING_PORT   PORTC
 #define RING_PIN    PIN_PC4
 
 #define HWSERIALAT               USART1
@@ -136,6 +137,7 @@ static void flowControlUpdate(void) {
 
 // For CTS interrupt
 ISR(PORTC_PORT_vect) {
+
     if (VPORTC.INTFLAGS & CTS_INT_bm) {
 
         if (VPORTC.IN & CTS_PIN_bm) {
@@ -384,6 +386,7 @@ bool SequansControllerClass::retryCommand(const char *command,
 
     char response_string[18];
     responseResultToString(response, response_string);
+
     Log.debugf("Command response: %s\r\n", response_string);
 
     return retry_count < retries;
@@ -641,8 +644,11 @@ void SequansControllerClass::setPowerSaveMode(const uint8_t mode,
         if (ring_callback != NULL) {
             ring_line_callback = ring_callback;
 
-            // Enable interrupt on rising edge on RING0
-            pinConfigure(RING_PIN, PIN_DIR_INPUT | PIN_INT_RISE);
+            // We have interrupt on change here since there is sometimes
+            // a too small interval for the sensing to sense a rising edge.
+            // This is fine as any change will yield that we are out of power
+            // save mode.
+            pinConfigure(RING_PIN, PIN_DIR_INPUT | PIN_INT_CHANGE);
         }
 
         power_save_mode = 1;
