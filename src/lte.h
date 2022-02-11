@@ -32,6 +32,20 @@ enum class AwakeUnitMultiplier {
     SIX_MINUTES = 2,
 };
 
+/**
+ * @brief Power save configuration structure where the total time sleeping is @p
+ * sleep_multiplier * @p sleep_value and the total time awake is @p
+ * awake_multiplier * @p awake_value.
+ *
+ * @note The max values for @p sleep_value and @p awake_value is 2^5 - 1 = 31.
+ */
+struct PowerSaveConfiguration {
+    SleepUnitMultiplier sleep_multiplier;
+    uint8_t sleep_value;
+    AwakeUnitMultiplier awake_multiplier;
+    uint8_t awake_value;
+};
+
 class LteClass {
 
   private:
@@ -52,9 +66,35 @@ class LteClass {
 
     /**
      * @brief Initializes the LTE module and its controller interface. Starts
-     * searching for operator.
+     * searching for operator. Can be used to configure power save
+     * configuration.
+     *
+     *
+     * Power saving configuration:
+     *
+     * @param enable_power_save Will set up configuration to put the LTE modem
+     * in a periodic sleep and thus save power.
+     *
+     * @param power_save_configuration The configuration for the sleep schedule.
+     * Will sleep #PowerSaveConfiguration.sleep_multiplier *
+     * #PowerSaveConfiguration.sleep_value before awaking for
+     * #PowerSaveConfiguration.awake_multiplier *
+     * PowerSaveConfiguration.awake_value.
+     *
+     *
+     * @note The max value for #PowerSaveConfiguration.sleep_value and
+     * #PowerSaveConfiguration.awake_value is 31.
+     *
+     * @note The values requested for power saving might be rejected by the
+     * operator and modified, thus this has to be checked in with
+     * #getCurrentPowerSaveConfiguration().
      */
-    void begin(void);
+    void begin(const bool enable_power_save = false,
+               const PowerSaveConfiguration power_save_configuration = {
+                   SleepUnitMultiplier::THIRTY_SECONDS,
+                   6,
+                   AwakeUnitMultiplier::TWO_SECONDS,
+                   30});
 
     /**
      * @brief Disables the interface with the LTE module. Disconnects from
@@ -70,38 +110,6 @@ class LteClass {
                                   void (*disconnect_callback)(void));
 
     bool isConnected(void);
-
-    // TODO: experimental
-    bool getPeriods(uint32_t &active_period, uint32_t &sleep_period);
-
-    /**
-     * @brief Will set up configuration to put the LTE modem in a periodic
-     * sleep and thus save power.
-     *
-     * @note This method has to be called before begin().
-     *
-     * When the modem is sleeping it will sleep for @p sleep_multiplier *
-     * @p sleep_value time units, then be awake for @p awake_multiplier * @p
-     * awake_value time units whilst checking the network connecting and
-     * receiving messages before going back to sleep again. This repeats
-     * indefinitely until stopped or abrupted.
-     *
-     * @param sleep_multiplier Value to multiply @p sleep_value with.
-     * @param sleep_value How long the LTE modem will sleep during a periodic
-     * sleep schedule, multiplied with @p sleep_multiplier. @note Max value
-     * is 31.
-     *
-     * @param awake_multiplier Value to multiply @p awake_value with.
-     * @param awake_value How long the LTE modem will be awake during a periodic
-     * sleep schedule, multiplied with @p awake_multiplier. @note Max value
-     * is 31.
-     *
-     * @return true If configuration was set successfully.
-     */
-    bool configurePowerSaveMode(const SleepUnitMultiplier sleep_multiplier,
-                                const uint8_t sleep_value,
-                                const AwakeUnitMultiplier awake_multiplier,
-                                const uint8_t awake_value);
 
     /**
      * @brief Will attempt to put the LTE modem in power save mode. If this
@@ -124,6 +132,13 @@ class LteClass {
      * @return true if the LTE modem was put in power save mode.
      */
     bool attemptToEnterPowerSaveMode(const uint32_t waiting_time_ms = 60000);
+
+    /**
+     * @return The configuration set by the operator, which may deviate from the
+     * configuration set by the user if the operator don't support such a
+     * configuration. If failed to retrieve the configuration, it will be blank.
+     */
+    PowerSaveConfiguration getCurrentPowerSaveConfiguration(void);
 
     /**
      * @brief Stops the power save mode.

@@ -1,4 +1,4 @@
-#include "ecc608/ecc608.h"
+#include "ecc608.h"
 #include "log.h"
 #include "mqtt_client.h"
 #include "sequans_controller.h"
@@ -82,7 +82,20 @@
 
 #define MQTT_SIGNING_BUFFER 256
 
+#define HCESIGN "AT+SQNHCESIGN=%u,0,64,\"%s\""
+
+// Command without any data in it (with parantheses): 22 bytes
+// ctxId: 5 bytes (16 bits, thus 5 characters max)
+// Signature: 128 bytes
+// Termination: 1 byte
+// Total: 156 bytes
+#define HCESIGN_LENGTH 156
+
 #define HCESIGN_URC "SQNHCESIGN"
+
+#define HCESIGN_REQUEST_LENGTH 128
+#define HCESIGN_DIGEST_LENGTH  64
+#define HCESIGN_CTX_ID_LENGTH  5
 
 // Singleton instance
 MqttClientClass MqttClient = MqttClientClass::instance();
@@ -91,10 +104,11 @@ static bool connected_to_broker = false;
 static void (*connected_callback)(void) = NULL;
 static void (*disconnected_callback)(void) = NULL;
 
-volatile static bool signingRequestFlag = false;
-static char signingRequestBuffer[MQTT_SIGNING_BUFFER];
+volatile static bool signing_request_flag = false;
+static char signing_request_buffer[MQTT_SIGNING_BUFFER];
+static char signing_urc[URC_DATA_BUFFER_SIZE];
 
-static bool usingEcc = false;
+static bool using_ecc = false;
 
 /**
  * @brief Called on MQTT broker connection URC. Will check the URC to see if the
@@ -126,26 +140,104 @@ static void internalDisconnectCallback(char *urc) {
 }
 
 static void internalHandleSigningRequest(char *urc) {
-    // TODO: Move this out of the interrupt
-    bool ret =
-        SequansController.genSigningRequestCmd(urc, signingRequestBuffer);
-    if (ret != true) {
-        Log.error("Unable to handle signature request");
-        return;
-    }
-    signingRequestFlag = true;
+
+    signing_request_flag = true;
 }
 
-// Returns true if a signing was done
-bool MqttClientClass::pollSign(void) {
-    bool ret = false;
-    if (signingRequestFlag) {
-        Log.debug("Signing");
-        ret = SequansController.writeCommand(signingRequestBuffer);
-        signingRequestFlag = false;
+/**
+ * @brief Takes in URC signing @p data, signs it and constructs a command
+ * with the signature which is passed to the modem.
+ *
+ * @param data The data to sign.
+ * @param command_buffer The constructed command with signature data.
+ */
+static bool generateSigningCommand(char *data, char *command_buffer) {
+
+    char sign_request[HCESIGN_REQUEST_LENGTH] = "SQNHCESIGN:";
+    strcpy(sign_request + strlen("SQNHCESIGN:"), data);
+
+    Log.debugf("Got URC: %s\r\n", sign_request);
+
+    // Grab the ctx id
+    // +1 for null termination
+    char ctx_id_buffer[HCESIGN_CTX_ID_LENGTH + 1];
+
+    bool got_ctx_id = SequansController.extractValueFromCommandResponse(
+        sign_request, 0, ctx_id_buffer, sizeof(ctx_id_buffer));
+
+    if (!got_ctx_id) {
+        Log.error("no ctx_id\r\r");
+        return false;
     }
 
-    return ret;
+    // Grab the digest, which will be 32 bytes, but appear as 64 hex
+    // characters
+    char digest[HCESIGN_DIGEST_LENGTH + 1];
+
+    bool got_digest = SequansController.extractValueFromCommandResponse(
+        sign_request, 3, digest, HCESIGN_DIGEST_LENGTH + 1);
+
+    if (!got_digest) {
+        Log.error("No Digest\r\n");
+        return false;
+    }
+
+    // Convert digest to 32 bytes
+    uint8_t message_to_sign[HCESIGN_DIGEST_LENGTH / 2];
+    char *position = digest;
+
+    for (uint8_t i = 0; i < sizeof(message_to_sign); i++) {
+        sscanf(position, "%2hhx", &message_to_sign[i]);
+        position += 2;
+    }
+
+    // Sign digest with ECC's primary private key
+    ATCA_STATUS result = atcab_sign(0, message_to_sign, (uint8_t *)digest);
+
+    if (result != ATCA_SUCCESS) {
+        Log.error("ECC Signing Failed\r\n");
+        return false;
+    }
+
+    // Now we need to convert the byte array into a hex string in
+    // compact form
+    const char hex_conversion[] = "0123456789abcdef";
+
+    // +1 for NULL termination
+    char signature[HCESIGN_DIGEST_LENGTH * 2 + 1] = "";
+
+    // Prepare signature by converting to a hex string
+    for (uint8_t i = 0; i < sizeof(digest) - 1; i++) {
+        signature[i * 2] = hex_conversion[(digest[i] >> 4) & 0x0F];
+        signature[i * 2 + 1] = hex_conversion[digest[i] & 0x0F];
+    }
+
+    // NULL terminate
+    signature[HCESIGN_DIGEST_LENGTH * 2] = 0;
+    sprintf(command_buffer, HCESIGN, atoi(ctx_id_buffer), signature);
+
+    return true;
+}
+
+bool MqttClientClass::signIncomingRequests(void) {
+    if (signing_request_flag) {
+        SequansController.readNotification(signing_urc, URC_DATA_BUFFER_SIZE);
+
+        bool success =
+            generateSigningCommand(signing_urc, signing_request_buffer);
+
+        if (success != true) {
+            Log.error("Unable to handle signature request\r\n");
+            return false;
+        }
+
+        Log.debug("Signing\r\n");
+        signing_request_flag = false;
+
+        return SequansController.writeCommand(signing_request_buffer);
+    }
+
+    return false;
 }
 
 bool MqttClientClass::beginAWS() {
@@ -181,7 +273,7 @@ bool MqttClientClass::beginAWS() {
                endpoint,
                thingName);
 
-    usingEcc = true;
+    using_ecc = true;
 
     return this->begin(
         (char *)(thingName), (char *)(endpoint), 8883, true, true);
@@ -243,9 +335,9 @@ bool MqttClientClass::begin(const char *client_id,
     if (use_tls) {
 
         if (use_ecc) {
-            usingEcc = true;
+            using_ecc = true;
 
-            while (pollSign() == false) {}
+            while (signIncomingRequests() == false) {}
             delay(1000);
         }
 
@@ -331,11 +423,11 @@ bool MqttClientClass::publish(const char *topic,
     while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {}
 
     // Wait for a signing request if using the ECC
-    if (usingEcc) {
+    if (using_ecc) {
         uint32_t start = millis();
-        while (pollSign() == false) {
+        while (signIncomingRequests() == false) {
             if (millis() - start > 5000) {
-                Log.error("Timed out waiting for pub signing");
+                Log.error("Timed out waiting for pub signing\r\n");
                 return false;
             }
         }
@@ -349,7 +441,7 @@ bool MqttClientClass::publish(const char *topic,
         publish_response, sizeof(publish_response));
 
     if (result != ResponseResult::OK) {
-        Log.errorf("Failed to get publish result, result was %d\n", result);
+        Log.errorf("Failed to get publish result, result was %d \r\n", result);
         return false;
     }
 

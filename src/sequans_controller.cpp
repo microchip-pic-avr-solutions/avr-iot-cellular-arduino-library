@@ -22,8 +22,6 @@
 #define RTS_PIN     PIN_PC7
 #define RTS_PIN_bm  PIN7_bm
 #define RESET_PIN   PIN_PE1
-#define RING_PORT   PORTC
-#define RING_PIN    PIN_PC4
 
 #define HWSERIALAT               USART1
 #define SEQUANS_MODULE_BAUD_RATE 115200
@@ -46,20 +44,7 @@
 #define LINE_FEED          '\n'
 #define CARRIAGE_RETURN    '\r'
 #define SPACE_CHARACTER    ' '
-#define RESPONSE_DELIMITER ","
-
-#define HCESIGN_REQUEST_LENGTH 128
-#define HCESIGN_DIGEST_LENGTH  64
-#define HCESIGN_CTX_ID_LENGTH  5
-
-// Command without any data in it (with parantheses): 22 bytes
-// ctxId: 5 bytes (16 bits, thus 5 characters max)
-// Signature: 128 bytes
-// Termination: 1 byte
-// Total: 156 bytes
-#define HCESIGN_LENGTH 156
-
-#define HCESIGN "AT+SQNHCESIGN=%u,0,64,\"%s\""
+#define RESPONSE_DELIMITER ','
 
 static const char OK_TERMINATION[] = "OK\r\n";
 static const char ERROR_TERMINATION[] = "ERROR\r\n";
@@ -135,7 +120,7 @@ static void flowControlUpdate(void) {
     }
 }
 
-// For CTS interrupt
+// For CTS and RING interrupt
 ISR(PORTC_PORT_vect) {
 
     if (VPORTC.INTFLAGS & CTS_INT_bm) {
@@ -228,6 +213,9 @@ ISR(USART1_RXC_vect) {
             urc_read = false;
 
             if (urc_current_callback != NULL) {
+                // TODO: should probably not pass the buffer here. This is what
+                // the read notification function is for. This kind of makes it
+                // easier to forget to keep the interrupt time to a minimum.
                 urc_current_callback((char *)urc_data_buffer);
             }
 
@@ -508,9 +496,7 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     const size_t buffer_size,
     const char start_character) {
 
-    // Using strtok further down in this function would modify the original
-    // string, so we create a copy to the end index + 1 (because of
-    // NULL termination).
+    // We need a copy in order to not modify the original
     char response_copy[strlen(response) + 1];
     strcpy(response_copy, response);
 
@@ -536,33 +522,55 @@ bool SequansControllerClass::extractValueFromCommandResponse(
 
     // Now we split the string by the response delimiter and search for the
     // index we're interested in
-    char *value = strtok(data, RESPONSE_DELIMITER);
+    //
+    // We refrain from using strtok to split the string here as it will not
+    // take into account empty strings between the delimiter, which can be
+    // the case with certain command responses
+
+    // These keep track of the contens between the delimiter
+    char *start_value_ptr = data;
+    char *end_value_ptr = strchr(data, RESPONSE_DELIMITER);
+
+    // We did not find the delimiter at all, abort
+    if (end_value_ptr == NULL) {
+        return false;
+    }
 
     uint8_t value_index = 1;
-    while (value != NULL && value_index <= index) {
-        value = strtok(NULL, RESPONSE_DELIMITER);
 
+    while (end_value_ptr != NULL && value_index <= index) {
+        // Find next occurrence and update accordingly
+        start_value_ptr = end_value_ptr + 1;
+        end_value_ptr = strchr(start_value_ptr, RESPONSE_DELIMITER);
         value_index++;
     }
 
-    char *first_carriage_return = strchr(value, '\r');
+    // If we got all the way to the end, set the end_value_ptr to the end of the
+    // data ptr
+    if (end_value_ptr == NULL) {
+        end_value_ptr = data + strlen(data);
+    }
+    end_value_ptr[0] = 0; // Add null termination
 
     // If found, set termination to the carriage return. If not, leave the
     // string be as it is
-    if (value != NULL) {
+    char *first_carriage_return = strchr(start_value_ptr, '\r');
+    if (start_value_ptr != NULL) {
         *first_carriage_return = 0;
     }
 
-    size_t value_length = strlen(value);
+    size_t value_length = strlen(start_value_ptr);
 
     // We compare inclusive for value length as we want to take the null
     // termination into consideration. So the buffer size has be
     // value_length + 1
-    if (value == NULL || value_length >= buffer_size) {
+    if (value_length >= buffer_size) {
+        Log.error("Buffer was too small for value when extracting value for "
+                  "command response, increase the buffer size");
         return false;
     }
 
-    strcpy(buffer, value);
+    strcpy(buffer, start_value_ptr);
 
     return true;
 }
@@ -654,74 +662,6 @@ void SequansControllerClass::setPowerSaveMode(const uint8_t mode,
         power_save_mode = 1;
         RTS_PORT.OUTSET |= RTS_PIN_bm;
     }
-}
-
-bool SequansControllerClass::genSigningRequestCmd(char *urc,
-                                                  char *commandBuffer) {
-    char sign_request[HCESIGN_REQUEST_LENGTH] = "SQNHCESIGN:";
-    strcpy(sign_request + strlen("SQNHCESIGN:"), urc);
-
-    Log.debugf("Got URC: %s\r\n", sign_request);
-
-    // Grab the ctx id
-    // +1 for null termination
-    char ctx_id_buffer[HCESIGN_CTX_ID_LENGTH + 1];
-
-    bool got_ctx_id = extractValueFromCommandResponse(
-        sign_request, 0, ctx_id_buffer, sizeof(ctx_id_buffer));
-
-    if (!got_ctx_id) {
-        Log.error("no ctx_id");
-        return false;
-    }
-
-    // Grab the digest, which will be 32 bytes, but appear as 64 hex
-    // characters
-    char digest[HCESIGN_DIGEST_LENGTH + 1];
-
-    bool got_digest = extractValueFromCommandResponse(
-        sign_request, 3, digest, HCESIGN_DIGEST_LENGTH + 1);
-
-    if (!got_digest) {
-        Log.error("No Digest");
-        return false;
-    }
-
-    // Convert digest to 32 bytes
-    uint8_t message_to_sign[HCESIGN_DIGEST_LENGTH / 2];
-    char *position = digest;
-
-    for (uint8_t i = 0; i < sizeof(message_to_sign); i++) {
-        sscanf(position, "%2hhx", &message_to_sign[i]);
-        position += 2;
-    }
-
-    // Sign digest with ECC's primary private key
-    ATCA_STATUS result = atcab_sign(0, message_to_sign, (uint8_t *)digest);
-
-    if (result != ATCA_SUCCESS) {
-        Log.error("ECC Signing Failed");
-        return false;
-    }
-
-    // Now we need to convert the byte array into a hex string in
-    // compact form
-    const char hex_conversion[] = "0123456789abcdef";
-
-    // +1 for NULL termination
-    char signature[HCESIGN_DIGEST_LENGTH * 2 + 1] = "";
-
-    // Prepare signature by converting to a hex string
-    for (uint8_t i = 0; i < sizeof(digest) - 1; i++) {
-        signature[i * 2] = hex_conversion[(digest[i] >> 4) & 0x0F];
-        signature[i * 2 + 1] = hex_conversion[digest[i] & 0x0F];
-    }
-
-    // NULL terminate
-    signature[HCESIGN_DIGEST_LENGTH * 2] = 0;
-    sprintf(commandBuffer, HCESIGN, atoi(ctx_id_buffer), signature);
-
-    return true;
 }
 
 void SequansControllerClass::responseResultToString(

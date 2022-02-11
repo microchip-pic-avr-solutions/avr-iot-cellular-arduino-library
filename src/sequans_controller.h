@@ -199,8 +199,6 @@ class SequansControllerClass {
      */
     void responseResultToString(const ResponseResult response_result,
                                 char *response_string);
-
-    bool genSigningRequestCmd(char *urc, char *commandBuffer);
 };
 
 extern SequansControllerClass SequansController;

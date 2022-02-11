@@ -1,7 +1,6 @@
 #include "log.h"
 #include "lte.h"
 #include "sequans_controller.h"
-#include <Arduino.h>
 
 #define AT_COMMAND_CONNECT            "AT+CFUN=1"
 #define AT_COMMAND_DISCONNECT         "AT+CFUN=0"
@@ -51,6 +50,13 @@
 // have entered power save mode
 #define PSM_RING_LINE_STABLE_THRESHOLD_MS 2000
 
+#define PSM_MULTIPLIER_BM 0xE0
+
+#define PSM_VALUE_BM 0x1F
+
+#define RING_PORT   VPORTC
+#define RING_PIN_bm PIN4_bm
+
 // Singleton. Defined for use of the rest of the library.
 LteClass Lte = LteClass::instance();
 
@@ -83,8 +89,120 @@ static void connectionStatus(char *) {
     }
 }
 
-void LteClass::begin(void) {
+/**
+ * @brief Construct a string of bits from an uint8.
+ *
+ * @param string (out variable) Has to be preallocated to 9 bits (include
+ * termination).
+ */
+static void uint8ToStringOfBits(const uint8_t value, char *string) {
+    // Terminate
+    string[8] = 0;
+
+    for (uint8_t i = 0; i < 8; i++) {
+        string[i] = (value & (1 << (7 - i))) ? '1' : '0';
+    }
+}
+
+static uint8_t stringOfBitsToUint8(const char *string) {
+
+    uint8_t value;
+
+    for (uint8_t i = 0; i < 8; i++) {
+        // We assume all other values are zero, so we only shift the ones
+        if (string[i] == '1') {
+            value |= (1 << (7 - i));
+        }
+    }
+
+    return value;
+}
+
+// template <typename T> static T min(T a, T b) { return a < b ? a : b; }
+
+/**
+ * @brief Will configure power save mode for the Sequans mode.
+ *
+ * @note This method has to be called before begin().
+ *
+ * @return true If configuration was set successfully.
+ */
+static bool
+configurePowerSaveMode(const PowerSaveConfiguration power_save_configuration) {
+
+    SequansController.clearReceiveBuffer();
+
+    // First we disable EDRX
+    if (!SequansController.retryCommand(AT_COMMAND_DISABLE_EDRX)) {
+        return false;
+    }
+
+    // Then we set RING behaviour
+    if (!SequansController.retryCommand(AT_COMMAND_SET_RING_BEHAVIOUR)) {
+        return false;
+    }
+
+    // Then we set the power saving mode configuration
+    char sleep_parameter[9] = "";
+    char awake_parameter[9] = "";
+
+    // We encode both the multipier and value in one value after the setup:
+    //
+    // | Mul | Value |
+    // | ... | ..... |
+    //
+    // Where every dot is one bit
+    // Max value is 0b11111 = 31, so we have to clamp to that
+    //
+    // Need to do casts here as we have strongly typed enum classes to enforce
+    // the values we have set for the multipliers
+    uint8_t value;
+
+    value =
+        (static_cast<uint8_t>(power_save_configuration.sleep_multiplier) << 5) |
+        min(power_save_configuration.sleep_value, (uint8_t)PSM_VALUE_MAX);
+
+    uint8ToStringOfBits(value, sleep_parameter);
+
+    value =
+        (static_cast<uint8_t>(power_save_configuration.awake_multiplier) << 5) |
+        min(power_save_configuration.awake_value, PSM_VALUE_MAX);
+
+    uint8ToStringOfBits(value, awake_parameter);
+
+    // Now we can embed the values for the awake and sleep periode in the
+    // power saving mode configuration command
+    char command[AT_COMMAND_SET_PSM_SIZE + 1]; // + 1 for null termination
+    sprintf(command, AT_COMMAND_SET_PSM, sleep_parameter, awake_parameter);
+
+    return SequansController.retryCommand(command);
+}
+
+static void ring_line_callback(void) {
+
+    ring_line_activity = true;
+
+    if (is_in_power_save_mode) {
+        is_in_power_save_mode = false;
+
+        // We got abrupted, bring the power save mode off such that UART
+        // communication is possible again
+        SequansController.setPowerSaveMode(0, NULL);
+
+        if (power_save_abrupted_callback != NULL) {
+            power_save_abrupted_callback();
+        }
+    }
+}
+
+void LteClass::begin(const bool enable_power_save,
+                     const PowerSaveConfiguration power_save_configuration) {
+
     SequansController.begin();
+
+    if (enable_power_save) {
+        configurePowerSaveMode(power_save_configuration);
+    }
 
     SequansController.clearReceiveBuffer();
 
@@ -147,136 +265,21 @@ bool LteClass::isConnected(void) {
         stat_token[0] == STAT_REGISTERED_ROAMING) {
         return true;
     }
-}
 
-bool LteClass::getPeriods(uint32_t &active_period, uint32_t &sleep_period) {
-
-    SequansController.clearReceiveBuffer();
-    SequansController.writeCommand(AT_COMMAND_CONNECTION_STATUS);
-
-    char response[RESPONSE_CONNECTION_STATUS_SIZE];
-
-    ResponseResult response_result = SequansController.readResponse(
-        response, RESPONSE_CONNECTION_STATUS_SIZE);
-
-    if (response_result != ResponseResult::OK) {
-        char response_result_string[18] = "";
-        SequansController.responseResultToString(response_result,
-                                                 response_result_string);
-        Log.warnf("Did not get a valid response when querying CEREG: %s\r\n",
-                  response_result_string);
-        return false;
-    }
-
-    // Find the stat token in the response
-    char active_timer_token[TIMER_LENGTH];
-    bool found_token = SequansController.extractValueFromCommandResponse(
-        response, TIMER_ACTIVE_INDEX, active_timer_token, TIMER_LENGTH);
-
-    if (!found_token) {
-        return false;
-    }
-
-    char sleep_timer_token[TIMER_LENGTH];
-    found_token = SequansController.extractValueFromCommandResponse(
-        response, TIMER_SLEEP_INDEX, sleep_timer_token, TIMER_LENGTH);
-
-    if (!found_token) {
-        return false;
-    }
-
-    // TODO: fill the numbers
-}
-
-/**
- * @brief Construct a string of bits from an uint8.
- *
- * @param string Has to be preallocated to 9 bits (include termination).
- */
-static void uint8_to_bits(const uint8_t value, char *string) {
-    // Terminate
-    string[8] = 0;
-
-    for (uint8_t i = 0; i < 8; i++) {
-        string[i] = (value & (1 << (7 - i))) ? '1' : '0';
-    }
-}
-
-bool LteClass::configurePowerSaveMode(
-    const SleepUnitMultiplier sleep_multiplier,
-    const uint8_t sleep_value,
-    const AwakeUnitMultiplier awake_multiplier,
-    const uint8_t awake_value) {
-
-    // We have to have this here as this method can be called before
-    // Lte.begin(), so we need the SequansController to be up and running.
-    SequansController.begin();
-    SequansController.clearReceiveBuffer();
-
-    // First we disable EDRX
-    if (!SequansController.retryCommand(AT_COMMAND_DISABLE_EDRX)) {
-        return false;
-    }
-
-    // Then we set RING behaviour
-    if (!SequansController.retryCommand(AT_COMMAND_SET_RING_BEHAVIOUR)) {
-        return false;
-    }
-
-    // Then we set the power saving mode configuration
-    char sleep_parameter[9] = "";
-    char awake_parameter[9] = "";
-
-    // We encode both the multipier and value in one value after the setup:
-    //
-    // | Mul | Value |
-    // | ... | ..... |
-    //
-    // Where every dot is one bit
-    // Max value is 0b11111 = 31, so we have to clamp to that
-    //
-    // Need to do casts here as we have strongly typed enum classes to enforce
-    // the values we have set for the multipliers
-    uint8_t value;
-
-    value = (static_cast<uint8_t>(sleep_multiplier) << 5) |
-            min(sleep_value, PSM_VALUE_MAX);
-    uint8_to_bits(value, sleep_parameter);
-
-    value = (static_cast<uint8_t>(awake_multiplier) << 5) |
-            min(awake_value, PSM_VALUE_MAX);
-    uint8_to_bits(value, awake_parameter);
-
-    // Serial5.printf("The value to write is: %s\r\n", awake_parameter);
-
-    // Now we can embed the values for the awake and sleep periode in the
-    // power saving mode configuration command
-    char command[AT_COMMAND_SET_PSM_SIZE + 1]; // + 1 for null termination
-    sprintf(command, AT_COMMAND_SET_PSM, sleep_parameter, awake_parameter);
-
-    return SequansController.retryCommand(command);
-}
-
-static void ring_line_callback(void) {
-
-    ring_line_activity = true;
-
-    if (is_in_power_save_mode) {
-        is_in_power_save_mode = false;
-
-        // We got abrupted, bring the power save mode off such that UART
-        // communication is possible again
-        SequansController.setPowerSaveMode(0, NULL);
-
-        if (power_save_abrupted_callback != NULL) {
-            power_save_abrupted_callback();
-        }
-    }
+    return false;
 }
 
 bool LteClass::attemptToEnterPowerSaveMode(const uint32_t waiting_time_ms) {
 
-    SequansController.clearReceiveBuffer();
+    // First we make sure the UART buffers are empty on the modem's side so the
+    // modem can go to sleep
+    SequansController.setPowerSaveMode(0, NULL);
+
+    do {
+        delay(50);
+        SequansController.clearReceiveBuffer();
+    } while (SequansController.isRxReady());
+
     SequansController.setPowerSaveMode(1, ring_line_callback);
 
     ring_line_activity = false;
@@ -286,9 +289,11 @@ bool LteClass::attemptToEnterPowerSaveMode(const uint32_t waiting_time_ms) {
     uint32_t waiting_time_passed_ms = 0;
 
     do {
+        // TODO: should probably change this to use millis()
         delay(PSM_WAITING_TIME_DELTA_MS);
 
-        if (ring_line_activity) {
+        // Reset timer if there has been activity or the RING line is high
+        if (ring_line_activity || RING_PORT.IN & RING_PIN_bm) {
             time_passed_since_ring_activity_ms = 0;
             ring_line_activity = false;
         } else {
@@ -307,6 +312,68 @@ bool LteClass::attemptToEnterPowerSaveMode(const uint32_t waiting_time_ms) {
     } while (waiting_time_passed_ms < waiting_time_ms);
 
     return false;
+}
+
+PowerSaveConfiguration LteClass::getCurrentPowerSaveConfiguration(void) {
+    PowerSaveConfiguration power_save_configuration;
+
+    SequansController.clearReceiveBuffer();
+    SequansController.writeCommand(AT_COMMAND_CONNECTION_STATUS);
+
+    char response[RESPONSE_CONNECTION_STATUS_SIZE];
+
+    ResponseResult response_result = SequansController.readResponse(
+        response, RESPONSE_CONNECTION_STATUS_SIZE);
+
+    if (response_result != ResponseResult::OK) {
+        char response_result_string[18] = "";
+        SequansController.responseResultToString(response_result,
+                                                 response_result_string);
+        return power_save_configuration;
+    }
+
+    // Find the stat token in the response
+    char active_timer_token[TIMER_LENGTH];
+    bool found_token = SequansController.extractValueFromCommandResponse(
+        response, TIMER_ACTIVE_INDEX, active_timer_token, TIMER_LENGTH);
+
+    if (!found_token) {
+        // TODO: Should this be included?
+        Log.warnf(
+            "Did not find active/awake timer token, got the following: %s\r\n",
+            active_timer_token);
+        return power_save_configuration;
+    }
+
+    char sleep_timer_token[TIMER_LENGTH];
+    found_token = SequansController.extractValueFromCommandResponse(
+        response, TIMER_SLEEP_INDEX, sleep_timer_token, TIMER_LENGTH);
+
+    if (!found_token) {
+        // TODO: Should this be included?
+        Log.warnf("Did not find sleep timer token, got the following: %s\r\n",
+                  sleep_timer_token);
+        return power_save_configuration;
+    }
+
+    // Shift the pointer one address forward to bypass the quotation mark in
+    // the token
+    uint8_t active_timer = stringOfBitsToUint8(&(active_timer_token[1]));
+    uint8_t sleep_timer = stringOfBitsToUint8(&(sleep_timer_token[1]));
+
+    // Now we set up the power configuration structure
+
+    power_save_configuration.sleep_multiplier =
+        static_cast<SleepUnitMultiplier>((sleep_timer & PSM_MULTIPLIER_BM) >>
+                                         5);
+    power_save_configuration.awake_multiplier =
+        static_cast<AwakeUnitMultiplier>((active_timer & PSM_MULTIPLIER_BM) >>
+                                         5);
+
+    power_save_configuration.sleep_value = sleep_timer & PSM_VALUE_BM;
+    power_save_configuration.awake_value = active_timer & PSM_VALUE_BM;
+
+    return power_save_configuration;
 }
 
 void LteClass::endPowerSaveMode(void) {

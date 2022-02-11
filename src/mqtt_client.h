@@ -48,7 +48,9 @@ class MqttClientClass {
      * @param host Host/broker to attempt to connect to.
      * @param port Port for communication.
      * @param use_tls Whether to use TLS in the communication.
-     * @param keep_alive How often the broker is pinged.
+     * @param keep_alive How often the broker is pinged. If low power is
+     * utilised, the modem will wake up every @p keep_alive to ping the broker
+     * regardless of the sleeping time.
      * @param use_ecc Whether to use the ECC for signing messages. If not used,
      * the private key has to be stored on the LTE modem and the security
      * profile has to be be set up to not use external hardware cryptographic
@@ -161,7 +163,15 @@ class MqttClientClass {
      */
     String readMessage(const char *topic, const uint16_t size = 256);
 
-    bool pollSign(void);
+    /**
+     * @brief If the MQTT connection is encrypted with the hardware crypto
+     * engine, we need to regularly check and sign the data going back and
+     * forward (for example when the unit is pinging the broker).
+     *
+     * @note This function has to be called regularly, for example in the main
+     * loop for the MQTT connection to remain active.
+     */
+    bool signIncomingRequests(void);
 };
 
 extern MqttClientClass MqttClient;
