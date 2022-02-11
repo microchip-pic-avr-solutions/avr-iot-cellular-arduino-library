@@ -23,7 +23,10 @@ template <typename T> void LogClass::print(const T str, const char level[]) {
     this->uart->printf("%s%s\n", level, str);
 }
 
-LogClass::LogClass(UartClass *uart) { this->uart = uart; }
+LogClass::LogClass(UartClass *uart) {
+    this->uart = uart;
+    log_level = LogLevel::INFO;
+}
 
 void LogClass::setOutputUart(UartClass *uart) { this->uart = uart; }
 
