@@ -12,7 +12,7 @@
 #define MQTT_CONFIGURE         "AT+SQNSMQTTCFG=0,\"%s\""
 #define MQTT_CONFIGURE_TLS     "AT+SQNSMQTTCFG=0,\"%s\",,,2"
 #define MQTT_CONFIGURE_TLS_ECC "AT+SQNSMQTTCFG=0,\"%s\",,,1"
-#define MQTT_CONNECT           "AT+SQNSMQTTCONNECT=0,\"%s\",%u"
+#define MQTT_CONNECT           "AT+SQNSMQTTCONNECT=0,\"%s\",%u,%u"
 #define MQTT_DISCONNECT        "AT+SQNSMQTTDISCONNECT=0"
 #define MQTT_PUBLISH           "AT+SQNSMQTTPUBLISH=0,\"%s\",%u,%lu"
 #define MQTT_SUSBCRIBE         "AT+SQNSMQTTSUBSCRIBE=0,\"%s\",%u"
@@ -34,12 +34,12 @@
 // Total: 87 bytes
 #define MQTT_CONFIGURE_TLS_LENGTH 87
 
-// Command without any data in it (with parantheses): 24 bytes
+// Command without any data in it (with parantheses): 25 bytes
 // Hostname: 127 bytes
 // Port: 5 bytes
 // Termination: 1 byte
 // Total: 157 bytes
-#define MQTT_CONNECT_LENGTH 157
+#define MQTT_CONNECT_LENGTH_PRE_KEEP_ALIVE 158
 
 // Command without any data in it (with parantheses): 25 bytes
 // Topic: 128 bytes (this is imposed by this implementation)
@@ -191,6 +191,7 @@ bool MqttClientClass::begin(const char *client_id,
                             const char *host,
                             const uint16_t port,
                             const bool use_tls,
+                            const size_t keep_alive,
                             const bool use_ecc) {
     // We have to make sure we are disconnected first
     SequansController.writeCommand(MQTT_DISCONNECT);
@@ -230,9 +231,10 @@ bool MqttClientClass::begin(const char *client_id,
                                        internalHandleSigningRequest);
 
     // -- Request connection --
-    char command[MQTT_CONNECT_LENGTH] = "";
+    size_t keep_alive_length = floor(log10(keep_alive)) + 1;
+    char command[MQTT_CONNECT_LENGTH_PRE_KEEP_ALIVE + keep_alive_length] = "";
 
-    sprintf(command, MQTT_CONNECT, host, port);
+    sprintf(command, MQTT_CONNECT, host, port, keep_alive);
     if (!SequansController.retryCommand(command)) {
         Log.error("Failed to request connection to MQTT broker\r\n");
         return false;
@@ -243,8 +245,7 @@ bool MqttClientClass::begin(const char *client_id,
         if (use_ecc) {
             usingEcc = true;
 
-            while (pollSign() == false)
-                ;
+            while (pollSign() == false) {}
             delay(1000);
         }
 
