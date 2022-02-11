@@ -43,6 +43,8 @@ void LogClass::info(const char str[]) {
     }
 }
 
+void LogClass::info(const String str) { this->info(str.c_str()); }
+
 void LogClass::infof(const char *format, ...) {
     if (log_level >= LogLevel::INFO) {
 
@@ -66,6 +68,8 @@ void LogClass::debug(const char str[]) {
         this->print(str, DEBUG_LEVEL_FMT);
     }
 }
+
+void LogClass::debug(const String str) { this->debug(str.c_str()); }
 
 void LogClass::debugf(const char *format, ...) {
     if (log_level >= LogLevel::DEBUG) {
@@ -91,6 +95,8 @@ void LogClass::error(const char str[]) {
     }
 }
 
+void LogClass::error(const String str) { this->error(str.c_str()); }
+
 void LogClass::errorf(const char *format, ...) {
     if (log_level >= LogLevel::ERROR) {
 
@@ -113,6 +119,8 @@ void LogClass::warn(const char str[]) {
         this->print(str, WARN_LEVEL_FMT);
     }
 }
+
+void LogClass::warn(const String str) { this->warn(str.c_str()); }
 
 void LogClass::warnf(const char *format, ...) {
     if (log_level >= LogLevel::WARN) {

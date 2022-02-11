@@ -23,15 +23,19 @@ class LogClass {
     void end();
 
     void info(const char str[]);
+    void info(const String str);
     void infof(const char *format, ...);
 
     void error(const char str[]);
+    void error(const String str);
     void errorf(const char *format, ...);
 
     void warn(const char str[]);
+    void warn(const String str);
     void warnf(const char *format, ...);
 
     void debug(const char str[]);
+    void debug(const String str);
     void debugf(const char *format, ...);
 };
 
