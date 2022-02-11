@@ -2,6 +2,7 @@
 #include <atca_helpers.h>
 #include <atcacert/atcacert_client.h>
 #include <cryptoauthlib.h>
+#include <log.h>
 
 #include "cert_def_1_signer.h"
 #include "cert_def_3_device.h"
@@ -21,7 +22,7 @@ void printCertificate(uint8_t *certificate, uint16_t size) {
     }
 
     buffer[buffer_size] = 0;
-    Serial5.printf(
+    Log.infof(
         "-----BEGIN CERTIFICATE-----\r\n%s\r\n-----END CERTIFICATE-----\r\n",
         buffer);
 }
@@ -35,7 +36,8 @@ void setup() {
     digitalWrite(CELL_LED, LOW);
     digitalWrite(CONNECTION_LED, LOW);
 
-    Serial5.begin(115200);
+    Log.begin(115200);
+    Log.setLogLevel(LogLevel::INFO);
 
     int status;
 
@@ -51,20 +53,20 @@ void setup() {
                                              NULL};
 
     if (ATCA_SUCCESS != (status = atcab_init(&cfg_atecc608b_i2c))) {
-        Serial5.printf("Failed to init: %d\r\n", status);
+        Log.infof("Failed to init: %d\r\n", status);
         return;
     } else {
-        Serial5.printf("Initialized ECC\r\n");
+        Log.infof("Initialized ECC\r\n");
     }
 
     // Retrieve public root key
     uint8_t public_key[ATCA_PUB_KEY_SIZE];
     if (ATCA_SUCCESS != (status = atcab_get_pubkey(0, public_key))) {
-        Serial5.printf("Failed to get public key: %x\r\n", status);
+        Log.infof("Failed to get public key: %x\r\n", status);
         return;
     }
 
-    Serial5.println("\r\n\r\n");
+    Log.info("\r\n\r\n");
 
     // Retrive sign certificate
     uint8_t buffer[g_cert_def_1_signer.cert_template_size + 4];
@@ -73,23 +75,23 @@ void setup() {
     if (ATCA_SUCCESS !=
         (status = atcacert_read_cert(
              &g_cert_def_1_signer, public_key, buffer, &size))) {
-        Serial5.printf("Failed to read signing certificate: %d\r\n", status);
+        Log.infof("Failed to read signing certificate: %d\r\n", status);
         return;
     } else {
-        Serial5.println("Printing signing certificate...");
+        Log.info("Printing signing certificate...\r\n");
         printCertificate(buffer, size);
     }
 
-    Serial5.println("\r\n\r\n");
+    Log.info("\r\n\r\n");
 
     // Retrive device certificate
     if (ATCA_SUCCESS !=
         (status = atcacert_read_cert(
              &g_cert_def_3_device, public_key, buffer, &size))) {
-        Serial5.printf("Failed to read device certificate: %d\r\n", status);
+        Log.infof("Failed to read device certificate: %d\r\n", status);
         return;
     } else {
-        Serial5.println("Printing device certificate...");
+        Log.info("Printing device certificate...\r\n");
         printCertificate(buffer, size);
     }
 }

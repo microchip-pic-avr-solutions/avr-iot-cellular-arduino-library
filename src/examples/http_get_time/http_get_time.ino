@@ -1,69 +1,70 @@
 #include <Arduino.h>
 #include <http_client.h>
+#include <log.h>
 #include <lte.h>
-#include "log/log.h"
 
 #define TIMEZONE_URL "worldtimeapi.org"
 #define TIMEZONE_URI "/api/timezone/Europe/Oslo.txt"
 
-long getTimeFromApiresp(String *resp)
-{
-	int unixTimeIndex = resp->indexOf(String("unixtime: "));
-	int utx_datetimeIndex = resp->indexOf(String("utc_datetime"));
+long getTimeFromApiresp(String *resp) {
+    int unixTimeIndex = resp->indexOf(String("unixtime: "));
+    int utx_datetimeIndex = resp->indexOf(String("utc_datetime"));
 
-	String substr = resp->substring(unixTimeIndex + 10, utx_datetimeIndex - 1);
-	return substr.toInt();
+    String substr = resp->substring(unixTimeIndex + 10, utx_datetimeIndex - 1);
+    return substr.toInt();
 }
 
-void setup()
-{
+void setup() {
 
-	Serial5.begin(115200);
-	Log5.setLogLevel(LogLevels::INFO);
-	Log5.Info("Starting HTTP Get Time Example");
+    Log.begin(115200);
+    Log.info("Starting HTTP Get Time Example\r\n");
 
-	// Start LTE modem and wait until we are connected to the operator
-	Lte.begin();
+    // Start LTE modem and wait until we are connected to the operator
+    Lte.begin();
 
-	while (!Lte.isConnected())
-	{
-		Log5.Info("Not connected to operator yet...");
-		delay(5000);
-	}
+    while (!Lte.isConnected()) {
+        Log.info("Not connected to operator yet...\r\n");
+        delay(5000);
+    }
 
-	Log5.Info("Connected to operator!");
+    Log.info("Connected to operator!\r\n");
 
-	if (!HttpClient.configure(TIMEZONE_URL, 80, false))
-	{
-		Log5.Errorf("Failed to configure the http client for the domain %s", TIMEZONE_URL);
-		return;
-	}
+    if (!HttpClient.configure(TIMEZONE_URL, 80, false)) {
+        Log.errorf("Failed to configure the http client for the domain %s\r\n",
+                   TIMEZONE_URL);
+        return;
+    }
 
-	Log5.Info("Configured to HTTP");
+    Log.info("Configured to HTTP\r\n");
 
-	HttpResponse response;
-	response = HttpClient.get(TIMEZONE_URI);
-	if (response.status_code != HttpClient.STATUS_OK)
-	{
-		Log5.Errorf("Error when performing a GET request on %s/%s. Got status code = %d. Exiting...", TIMEZONE_URL, TIMEZONE_URI, response.status_code);
-		return;
-	}
+    // TODO: Fails, get status code 0
+    HttpResponse response;
+    response = HttpClient.get(TIMEZONE_URI);
+    if (response.status_code != HttpClient.STATUS_OK) {
+        Log.errorf("Error when performing a GET request on %s/%s. Got status "
+                   "code = %d. Exiting...\r\n",
+                   TIMEZONE_URL,
+                   TIMEZONE_URI,
+                   response.status_code);
+        return;
+    }
 
-	Log5.Infof("Successfully performed GET request. Status Code = %d, Size = %d\n", response.status_code, response.data_size);
+    Log.infof(
+        "Successfully performed GET request. Status Code = %d, Size = %d\r\n",
+        response.status_code,
+        response.data_size);
 
-	String body = HttpClient.readBody(512);
+    String body = HttpClient.readBody(512);
 
-	if (body == "")
-	{
-		Log5.Errorf("The returned body from the GET request is empty. Something went wrong. Exiting...");
-		return;
-	}
+    if (body == "") {
+        Log.errorf("The returned body from the GET request is empty. Something "
+                   "went wrong. Exiting...\r\n");
+        return;
+    }
 
-	Log5.Infof("Got the time (unixtime) %lu\n", getTimeFromApiresp(&body));
+    Log.infof("Got the time (unixtime) %lu\r\n", getTimeFromApiresp(&body));
 }
 
-void loop()
-{
-	while (1)
-		;
+void loop() {
+    while (true) {}
 }
