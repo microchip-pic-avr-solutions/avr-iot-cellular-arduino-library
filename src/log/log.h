@@ -8,7 +8,8 @@ enum class LogLevels
 	ERROR,
 	WARN,
 	INFO,
-	DEBUG
+	DEBUG,
+	TRACE
 };
 
 class Log
@@ -41,6 +42,9 @@ public:
 
 	void Debug(const char str[]);
 	void Debugf(const char *format, ...);
+
+	void Trace(const char str[]);
+	void Tracef(const char *format, ...);
 
 	void Raw(const char str[]);
 	void Rawf(const char *format, ...);

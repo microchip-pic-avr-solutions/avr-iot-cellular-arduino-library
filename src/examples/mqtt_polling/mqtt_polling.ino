@@ -10,7 +10,7 @@
 #include "ecc608/ecc608.h"
 #include "log/log.h"
 
-#define MQTT_USE_AWS false
+#define MQTT_USE_AWS true
 #define MQTT_SUB_TOPIC "mchp_topic_sub"
 #define MQTT_PUB_TOPIC "mchp_topic_pub"
 
@@ -101,6 +101,4 @@ void loop()
             LOG.Error("Failed to publish");
         }
     }
-
-    delay(2000);
 }

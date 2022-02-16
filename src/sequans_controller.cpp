@@ -56,9 +56,9 @@
 #define SEQUANS_MODULE_BAUD_RATE 115200
 
 // Sizes for the circular buffers
-#define RX_BUFFER_SIZE 128
-#define TX_BUFFER_SIZE 128
-#define RX_BUFFER_ALMOST_FULL RX_BUFFER_SIZE - 2
+#define RX_BUFFER_SIZE 256
+#define TX_BUFFER_SIZE 256
+#define RX_BUFFER_ALMOST_FULL (RX_BUFFER_SIZE - 2)
 
 #define MAX_URC_CALLBACKS 8
 #define URC_IDENTIFIER_BUFFER_SIZE 28
@@ -292,7 +292,6 @@ ISR(USART1_RXC_vect)
         {
             urc_data_buffer[urc_data_buffer_length++] = data;
         }
-
         break;
 
     default:
@@ -820,4 +819,21 @@ bool SequansControllerClass::genSigningRequestCmd(char *urc, char *commandBuffer
     sprintf(commandBuffer, HCESIGN, atoi(ctx_id_buffer), signature);
 
     return true;
+}
+
+uint8_t SequansControllerClass::waitForByte(uint8_t byte, uint32_t timeout)
+{
+    uint8_t readByte = SequansController.readByte();
+    uint32_t start = millis();
+    while (readByte != byte)
+    {
+        readByte = SequansController.readByte();
+        if (millis() - start > timeout)
+        {
+            LOG.Error("Timed out waiting for pub signing");
+            return SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT;
+        }
+    }
+
+    return SEQUANS_CONTROLLER_READ_BYTE_OK;
 }

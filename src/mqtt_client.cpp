@@ -83,6 +83,8 @@
 
 #define HCESIGN_URC "SQNHCESIGN"
 
+#define POLL_TIMEOUT_MS 20000
+
 // Singleton instance
 MqttClientClass MqttClient = MqttClientClass::instance();
 
@@ -91,7 +93,7 @@ static void (*connected_callback)(void) = NULL;
 static void (*disconnected_callback)(void) = NULL;
 
 volatile static bool signingRequestFlag = false;
-static char signingRequestBuffer[MQTT_SIGNING_BUFFER];
+static char signingRequestURC[MQTT_SIGNING_BUFFER];
 
 static bool usingEcc = false;
 
@@ -133,12 +135,8 @@ static void internalDisconnectCallback(char *urc)
 
 static void internalHandleSigningRequest(char *urc)
 {
-    bool ret = SequansController.genSigningRequestCmd(urc, signingRequestBuffer);
-    if (ret != true)
-    {
-        LOG.Error("Unable to handle signature request");
-        return;
-    }
+    SequansController.readNotification(signingRequestURC, URC_DATA_BUFFER_SIZE);
+    // strcpy(signingRequestURC, urc);
     signingRequestFlag = true;
 }
 
@@ -148,9 +146,19 @@ bool MqttClientClass::pollSign(void)
     bool ret = false;
     if (signingRequestFlag)
     {
-        LOG.Debug("Signing");
-        ret = SequansController.writeCommand(signingRequestBuffer);
         signingRequestFlag = false;
+
+        // Sign the URC with the ECC
+        char signingRequestBuffer[256];
+        if (SequansController.genSigningRequestCmd(signingRequestURC, signingRequestBuffer) == false)
+        {
+            LOG.Errorf("Could not sign URC: %s\r\n", signingRequestURC);
+            signingRequestFlag = false;
+            return false;
+        }
+
+        // Write back the signed message
+        ret = SequansController.writeCommand(signingRequestBuffer);
     }
 
     return ret;
@@ -262,10 +270,16 @@ bool MqttClientClass::begin(const char *client_id,
         if (use_ecc)
         {
             usingEcc = true;
-
+            uint32_t start = millis();
             while (pollSign() == false)
-                ;
-            delay(1000);
+            {
+                if (millis() - start > POLL_TIMEOUT_MS)
+                {
+                    LOG.Error("Timed out waiting for pub signing");
+                    return false;
+                }
+            }
+            delay(100);
         }
 
         // Wait for MQTT connection URC
@@ -340,6 +354,7 @@ bool MqttClientClass::publish(const char *topic,
                               const uint32_t buffer_size,
                               const MqttQoS quality_of_service)
 {
+    LOG.Debugf("Starting publishing on topic %s\r\n", topic);
     while (SequansController.isRxReady())
     {
         SequansController.readResponse();
@@ -360,22 +375,29 @@ bool MqttClientClass::publish(const char *topic,
     SequansController.writeBytes(buffer, buffer_size);
 
     // Wait until we receive the first URC which we discard
-    while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER)
+    uint8_t waitRes = SequansController.waitForByte(URC_IDENTIFIER_START_CHARACTER, POLL_TIMEOUT_MS);
+    if (waitRes != SEQUANS_CONTROLLER_READ_BYTE_OK)
     {
+        LOG.Errorf("Error when waiting for the first URC start character. Error was %d\r\n", waitRes);
+        return false;
     }
 
     // Wait until we receive the second URC which includes the status code
-    while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER)
+    waitRes = SequansController.waitForByte(URC_IDENTIFIER_START_CHARACTER, POLL_TIMEOUT_MS);
+    if (waitRes != SEQUANS_CONTROLLER_READ_BYTE_OK)
     {
+        LOG.Errorf("Error when waiting for the second URC start character. Error was %d\r\n", waitRes);
+        return false;
     }
 
     // Wait for a signing request if using the ECC
     if (usingEcc)
     {
+        LOG.Debug("Waiting for a signing request...");
         uint32_t start = millis();
         while (pollSign() == false)
         {
-            if (millis() - start > 5000)
+            if (millis() - start > POLL_TIMEOUT_MS)
             {
                 LOG.Error("Timed out waiting for pub signing");
                 return false;
@@ -413,6 +435,8 @@ bool MqttClientClass::publish(const char *topic,
         LOG.Errorf("Status code (rc) != 0: %d\r\n", atoi(rc_buffer));
         return false;
     }
+
+    LOG.Debug("Published message");
 
     return true;
 }
@@ -569,6 +593,7 @@ bool MqttClientClass::readMessage(const char *topic,
 
 String MqttClientClass::readMessage(const char *topic, const uint16_t size)
 {
+    LOG.Debugf("Reading message on topic %s\r\n", topic);
     // Add bytes for termination of AT command when reading
     char buffer[size + 10];
     if (!readMessage(topic, (uint8_t *)buffer, sizeof(buffer)))

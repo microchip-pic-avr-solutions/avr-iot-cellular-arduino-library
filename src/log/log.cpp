@@ -9,6 +9,7 @@
 #define __INFO_LEVEL_FMT "[INFO]"
 #define __DEBUG_LEVEL_FMT "[DEBUG]"
 #define __WARN_LEVEL_FMT "[WARN]"
+#define __TRACE_LEVEL_FMT "[TRACE]"
 
 #ifdef HAVE_LOG5
 Log Log5(&Serial5);
@@ -177,6 +178,33 @@ void Log::Warnf(const char *format, ...)
 		// Append format with [ERROR]
 		char nFormat[strlen(format) + sizeof(__WARN_LEVEL_FMT)] = __WARN_LEVEL_FMT;
 		strcpy(nFormat + sizeof(__WARN_LEVEL_FMT) - 1, format);
+
+		FILE f;
+		va_list ap;
+
+		fdev_setup_stream(&f, printf_putchar, NULL, _FDEV_SETUP_WRITE);
+		fdev_set_udata(&f, this->lUart);
+		va_start(ap, nFormat);
+		vfprintf(&f, nFormat, ap);
+	}
+}
+
+void Log::Trace(const char str[])
+{
+	if (lLogLevel >= LogLevels::TRACE)
+	{
+		this->print(str, __TRACE_LEVEL_FMT);
+	}
+}
+
+void Log::Tracef(const char *format, ...)
+{
+	if (lLogLevel >= LogLevels::TRACE)
+	{
+
+		// Append format with [ERROR]
+		char nFormat[strlen(format) + sizeof(__TRACE_LEVEL_FMT)] = __TRACE_LEVEL_FMT;
+		strcpy(nFormat + sizeof(__TRACE_LEVEL_FMT) - 1, format);
 
 		FILE f;
 		va_list ap;
