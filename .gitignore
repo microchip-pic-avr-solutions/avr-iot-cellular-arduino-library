@@ -7,5 +7,6 @@ src/calib
 src/cert*
 atca*
 libcryptoauth.a
-.vscode
 .ccls-cache
+.vscode/c_cpp_properties.json
+.vscode/arduino.json
