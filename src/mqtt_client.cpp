@@ -110,18 +110,23 @@ volatile static bool signing_request_flag = false;
 static char signing_request_buffer[MQTT_SIGNING_BUFFER];
 static char signing_urc[URC_DATA_BUFFER_SIZE];
 
+static char receive_urc_buffer[URC_DATA_BUFFER_SIZE + 1];
+
+// +3 since we need two extra characters for the parantheses and one
+// extra for null termination in the max case
+static char topic_buffer[MQTT_TOPIC_MAX_LENGTH + 3];
+
+static void (*receive_callback)(char *topic, uint16_t message_length) = NULL;
+
 static bool using_ecc = false;
 
 /**
  * @brief Called on MQTT broker connection URC. Will check the URC to see if the
  * connection was successful.
  */
-static void internalConnectedCallback(void) {
-    // +1 for null termination
-    char rc_buffer[MQTT_CONNECTION_RC_LENGTH + 1];
+static void internalConnectedCallback(char *urc_data) {
 
-    if (SequansController.readNotification(rc_buffer, sizeof(rc_buffer)) &&
-        rc_buffer[MQTT_CONNECTION_RC_INDEX] == MQTT_CONNECTION_SUCCESS_RC) {
+    if (urc_data[MQTT_CONNECTION_RC_INDEX] == MQTT_CONNECTION_SUCCESS_RC) {
 
         connected_to_broker = true;
 
@@ -133,7 +138,7 @@ static void internalConnectedCallback(void) {
     }
 }
 
-static void internalDisconnectCallback(void) {
+static void internalDisconnectCallback(char *urc_data) {
     connected_to_broker = true;
 
     if (disconnected_callback != NULL) {
@@ -141,7 +146,43 @@ static void internalDisconnectCallback(void) {
     }
 }
 
-static void internalHandleSigningRequest(void) { signing_request_flag = true; }
+static void internalHandleSigningRequest(char *urc_data) {
+    memcpy(signing_urc, urc_data, URC_DATA_BUFFER_SIZE);
+    signing_request_flag = true;
+}
+
+static void internalOnReceiveCallback(char *urc_data) {
+
+    memcpy(receive_urc_buffer, urc_data, URC_DATA_BUFFER_SIZE);
+
+    bool got_topic = SequansController.extractValueFromCommandResponse(
+        receive_urc_buffer, 1, topic_buffer, sizeof(topic_buffer), 0);
+
+    if (!got_topic) {
+        return;
+    }
+
+    // Remove parantheses at start and end
+    char *topic = topic_buffer + 1;
+    topic[strlen(topic) - 1] = 0;
+
+    char message_length_buffer[MQTT_MSG_LENGTH_BUFFER_SIZE + 1];
+
+    bool got_message_length = SequansController.extractValueFromCommandResponse(
+        receive_urc_buffer,
+        2,
+        message_length_buffer,
+        sizeof(message_length_buffer),
+        0);
+
+    if (!got_message_length) {
+        return;
+    }
+
+    if (receive_callback != NULL) {
+        receive_callback(topic, (uint16_t)atoi(message_length_buffer));
+    }
+}
 
 /**
  * @brief Takes in URC signing @p data, signs it and constructs a command
@@ -220,7 +261,6 @@ static bool generateSigningCommand(char *data, char *command_buffer) {
 
 bool MqttClientClass::signIncomingRequests(void) {
     if (signing_request_flag) {
-        SequansController.readNotification(signing_urc, URC_DATA_BUFFER_SIZE);
 
         bool success =
             generateSigningCommand(signing_urc, signing_request_buffer);
@@ -543,55 +583,15 @@ bool MqttClientClass::subscribe(const char *topic,
     return true;
 }
 
-void MqttClientClass::onReceive(void (*callback)(void)) {
+void MqttClientClass::onReceive(void (*callback)(char *topic,
+                                                 uint16_t message_length)) {
     if (callback != NULL) {
-        SequansController.registerCallback(MQTT_ON_MESSAGE_URC, callback);
+
+        receive_callback = callback;
+
+        SequansController.registerCallback(MQTT_ON_MESSAGE_URC,
+                                           internalOnReceiveCallback);
     }
-}
-
-MqttReceiveNotification MqttClientClass::readReceiveNotification(void) {
-    MqttReceiveNotification receive_notification{String(), 0};
-
-    // +1 for NULL termination
-    char notification_buffer[URC_DATA_BUFFER_SIZE + 1];
-
-    if (!SequansController.readNotification(notification_buffer,
-                                            URC_DATA_BUFFER_SIZE)) {
-        return receive_notification;
-    }
-
-    // +3 since we need two extra characters for the parantheses and one
-    // extra for null termination in the max case
-    char topic_buffer[MQTT_TOPIC_MAX_LENGTH + 3];
-
-    bool got_topic = SequansController.extractValueFromCommandResponse(
-        notification_buffer, 1, topic_buffer, sizeof(topic_buffer), 0);
-
-    if (!got_topic) {
-        return receive_notification;
-    }
-
-    // Remove parantheses at start and end
-    char *topic = topic_buffer + 1;
-    topic[strlen(topic) - 1] = 0;
-
-    char message_length_buffer[MQTT_MSG_LENGTH_BUFFER_SIZE + 1];
-
-    bool got_message_length = SequansController.extractValueFromCommandResponse(
-        notification_buffer,
-        2,
-        message_length_buffer,
-        sizeof(message_length_buffer),
-        0);
-
-    if (!got_message_length) {
-        return receive_notification;
-    }
-
-    receive_notification.receive_topic = String(topic);
-    receive_notification.message_length = (uint16_t)atoi(message_length_buffer);
-
-    return receive_notification;
 }
 
 bool MqttClientClass::readMessage(const char *topic,

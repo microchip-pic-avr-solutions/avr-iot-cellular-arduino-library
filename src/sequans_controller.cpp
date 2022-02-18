@@ -91,8 +91,6 @@ static uint8_t urc_data_buffer[URC_DATA_BUFFER_SIZE];
 static volatile uint8_t urc_identifier_buffer_length = 0;
 static volatile uint8_t urc_data_buffer_length = 0;
 
-static bool urc_read = true;
-
 typedef enum {
     URC_PARSING_IDENTIFIER,
     URC_PARSING_DATA,
@@ -103,11 +101,11 @@ static UrcParseState urc_parse_state = URC_NOT_PARSING;
 
 static char urc_lookup_table[MAX_URC_CALLBACKS][URC_IDENTIFIER_BUFFER_SIZE];
 static uint8_t urc_lookup_table_length[MAX_URC_CALLBACKS];
-void (*urc_callbacks[MAX_URC_CALLBACKS])(void);
+void (*urc_callbacks[MAX_URC_CALLBACKS])(char *);
 
 // Used to keep a pointer to the URC we are processing and found to be matching,
 // which will fire after we are finished processing the URC.
-void (*urc_current_callback)(void);
+void (*urc_current_callback)(char *);
 
 // Default values
 static uint8_t number_of_retries = 5;
@@ -234,10 +232,8 @@ ISR(USART1_RXC_vect) {
             // Add termination since we're done
             urc_data_buffer[urc_data_buffer_length] = 0;
 
-            urc_read = false;
-
             if (urc_current_callback != NULL) {
-                urc_current_callback();
+                urc_current_callback(urc_data_buffer);
             }
 
             urc_parse_state = URC_NOT_PARSING;
@@ -606,7 +602,7 @@ bool SequansControllerClass::extractValueFromCommandResponse(
 }
 
 bool SequansControllerClass::registerCallback(const char *urc_identifier,
-                                              void (*urc_callback)(void)) {
+                                              void (*urc_callback)(char *)) {
 
     // Check if we can override first
     uint8_t urc_identifier_length = strlen(urc_identifier);
@@ -646,25 +642,6 @@ void SequansControllerClass::unregisterCallback(const char *urc_identifier) {
             break;
         }
     }
-}
-
-bool SequansControllerClass::readNotification(char *buffer,
-                                              uint16_t buffer_size) {
-
-    if (urc_read) {
-        return false;
-    }
-
-    if (buffer_size > URC_DATA_BUFFER_SIZE) {
-        return false;
-    }
-
-    memcpy(buffer, urc_data_buffer, buffer_size);
-
-    // We do a reset here to signify that the URC has been read.
-    urc_read = true;
-
-    return true;
 }
 
 void SequansControllerClass::setPowerSaveMode(const uint8_t mode,
@@ -720,8 +697,10 @@ void SequansControllerClass::responseResultToString(
 uint8_t SequansControllerClass::waitForByte(uint8_t byte, uint32_t timeout) {
     uint8_t readByte = SequansController.readByte();
     uint32_t start = millis();
+
     while (readByte != byte) {
         readByte = SequansController.readByte();
+
         if (millis() - start > timeout) {
             Log.error("Timed out waiting for publishing signing\r\n");
             return SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT;

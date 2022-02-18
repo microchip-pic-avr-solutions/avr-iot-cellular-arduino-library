@@ -163,29 +163,18 @@ class SequansControllerClass {
      * detected. There is a fixed amount of URC callbacks allowed for
      * registration.
      *
+     * @param urc_callback Callback with URC data as argument.
+     *
      * @return true if we didn't surpass the fixed amount of URC callbacks
      * allowed for registration.
      */
     bool registerCallback(const char *urc_identifier,
-                          void (*urc_callback)(void));
+                          void (*urc_callback)(char *));
 
     /**
      * @brief Unregister callback for a given URC identifier.
      */
     void unregisterCallback(const char *urc_identifier);
-
-    /**
-     * @brief Reads the latest URC/notification and places it into the buffer.
-     *
-     * @param buffer Where to place the URC.
-     * @param buffer_size How many bytes to read. Buffer size for URC is
-     * URC_DATA_BUFFER_SIZE bytes. If size is above that, no read will be
-     * issued.
-     *
-     * @return false if the current URC already has been read or if buffer_size
-     * is over URC_DATA_BUFFER_SIZE limit.
-     */
-    bool readNotification(char *buffer, uint16_t buffer_size);
 
     /**
      * @brief Sets the power saving mode for the Sequans modem.
@@ -203,6 +192,12 @@ class SequansControllerClass {
     void responseResultToString(const ResponseResult response_result,
                                 char *response_string);
 
+    /**
+     * @brief Waits until @p timeout for the character specified by @p byte.
+     *
+     * @return #SEQUANS_CONTROLLER_READ_BYTE_OK if ok
+     *         #SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT if timeout happened
+     */
     uint8_t waitForByte(uint8_t byte, uint32_t timeout);
 };
 

@@ -67,24 +67,19 @@ static void (*power_save_abrupted_callback)(void) = NULL;
 static bool ring_line_activity = false;
 static bool is_in_power_save_mode = false;
 
-static void connectionStatus(void) {
-    // +1 for null termination
-    char buffer[CEREG_DATA_LENGTH + 1];
+static void connectionStatus(char *buffer) {
 
-    if (SequansController.readNotification(buffer, sizeof(buffer))) {
+    const char stat = buffer[CEREG_STAT_CHARACTER_INDEX];
 
-        const char stat = buffer[CEREG_STAT_CHARACTER_INDEX];
+    if (stat == STAT_REGISTERED_ROAMING ||
+        stat == STAT_REGISTERED_HOME_NETWORK) {
 
-        if (stat == STAT_REGISTERED_ROAMING ||
-            stat == STAT_REGISTERED_HOME_NETWORK) {
-
-            if (connected_callback) {
-                connected_callback();
-            }
-        } else {
-            if (disconnected_callback) {
-                disconnected_callback();
-            }
+        if (connected_callback) {
+            connected_callback();
+        }
+    } else {
+        if (disconnected_callback) {
+            disconnected_callback();
         }
     }
 }

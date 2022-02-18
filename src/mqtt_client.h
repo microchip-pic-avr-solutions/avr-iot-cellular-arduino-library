@@ -9,12 +9,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef struct {
-    String receive_topic;
-    uint16_t message_length;
-
-} MqttReceiveNotification;
-
 typedef enum {
     AT_MOST_ONCE = 0, // default
     AT_LEAST_ONCE,
@@ -129,16 +123,7 @@ class MqttClientClass {
      * a message on any topic we've subscribed on. Called from ISR, so keep this
      * function short.
      */
-    void onReceive(void (*callback)(void));
-
-    /**
-     * @brief Reads a receive notification (if any).
-     *
-     * @return Data from last receive notification. If no notification has
-     * already been read and there are no new ones, a message length of 0 will
-     * be returned.
-     */
-    MqttReceiveNotification readReceiveNotification(void);
+    void onReceive(void (*callback)(char *topic, uint16_t message_length));
 
     /**
      * @brief Reads the message received on the given topic (if any).
