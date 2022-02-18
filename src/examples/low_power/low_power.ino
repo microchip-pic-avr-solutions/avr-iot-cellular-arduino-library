@@ -48,7 +48,6 @@ convertSleepMultiplierToString(const SleepUnitMultiplier sleep_multiplier) {
 void setup() {
 
     Log.begin(115200);
-    Log.setLogLevel(LogLevel::INFO);
 
     // Set callback for when we leave power save mode
     Lte.onPowerSaveAbrupted(power_save_abrupted);
