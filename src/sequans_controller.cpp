@@ -51,9 +51,9 @@
 #define SEQUANS_MODULE_BAUD_RATE 115200
 
 // Sizes for the circular buffers
-#define RX_BUFFER_SIZE        128
-#define TX_BUFFER_SIZE        128
-#define RX_BUFFER_ALMOST_FULL RX_BUFFER_SIZE - 2
+#define RX_BUFFER_SIZE        256
+#define TX_BUFFER_SIZE        256
+#define RX_BUFFER_ALMOST_FULL (RX_BUFFER_SIZE - 2)
 
 #define MAX_URC_CALLBACKS          8
 #define URC_IDENTIFIER_BUFFER_SIZE 28
@@ -247,7 +247,6 @@ ISR(USART1_RXC_vect) {
         } else {
             urc_data_buffer[urc_data_buffer_length++] = data;
         }
-
         break;
 
     default:
@@ -650,7 +649,7 @@ void SequansControllerClass::unregisterCallback(const char *urc_identifier) {
 }
 
 bool SequansControllerClass::readNotification(char *buffer,
-                                              uint8_t buffer_size) {
+                                              uint16_t buffer_size) {
 
     if (urc_read) {
         return false;
@@ -716,4 +715,18 @@ void SequansControllerClass::responseResultToString(
         strcpy(response_string, "SERIAL_READ_ERROR");
         break;
     }
+}
+
+uint8_t SequansControllerClass::waitForByte(uint8_t byte, uint32_t timeout) {
+    uint8_t readByte = SequansController.readByte();
+    uint32_t start = millis();
+    while (readByte != byte) {
+        readByte = SequansController.readByte();
+        if (millis() - start > timeout) {
+            Log.error("Timed out waiting for publishing signing\r\n");
+            return SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT;
+        }
+    }
+
+    return SEQUANS_CONTROLLER_READ_BYTE_OK;
 }

@@ -97,6 +97,8 @@
 #define HCESIGN_DIGEST_LENGTH  64
 #define HCESIGN_CTX_ID_LENGTH  5
 
+#define POLL_TIMEOUT_MS 20000
+
 // Singleton instance
 MqttClientClass MqttClient = MqttClientClass::instance();
 
@@ -335,8 +337,15 @@ bool MqttClientClass::begin(const char *client_id,
         if (use_ecc) {
             using_ecc = true;
 
-            while (signIncomingRequests() == false) {}
-            delay(1000);
+            using_ecc = true;
+            uint32_t start = millis();
+            while (signIncomingRequests() == false) {
+                if (millis() - start > POLL_TIMEOUT_MS) {
+                    Log.error("Timed out waiting for pub signing\r\n");
+                    return false;
+                }
+            }
+            delay(100);
         }
 
         // Wait for MQTT connection URC
@@ -401,6 +410,9 @@ bool MqttClientClass::publish(const char *topic,
                               const uint8_t *buffer,
                               const uint32_t buffer_size,
                               const MqttQoS quality_of_service) {
+
+    Log.debugf("Starting publishing on topic %s\r\n", topic);
+
     while (SequansController.isRxReady()) { SequansController.readResponse(); }
 
     const size_t digits_in_buffer_size = trunc(log10(buffer_size)) + 1;
@@ -416,16 +428,33 @@ bool MqttClientClass::publish(const char *topic,
     SequansController.writeBytes(buffer, buffer_size);
 
     // Wait until we receive the first URC which we discard
-    while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {}
+    uint8_t wait_result = SequansController.waitForByte(
+        URC_IDENTIFIER_START_CHARACTER, POLL_TIMEOUT_MS);
+
+    if (wait_result != SEQUANS_CONTROLLER_READ_BYTE_OK) {
+        Log.errorf("Error when waiting for the first URC start character. "
+                   "Error was %d\r\n",
+                   wait_result);
+        return false;
+    }
 
     // Wait until we receive the second URC which includes the status code
-    while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {}
+    wait_result = SequansController.waitForByte(URC_IDENTIFIER_START_CHARACTER,
+                                                POLL_TIMEOUT_MS);
+    if (wait_result != SEQUANS_CONTROLLER_READ_BYTE_OK) {
+        Log.errorf("Error when waiting for the second URC start character. "
+                   "Error was %d\r\n",
+                   wait_result);
+        return false;
+    }
 
     // Wait for a signing request if using the ECC
     if (using_ecc) {
+        Log.debug("Waiting for a signing request...\r\n");
+
         uint32_t start = millis();
         while (signIncomingRequests() == false) {
-            if (millis() - start > 5000) {
+            if (millis() - start > POLL_TIMEOUT_MS) {
                 Log.error("Timed out waiting for pub signing\r\n");
                 return false;
             }
@@ -459,6 +488,8 @@ bool MqttClientClass::publish(const char *topic,
         Log.errorf("Status code (rc) != 0: %d\r\n", atoi(rc_buffer));
         return false;
     }
+
+    Log.debug("Published message\r\n");
 
     return true;
 }
@@ -529,8 +560,8 @@ MqttReceiveNotification MqttClientClass::readReceiveNotification(void) {
         return receive_notification;
     }
 
-    // +3 since we need two extra characters for the parantheses and one extra
-    // for null termination in the max case
+    // +3 since we need two extra characters for the parantheses and one
+    // extra for null termination in the max case
     char topic_buffer[MQTT_TOPIC_MAX_LENGTH + 3];
 
     bool got_topic = SequansController.extractValueFromCommandResponse(
@@ -595,6 +626,7 @@ bool MqttClientClass::readMessage(const char *topic,
 }
 
 String MqttClientClass::readMessage(const char *topic, const uint16_t size) {
+    Log.debugf("Reading message on topic %s\r\n", topic);
     // Add bytes for termination of AT command when reading
     char buffer[size + 10];
     if (!readMessage(topic, (uint8_t *)buffer, sizeof(buffer))) {

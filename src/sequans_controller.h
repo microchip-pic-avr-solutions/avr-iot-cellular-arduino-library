@@ -11,10 +11,13 @@
 #include <stdint.h>
 
 // Is public here for users of the interface
-#define URC_DATA_BUFFER_SIZE 164
+#define URC_DATA_BUFFER_SIZE 328
 
 #define URC_IDENTIFIER_START_CHARACTER '+'
 #define URC_IDENTIFIER_END_CHARACTER   ':'
+
+#define SEQUANS_CONTROLLER_READ_BYTE_OK      1
+#define SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT 2
 
 enum class ResponseResult {
     OK = 0,
@@ -182,7 +185,7 @@ class SequansControllerClass {
      * @return false if the current URC already has been read or if buffer_size
      * is over URC_DATA_BUFFER_SIZE limit.
      */
-    bool readNotification(char *buffer, uint8_t buffer_size);
+    bool readNotification(char *buffer, uint16_t buffer_size);
 
     /**
      * @brief Sets the power saving mode for the Sequans modem.
@@ -199,6 +202,8 @@ class SequansControllerClass {
      */
     void responseResultToString(const ResponseResult response_result,
                                 char *response_string);
+
+    uint8_t waitForByte(uint8_t byte, uint32_t timeout);
 };
 
 extern SequansControllerClass SequansController;

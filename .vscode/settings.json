@@ -1,0 +1,14 @@
+{
+    "C_Cpp.errorSquiggles": "Enabled",
+    "cSpell.words": [
+        "atcab",
+        "CEREG",
+        "CFUN",
+        "CREG",
+        "Sequans",
+        "SQNHTTPQRY",
+        "SQNHTTPRCV",
+        "SQNHTTPSND"
+    ],
+    "C_Cpp.clang_format_fallbackStyle": "{ IndentWidth: 4, AllowShortLoopsOnASingleLine: true, AllowShortBlocksOnASingleLine: true, ColumnLimit: 80, BinPackParameters: false, BinPackArguments: false, AllowAllParametersOfDeclarationOnNextLine: false, AlignConsecutiveMacros: true }"
+}

@@ -10,7 +10,7 @@
 #include <lte.h>
 #include <mqtt_client.h>
 
-#define MQTT_USE_AWS   false
+#define MQTT_USE_AWS   true
 #define MQTT_SUB_TOPIC "mchp_topic_sub"
 #define MQTT_PUB_TOPIC "mchp_topic_pub"
 
@@ -95,6 +95,4 @@ void loop() {
             Log.error("Failed to publish\r\n");
         }
     }
-
-    delay(2000);
 }
