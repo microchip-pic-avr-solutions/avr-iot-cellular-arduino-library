@@ -283,31 +283,25 @@ bool LteClass::attemptToEnterPowerSaveMode(const uint32_t waiting_time_ms) {
     ring_line_activity = false;
 
     // Now we wait until the ring line to stabilize
-    uint32_t time_passed_since_ring_activity_ms = 0;
-    uint32_t waiting_time_passed_ms = 0;
+    unsigned long last_time_active = millis();
+    const unsigned long start_time = millis();
 
     do {
-        // TODO: should probably change this to use millis()
         delay(PSM_WAITING_TIME_DELTA_MS);
 
         // Reset timer if there has been activity or the RING line is high
         if (ring_line_activity || RING_PORT.IN & RING_PIN_bm) {
-            time_passed_since_ring_activity_ms = 0;
+            last_time_active = millis();
             ring_line_activity = false;
-        } else {
-            time_passed_since_ring_activity_ms += PSM_WAITING_TIME_DELTA_MS;
         }
 
-        waiting_time_passed_ms += PSM_WAITING_TIME_DELTA_MS;
-
-        if (time_passed_since_ring_activity_ms >
-            PSM_RING_LINE_STABLE_THRESHOLD_MS) {
+        if (millis() - last_time_active > PSM_RING_LINE_STABLE_THRESHOLD_MS) {
 
             is_in_power_save_mode = true;
             return true;
         }
 
-    } while (waiting_time_passed_ms < waiting_time_ms);
+    } while (start_time < waiting_time_ms);
 
     return false;
 }
