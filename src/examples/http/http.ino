@@ -1,3 +1,7 @@
+/**
+ * @note This example with HTTPS requires the security profile for HTTPS to be
+ * set up (AT+SQNSPCFG=3,2,"",1,1)
+ */
 #include <Arduino.h>
 #include <http_client.h>
 #include <log.h>
@@ -52,9 +56,6 @@ void testHttp() {
 
     Log.info("Configured to HTTPS\r\n");
 
-    return;
-
-    // TODO: This fails...
     response = HttpClient.head("/get");
     Log.infof("HEAD - status code: %d, data size: %d\r\n",
               response.status_code,
@@ -72,65 +73,3 @@ void testHttp() {
         Log.raw(body);
     }
 }
-
-// ------------------------------ DEBUG BRIDGE ----------------------------- //
-
-#define DEL_CHARACTER   127
-#define ENTER_CHARACTER 13
-
-#define INPUT_BUFFER_SIZE    128
-#define RESPONSE_BUFFER_SIZE 256
-
-#ifdef __AVR_AVR128DB48__ // MINI
-
-#define SerialDebug Serial3
-
-#else
-#ifdef __AVR_AVR128DB64__ // Non-Mini
-
-#define SerialDebug Serial5
-
-#else
-#error "INCOMPATIBLE_DEVICE_SELECTED"
-#endif
-#endif
-
-void debugBridgeUpdate(void) {
-    static uint8_t character;
-    static char input_buffer[INPUT_BUFFER_SIZE];
-    static uint8_t input_buffer_index = 0;
-
-    if (SerialDebug.available() > 0) {
-        character = SerialDebug.read();
-
-        switch (character) {
-        case DEL_CHARACTER:
-            if (strlen(input_buffer) > 0) {
-                input_buffer[input_buffer_index--] = 0;
-            }
-            break;
-
-        case ENTER_CHARACTER:
-            SequansController.writeCommand(input_buffer);
-
-            // Reset buffer
-            memset(input_buffer, 0, sizeof(input_buffer));
-            input_buffer_index = 0;
-
-            break;
-
-        default:
-            input_buffer[input_buffer_index++] = character;
-            break;
-        }
-
-        SerialDebug.print((char)character);
-    }
-
-    if (SequansController.isRxReady()) {
-        // Send back data from modem to host
-        SerialDebug.write(SequansController.readByte());
-    }
-}
-
-void loop() { debugBridgeUpdate(); }
