@@ -75,8 +75,6 @@
 // This is a limitation from the sequans module
 #define MQTT_MAX_BUFFER_SIZE 1024
 
-#define MQTT_TOPIC_MAX_LENGTH 128
-
 // Max length is 1024, so 4 characters
 #define MQTT_MSG_LENGTH_BUFFER_SIZE 4
 

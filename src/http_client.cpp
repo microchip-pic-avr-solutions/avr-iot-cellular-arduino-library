@@ -1,4 +1,5 @@
 #include "http_client.h"
+#include "log.h"
 #include "sequans_controller.h"
 
 #include <math.h>
@@ -98,7 +99,7 @@ static HttpResponse sendData(const char *endpoint,
     const uint32_t digits_in_data_length = trunc(log10(buffer_size)) + 1;
 
     char command[strlen(HTTP_SEND) + strlen(endpoint) + digits_in_data_length];
-    sprintf(command, HTTP_SEND, method, endpoint, buffer_size);
+    sprintf(command, HTTP_SEND, method, endpoint, (unsigned long)buffer_size);
     SequansController.writeCommand(command);
 
     // We receive one start bytes of the character '>', so we wait for
@@ -168,15 +169,16 @@ static HttpResponse queryData(const char *endpoint, const uint8_t method) {
     // Set up and send the query
     char command[strlen(HTTP_QUERY) + strlen(endpoint)];
     sprintf(command, HTTP_QUERY, method, endpoint);
-    SequansController.writeCommand(command);
 
-    if (SequansController.readResponse() != ResponseResult::OK) {
+    if (!SequansController.retryCommand(command)) {
+        Log.error("HTTP setting domain endpoint failed\r\n");
         return httpResponse;
     }
 
     char http_response[HTTP_RESPONSE_MAX_LENGTH] = "";
     if (waitAndRetrieveHttpResponse(http_response, HTTP_RESPONSE_MAX_LENGTH) !=
         ResponseResult::OK) {
+        Log.error("HTTP response was not OK\r\n");
         return httpResponse;
     }
 
@@ -308,4 +310,64 @@ String HttpClientClass::readBody(const uint32_t size) {
     }
 
     return buffer;
+}
+
+// ------------------------------ DEBUG BRIDGE ----------------------------- //
+
+#define DEL_CHARACTER   127
+#define ENTER_CHARACTER 13
+
+#define INPUT_BUFFER_SIZE    128
+#define RESPONSE_BUFFER_SIZE 256
+
+#ifdef __AVR_AVR128DB48__ // MINI
+
+#define SerialDebug Serial3
+
+#else
+#ifdef __AVR_AVR128DB64__ // Non-Mini
+
+#define SerialDebug Serial5
+
+#else
+#error "INCOMPATIBLE_DEVICE_SELECTED"
+#endif
+#endif
+
+void debugBridgeUpdate(void) {
+    static uint8_t character;
+    static char input_buffer[INPUT_BUFFER_SIZE];
+    static uint8_t input_buffer_index = 0;
+
+    if (SerialDebug.available() > 0) {
+        character = SerialDebug.read();
+
+        switch (character) {
+        case DEL_CHARACTER:
+            if (strlen(input_buffer) > 0) {
+                input_buffer[input_buffer_index--] = 0;
+            }
+            break;
+
+        case ENTER_CHARACTER:
+            SequansController.writeCommand(input_buffer);
+
+            // Reset buffer
+            memset(input_buffer, 0, sizeof(input_buffer));
+            input_buffer_index = 0;
+
+            break;
+
+        default:
+            input_buffer[input_buffer_index++] = character;
+            break;
+        }
+
+        SerialDebug.print((char)character);
+    }
+
+    if (SequansController.isRxReady()) {
+        // Send back data from modem to host
+        SerialDebug.write(SequansController.readByte());
+    }
 }

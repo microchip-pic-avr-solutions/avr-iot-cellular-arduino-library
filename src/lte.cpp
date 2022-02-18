@@ -239,11 +239,13 @@ bool LteClass::isConnected(void) {
         response, RESPONSE_CONNECTION_STATUS_SIZE);
 
     if (response_result != ResponseResult::OK) {
+
         char response_result_string[18] = "";
         SequansController.responseResultToString(response_result,
                                                  response_result_string);
         Log.warnf("Did not get a valid response when querying CEREG: %s\r\n",
                   response_result_string);
+
         return false;
     }
 
@@ -253,6 +255,7 @@ bool LteClass::isConnected(void) {
         response, STAT_INDEX, stat_token, STAT_LENGTH);
 
     if (!found_token) {
+        Log.errorf("Did not find token in string: %s\r\n", response);
         return false;
     }
 

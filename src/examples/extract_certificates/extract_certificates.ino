@@ -44,7 +44,7 @@ void setup() {
         Log.errorf("Failed to init: %d\r\n", status);
         return;
     } else {
-        Log.errorf("Initialized ECC\r\n");
+        Log.info("Initialized ECC\r\n");
     }
 
     // Retrieve public root key
@@ -66,7 +66,7 @@ void setup() {
         Log.errorf("Failed to read signing certificate: %d\r\n", status);
         return;
     } else {
-        Log.info("Printing signing certificate...");
+        Log.info("Printing signing certificate...\r\n");
         printCertificate(buffer, size);
     }
 
@@ -79,7 +79,7 @@ void setup() {
         Log.errorf("Failed to read device certificate: %d\r\n", status);
         return;
     } else {
-        Log.info("Printing device certificate...");
+        Log.info("Printing device certificate...\r\n");
         printCertificate(buffer, size);
     }
 }

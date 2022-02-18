@@ -52,6 +52,9 @@ typedef enum { NOT_CONNECTED, CONNECTED_TO_NETWORK, CONNECTED_TO_BROKER } State;
 State state = NOT_CONNECTED;
 uint8_t callback_flags = 0;
 
+static char topic_buffer[MQTT_TOPIC_MAX_LENGTH + 1] = "";
+static uint16_t message_length = 0;
+
 // -------------------------- CALLBACKS & SETUP ---------------------------- //
 
 void connectedToNetwork(void) { callback_flags |= NETWORK_CONN_FLAG; }
@@ -60,7 +63,12 @@ void disconnectedFromNetwork(void) { callback_flags |= NETWORK_DISCONN_FLAG; }
 void connectedToBroker(void) { callback_flags |= BROKER_CONN_FLAG; }
 void disconnectedFromBroker(void) { callback_flags |= BROKER_DISCONN_FLAG; }
 
-void receive(void) { callback_flags |= RECEIVE_MSG_FLAG; }
+void receive(char *topic, uint16_t msg_length) {
+    memcpy(topic_buffer, topic, MQTT_TOPIC_MAX_LENGTH);
+    message_length = msg_length;
+
+    callback_flags |= RECEIVE_MSG_FLAG;
+}
 
 void setup() {
     Log.begin(115200);
@@ -162,20 +170,11 @@ void loop() {
         switch (state) {
         case CONNECTED_TO_BROKER: {
 
-            MqttReceiveNotification notification =
-                MqttClient.readReceiveNotification();
-
-            // Failed to read notification or some error happened
-            if (notification.message_length == 0) {
-                return;
-            }
-
             // Extra space for termination
-            char buffer[notification.message_length + 16] = "";
+            char buffer[message_length + 16] = "";
 
-            if (MqttClient.readMessage(notification.receive_topic.c_str(),
-                                       (uint8_t *)buffer,
-                                       sizeof(buffer))) {
+            if (MqttClient.readMessage(
+                    topic_buffer, (uint8_t *)buffer, sizeof(buffer))) {
                 Log.infof("I got the messsage: %s\r\n", (char *)buffer);
 
                 // We publish the message back

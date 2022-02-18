@@ -71,7 +71,7 @@
 #define RESPONSE_DELIMITER ','
 
 static const char OK_TERMINATION[] = "\r\nOK\r\n";
-static const char ERROR_TERMINATION[] = "ERROR\r\n";
+static const char ERROR_TERMINATION[] = "\r\nERROR\r\n";
 
 static uint8_t rx_buffer[RX_BUFFER_SIZE];
 static volatile uint8_t rx_head_index = 0;
@@ -87,7 +87,7 @@ static volatile uint8_t tx_num_elements = 0;
 // whilst we are looking for a new URC. In that way the data buffer will only be
 // overwritten if we find an URC we are looking for.
 static uint8_t urc_identifier_buffer[URC_IDENTIFIER_BUFFER_SIZE];
-static uint8_t urc_data_buffer[URC_DATA_BUFFER_SIZE];
+static char urc_data_buffer[URC_DATA_BUFFER_SIZE];
 static volatile uint8_t urc_identifier_buffer_length = 0;
 static volatile uint8_t urc_data_buffer_length = 0;
 
@@ -436,6 +436,9 @@ int16_t SequansControllerClass::readByte() {
 
 ResponseResult SequansControllerClass::readResponse(char *out_buffer,
                                                     uint16_t buffer_size) {
+
+    memset(out_buffer, '\0', buffer_size);
+
     uint8_t retry_count = 0;
 
     for (size_t i = 0; i < buffer_size; i++) {
@@ -462,8 +465,8 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
             continue;
         }
 
-        // For AT command responses from the LTE module, "OK\r\n" or
-        // "ERROR\r\n" signifies the end of a response, so we look "\r\n".
+        // For AT command responses from the LTE module, "\r\nOK\r\n" or
+        // "\r\nERROR\r\n" signifies the end of a response, so we look "\r\n".
         if (out_buffer[i - 1] == CARRIAGE_RETURN &&
             out_buffer[i] == LINE_FEED) {
 
@@ -472,7 +475,6 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
             if (ok_index != NULL) {
                 // Terminate and omit the rest from the OK index.
                 memset(ok_index, '\0', 1);
-
                 return ResponseResult::OK;
             }
 
