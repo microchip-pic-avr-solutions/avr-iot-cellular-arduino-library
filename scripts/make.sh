@@ -9,11 +9,10 @@ if [ "$1" = "clean" ]; then
     EXTRA_ARGS=--clean
 fi
 
-rm -r $SCRIPTPATH/../build
+rm -r "$SCRIPTPATH/../build"
 
 arduino-cli compile \
-                $TARGET \
+                "$TARGET" \
                 $EXTRA_ARGS \
-                -t \
-                -b DxCore:megaavr:avrdb:appspm=no,chip=avr128db64,clock=24internal,bodvoltage=1v9,bodmode=disabled,eesave=enable,resetpin=reset,millis=tcb2,startuptime=8 \
-                --output-dir $SCRIPTPATH/../build
+                -b DxCore:megaavr:avrdb:appspm=no,chip=avr128db64,clock=24internal,bodvoltage=1v9,bodmode=disabled,eesave=enable,resetpin=reset,millis=tcb2,startuptime=8,wiremode=mors2 \
+                --output-dir "$SCRIPTPATH/../build"

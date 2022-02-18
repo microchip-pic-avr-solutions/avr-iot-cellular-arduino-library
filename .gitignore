@@ -1,5 +1,6 @@
 .ccls
-lib/cryptoauth/build/
+lib/cryptoauth/build48/
+lib/cryptoauth/build64/
 build/
 src/crypto*
 src/calib
@@ -7,3 +8,4 @@ src/cert*
 atca*
 libcryptoauth.a
 .vscode
+.ccls-cache

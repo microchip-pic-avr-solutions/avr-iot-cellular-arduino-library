@@ -12,13 +12,13 @@
 
 #ifdef __AVR_AVR128DB48__ // MINI
 
-#define WIRE Wire
+#define WIRE     Wire
 #define WIRE_MUX 2
 
 #else
 #ifdef __AVR_AVR128DB64__ // Non-Mini
 
-#define WIRE Wire1
+#define WIRE     Wire1
 #define WIRE_MUX 2
 
 #else
@@ -26,9 +26,7 @@
 #endif
 #endif
 
-ATCA_STATUS hal_i2c_init(ATCAIface iface, ATCAIfaceCfg *cfg)
-{
-
+ATCA_STATUS hal_i2c_init(ATCAIface iface, ATCAIfaceCfg *cfg) {
     WIRE.swap(WIRE_MUX);
     WIRE.setClock(cfg->atcai2c.baud);
     WIRE.begin();
@@ -41,8 +39,7 @@ ATCA_STATUS hal_i2c_post_init(ATCAIface iface) { return ATCA_SUCCESS; }
 ATCA_STATUS hal_i2c_send(ATCAIface iface,
                          uint8_t word_address,
                          uint8_t *txdata,
-                         int txlength)
-{
+                         int txlength) {
 
     WIRE.beginTransmission(word_address);
 
@@ -52,10 +49,8 @@ ATCA_STATUS hal_i2c_send(ATCAIface iface,
     size_t index = 0;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsign-compare"
-    while (index < txlength)
-    {
-        if (WIRE.write(txdata[index]))
-        {
+    while (index < txlength) {
+        if (WIRE.write(txdata[index])) {
             index++;
         }
     }
@@ -72,8 +67,7 @@ ATCA_STATUS hal_i2c_send(ATCAIface iface,
 ATCA_STATUS hal_i2c_receive(ATCAIface iface,
                             uint8_t word_address,
                             uint8_t *rxdata,
-                            uint16_t *rxlength)
-{
+                            uint16_t *rxlength) {
 
     // TODO: Somehow, the TWI driver gets into an infinite loop if we don't
     // delay some here. This might be due to two operations happening quickly
@@ -81,37 +75,29 @@ ATCA_STATUS hal_i2c_receive(ATCAIface iface,
     // This is really bad though :/
     atca_delay_ms(100);
 
-    // Serial5.printf("-- Start --\r\nAddress: %x\r\n", word_address);
-
     *rxlength = WIRE.requestFrom(word_address, (size_t)(*rxlength));
 
     int value;
     size_t i = 0;
 
-    while (i < *rxlength)
-    {
+    while (i < *rxlength) {
         value = WIRE.read();
 
-        if (value != -1)
-        {
+        if (value != -1) {
             rxdata[i] = (uint8_t)value;
             i++;
         }
     }
 
-    // Serial5.printf("-- End --\r\n");
-
     return ATCA_SUCCESS;
 }
 
 ATCA_STATUS
-hal_i2c_control(ATCAIface iface, uint8_t option, void *param, size_t paramlen)
-{
+hal_i2c_control(ATCAIface iface, uint8_t option, void *param, size_t paramlen) {
     return ATCA_UNIMPLEMENTED;
 }
 
-ATCA_STATUS hal_i2c_release(void *hal_data)
-{
+ATCA_STATUS hal_i2c_release(void *hal_data) {
     WIRE.end();
     return ATCA_SUCCESS;
 }
