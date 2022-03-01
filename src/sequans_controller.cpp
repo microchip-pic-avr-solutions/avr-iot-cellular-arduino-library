@@ -647,6 +647,9 @@ void SequansControllerClass::unregisterCallback(const char *urc_identifier) {
 
 void SequansControllerClass::setPowerSaveMode(const uint8_t mode,
                                               void (*ring_callback)(void)) {
+
+    Log.debugf("Setting power save mode %d for Sequans Controller\r\n", mode);
+
     if (mode == 0) {
         ring_line_callback = NULL;
         power_save_mode = 0;

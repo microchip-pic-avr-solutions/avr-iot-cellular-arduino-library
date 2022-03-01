@@ -1,12 +1,7 @@
-/**
- * @note This example with HTTPS requires the security profile for HTTPS to be
- * set up (AT+SQNSPCFG=3,2,"",1,1)
- */
 #include <Arduino.h>
 #include <http_client.h>
 #include <log.h>
 #include <lte.h>
-#include <sequans_controller.h>
 
 #define DOMAIN "httpbin.org"
 
@@ -15,7 +10,6 @@ void testHttp();
 void setup() {
 
     Log.begin(115200);
-    Log.setLogLevel(LogLevel::DEBUG);
 
     // Start LTE modem and wait until we are connected to the operator
     Lte.begin();
@@ -73,3 +67,5 @@ void testHttp() {
         Log.raw(body);
     }
 }
+
+void loop() {}

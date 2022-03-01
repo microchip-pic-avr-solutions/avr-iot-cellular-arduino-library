@@ -283,7 +283,7 @@ bool LteClass::attemptToEnterPowerSaveMode(const uint32_t waiting_time_ms) {
             return true;
         }
 
-    } while (start_time < waiting_time_ms);
+    } while (millis() - start_time < waiting_time_ms);
 
     return false;
 }
