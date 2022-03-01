@@ -10,8 +10,6 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#include <log.h>
-
 #ifdef __AVR_AVR128DB48__ // MINI
 
 #define WIRE     Wire
