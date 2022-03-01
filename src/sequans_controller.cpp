@@ -51,8 +51,8 @@
 #define SEQUANS_MODULE_BAUD_RATE 115200
 
 // Sizes for the circular buffers
-#define RX_BUFFER_SIZE        512
-#define TX_BUFFER_SIZE        512
+#define RX_BUFFER_SIZE        256
+#define TX_BUFFER_SIZE        256
 #define RX_BUFFER_ALMOST_FULL (RX_BUFFER_SIZE - 2)
 
 #define MAX_URC_CALLBACKS          8
@@ -518,8 +518,7 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     const uint8_t index,
     char *buffer,
     const size_t buffer_size,
-    const char start_character,
-    bool isSign = false) {
+    const char start_character) {
 
     // We need a copy in order to not modify the original
     size_t rcp_size = strlen(response) + 1;

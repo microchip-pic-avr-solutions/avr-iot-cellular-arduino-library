@@ -157,8 +157,7 @@ class SequansControllerClass {
         const uint8_t index,
         char *buffer,
         const size_t buffer_size,
-        const char start_character = URC_IDENTIFIER_END_CHARACTER,
-        bool isSign = false);
+        const char start_character = URC_IDENTIFIER_END_CHARACTER);
 
     /**
      * @brief Registers for callbacks when an URC with the given identifier is

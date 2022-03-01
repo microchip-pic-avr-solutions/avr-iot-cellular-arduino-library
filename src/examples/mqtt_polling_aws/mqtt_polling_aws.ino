@@ -17,7 +17,7 @@
 // publish and subscribe on other topics, see the AWS IoT Core Policy
 // documentation.
 #define MQTT_SUB_TOPIC_FMT "%s/mchp_topic_sub"
-#define MQTT_PUB_TOPIC_FMT "%s/mchp_topic_pub"
+#define MQTT_PUB_TOPIC_FMT "%s/sensors"
 
 char mqtt_sub_topic[128];
 char mqtt_pub_topic[128];
@@ -126,7 +126,7 @@ void loop() {
         }
 
         bool publishedSuccessfully =
-            MqttClient.publish(mqtt_pub_topic, "hello world");
+            MqttClient.publish(mqtt_pub_topic, "{\"light\": 9, \"temp\": 9}");
 
         if (!publishedSuccessfully) {
             Log.error("Failed to publish\r\n");
