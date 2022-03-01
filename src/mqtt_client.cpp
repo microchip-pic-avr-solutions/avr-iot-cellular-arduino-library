@@ -1,6 +1,7 @@
-#include "ecc608.h"
-#include "log.h"
 #include "mqtt_client.h"
+#include "ecc608.h"
+#include "led_ctrl.h"
+#include "log.h"
 #include "sequans_controller.h"
 
 #include <cryptoauthlib.h>
@@ -27,6 +28,8 @@
 // Termination: 1 byte
 // Total: 84 bytes
 #define MQTT_CONFIGURE_LENGTH 84
+
+#define MQTT_DISCONNECT_LENGTH 24
 
 // Command without any data in it (with parantheses): 22 bytes
 // Client ID: 64 bytes (this is imposed by this implementation)
@@ -105,8 +108,8 @@ static void (*connected_callback)(void) = NULL;
 static void (*disconnected_callback)(void) = NULL;
 
 volatile static bool signing_request_flag = false;
-static char signing_request_buffer[MQTT_SIGNING_BUFFER];
-static char signing_urc[URC_DATA_BUFFER_SIZE];
+static char signing_request_buffer[MQTT_SIGNING_BUFFER + 1];
+static char signing_urc[URC_DATA_BUFFER_SIZE + 1];
 
 static char receive_urc_buffer[URC_DATA_BUFFER_SIZE + 1];
 
@@ -123,21 +126,25 @@ static bool using_ecc = false;
  * connection was successful.
  */
 static void internalConnectedCallback(char *urc_data) {
-
     if (urc_data[MQTT_CONNECTION_RC_INDEX] == MQTT_CONNECTION_SUCCESS_RC) {
 
         connected_to_broker = true;
-
+        LedCtrl.on(Led::CON, true);
         if (connected_callback != NULL) {
             connected_callback();
         }
     } else {
+        LedCtrl.off(Led::CON, true);
         connected_to_broker = false;
+        if (disconnected_callback != NULL) {
+            disconnected_callback();
+        }
     }
 }
 
 static void internalDisconnectCallback(char *urc_data) {
-    connected_to_broker = true;
+    connected_to_broker = false;
+    // LedCtrl.off(Led::CON, true);
 
     if (disconnected_callback != NULL) {
         disconnected_callback();
@@ -145,13 +152,13 @@ static void internalDisconnectCallback(char *urc_data) {
 }
 
 static void internalHandleSigningRequest(char *urc_data) {
-    memcpy(signing_urc, urc_data, URC_DATA_BUFFER_SIZE);
+    strncpy(signing_urc, urc_data, URC_DATA_BUFFER_SIZE);
     signing_request_flag = true;
 }
 
 static void internalOnReceiveCallback(char *urc_data) {
 
-    memcpy(receive_urc_buffer, urc_data, URC_DATA_BUFFER_SIZE);
+    strncpy(receive_urc_buffer, urc_data, URC_DATA_BUFFER_SIZE);
 
     bool got_topic = SequansController.extractValueFromCommandResponse(
         receive_urc_buffer, 1, topic_buffer, sizeof(topic_buffer), 0);
@@ -192,16 +199,14 @@ static void internalOnReceiveCallback(char *urc_data) {
 static bool generateSigningCommand(char *data, char *command_buffer) {
 
     char sign_request[HCESIGN_REQUEST_LENGTH] = "SQNHCESIGN:";
-    strcpy(sign_request + strlen("SQNHCESIGN:"), data);
-
-    Log.debugf("Got URC: %s\r\n", sign_request);
+    strncpy(sign_request + 11, data, HCESIGN_REQUEST_LENGTH - 11);
 
     // Grab the ctx id
     // +1 for null termination
     char ctx_id_buffer[HCESIGN_CTX_ID_LENGTH + 1];
 
     bool got_ctx_id = SequansController.extractValueFromCommandResponse(
-        sign_request, 0, ctx_id_buffer, sizeof(ctx_id_buffer));
+        sign_request, 0, ctx_id_buffer, HCESIGN_CTX_ID_LENGTH + 1);
 
     if (!got_ctx_id) {
         Log.error("no ctx_id\r\r");
@@ -260,6 +265,7 @@ static bool generateSigningCommand(char *data, char *command_buffer) {
 bool MqttClientClass::signIncomingRequests(void) {
     if (signing_request_flag) {
 
+        SequansController.startCriticalSection();
         bool success =
             generateSigningCommand(signing_urc, signing_request_buffer);
 
@@ -268,10 +274,11 @@ bool MqttClientClass::signIncomingRequests(void) {
             return false;
         }
 
-        Log.debug("Signing\r\n");
+        bool retVal = SequansController.writeCommand(signing_request_buffer);
         signing_request_flag = false;
+        SequansController.stopCriticalSection();
 
-        return SequansController.writeCommand(signing_request_buffer);
+        return retVal;
     }
 
     return false;
@@ -280,7 +287,7 @@ bool MqttClientClass::signIncomingRequests(void) {
 bool MqttClientClass::beginAWS() {
     // Get the endoint and thing name
     // -- Initialize the ECC
-    uint8_t err = ECC608.initializeHW();
+    uint8_t err = ECC608.begin();
     if (err != ATCA_SUCCESS) {
         Log.error("Could not initialize ECC HW");
         return false;
@@ -314,7 +321,7 @@ bool MqttClientClass::beginAWS() {
     using_ecc = true;
 
     return this->begin(
-        (char *)(thingName), (char *)(endpoint), 8883, true, true);
+        (char *)(thingName), (char *)(endpoint), 8883, true, 60, true);
 }
 
 bool MqttClientClass::begin(const char *client_id,
@@ -323,14 +330,12 @@ bool MqttClientClass::begin(const char *client_id,
                             const bool use_tls,
                             const size_t keep_alive,
                             const bool use_ecc) {
-    // We have to make sure we are disconnected first
-    SequansController.writeCommand(MQTT_DISCONNECT);
-    SequansController.clearReceiveBuffer();
 
     // -- Configuration --
 
     // The sequans modem fails if we specify 0 as TLS, so we just have to have
     // two commands for this
+    ResponseResult response;
     if (use_tls) {
 
         char command[MQTT_CONFIGURE_TLS_LENGTH] = "";
@@ -340,7 +345,8 @@ bool MqttClientClass::begin(const char *client_id,
             sprintf(command, MQTT_CONFIGURE_TLS, client_id);
         }
 
-        if (!SequansController.retryCommand(command)) {
+        if (!SequansController.writeCommand(command)) {
+            Log.error("Failed to configure MQTT");
             return false;
         }
     } else {
@@ -351,6 +357,16 @@ bool MqttClientClass::begin(const char *client_id,
             Log.error("Failed to configure MQTT");
             return false;
         }
+    }
+
+    char conf_resp[MQTT_DEFAULT_RESPONSE_LENGTH * 4];
+
+    ResponseResult result =
+        SequansController.readResponse(conf_resp, sizeof(conf_resp));
+
+    if (result != ResponseResult::OK) {
+        Log.errorf("Non-OK Response when configuring MQTT. Err = %d\n", result);
+        return false;
     }
 
     SequansController.registerCallback(MQTT_ON_CONNECT_URC,
@@ -375,19 +391,24 @@ bool MqttClientClass::begin(const char *client_id,
         if (use_ecc) {
             using_ecc = true;
 
-            using_ecc = true;
             uint32_t start = millis();
+
             while (signIncomingRequests() == false) {
                 if (millis() - start > POLL_TIMEOUT_MS) {
                     Log.error("Timed out waiting for pub signing\r\n");
                     return false;
                 }
             }
+
             delay(100);
         }
 
         // Wait for MQTT connection URC
-        while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {
+        if (SequansController.waitForByte(URC_IDENTIFIER_START_CHARACTER,
+                                          POLL_TIMEOUT_MS) ==
+            SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT) {
+            Log.error(
+                "Timeout when waiting for URC_IDENTIFIER_START_CHARACTER");
         }
 
         // Write AT to get an "OK" response which we will search for
@@ -451,6 +472,11 @@ bool MqttClientClass::publish(const char *topic,
 
     Log.debugf("Starting publishing on topic %s\r\n", topic);
 
+    if (!isConnected()) {
+        Log.error("Attempted MQTT Publish without being connected to a broker");
+        return false;
+    }
+
     while (SequansController.isRxReady()) { SequansController.readResponse(); }
 
     const size_t digits_in_buffer_size = trunc(log10(buffer_size)) + 1;
@@ -462,7 +488,10 @@ bool MqttClientClass::publish(const char *topic,
     SequansController.writeCommand(command);
 
     // Wait for start character for delivering payload
-    while (SequansController.readByte() != '>') {}
+    if (SequansController.waitForByte('>', POLL_TIMEOUT_MS) ==
+        SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT) {
+        Log.error("Timed out waiting for >");
+    }
     SequansController.writeBytes(buffer, buffer_size);
 
     // Wait until we receive the first URC which we discard
@@ -484,19 +513,6 @@ bool MqttClientClass::publish(const char *topic,
                    "Error was %d\r\n",
                    wait_result);
         return false;
-    }
-
-    // Wait for a signing request if using the ECC
-    if (using_ecc) {
-        Log.debug("Waiting for a signing request...\r\n");
-
-        uint32_t start = millis();
-        while (signIncomingRequests() == false) {
-            if (millis() - start > POLL_TIMEOUT_MS) {
-                Log.error("Timed out waiting for pub signing\r\n");
-                return false;
-            }
-        }
     }
 
     // We do this as a trick to get an termination sequence after the URC
@@ -541,6 +557,13 @@ bool MqttClientClass::publish(const char *topic,
 
 bool MqttClientClass::subscribe(const char *topic,
                                 const MqttQoS quality_of_service) {
+
+    if (!isConnected()) {
+        Log.error(
+            "Attempted MQTT Subscribe without being connected to a broker");
+        return false;
+    }
+
     SequansController.clearReceiveBuffer();
 
     char command[MQTT_SUBSCRIBE_LENGTH] = "";
@@ -548,11 +571,17 @@ bool MqttClientClass::subscribe(const char *topic,
     SequansController.writeCommand(command);
 
     if (SequansController.readResponse() != ResponseResult::OK) {
+        Log.error("Failed to write subscribe command");
         return false;
     }
 
     // Now we wait for the URC
-    while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {}
+    if (SequansController.waitForByte(URC_IDENTIFIER_START_CHARACTER,
+                                      POLL_TIMEOUT_MS) ==
+        SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT) {
+        Log.error("Timed out waiting for start byte in MQTT subscribe");
+        return false;
+    }
 
     // We do this as a trick to get an termination sequence after the URC
     SequansController.writeCommand("AT");
@@ -606,7 +635,13 @@ bool MqttClientClass::readMessage(const char *topic,
     SequansController.writeCommand(command);
 
     // Wait for first byte in receive buffer
-    while (!SequansController.isRxReady()) {}
+    uint32_t start = millis();
+    while (!SequansController.isRxReady()) {
+        if (millis() - start > POLL_TIMEOUT_MS) {
+            Log.error("Timed out waiting for reading MQTT message");
+            return SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT;
+        }
+    }
 
     // First two bytes are <LF><CR>, so we flush that
     uint8_t start_bytes = 2;
@@ -632,4 +667,39 @@ String MqttClientClass::readMessage(const char *topic, const uint16_t size) {
     }
 
     return buffer;
+}
+
+bool MqttClientClass::disconnect(bool lteEvent = false) {
+    // If we're already disconnected, nothing to do
+    if (!isConnected()) {
+        return false;
+    }
+
+    // If the disconnect event comes from the LTE modem, the
+    // AT+SQNSMQTTDISCONNECT command won't work. Override the handler.
+    if (lteEvent) {
+        internalDisconnectCallback(NULL);
+        return true;
+    }
+
+    // Send the MQTTDISCONNECT command
+    SequansController.clearReceiveBuffer();
+
+    char command[MQTT_DISCONNECT_LENGTH] = MQTT_DISCONNECT;
+    SequansController.writeCommand(command);
+
+    if (SequansController.readResponse() != ResponseResult::OK) {
+        return false;
+    }
+
+    // Wait for the broker to disconnect
+    uint32_t start = millis();
+    while (connected_to_broker) {
+        if (millis() - start > 20000) {
+            Log.error("Timed out waiting for broker disconnect URC");
+            return false;
+        }
+    }
+
+    return true;
 }

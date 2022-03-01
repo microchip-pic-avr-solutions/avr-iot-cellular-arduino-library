@@ -51,8 +51,8 @@
 #define SEQUANS_MODULE_BAUD_RATE 115200
 
 // Sizes for the circular buffers
-#define RX_BUFFER_SIZE        256
-#define TX_BUFFER_SIZE        256
+#define RX_BUFFER_SIZE        512
+#define TX_BUFFER_SIZE        512
 #define RX_BUFFER_ALMOST_FULL (RX_BUFFER_SIZE - 2)
 
 #define MAX_URC_CALLBACKS          8
@@ -109,11 +109,13 @@ void (*urc_current_callback)(char *);
 
 // Default values
 static uint8_t number_of_retries = 5;
-static double sleep_between_retries_ms = 20;
+static double sleep_between_retries_ms = 200;
 
 // Power save modes
 static volatile uint8_t power_save_mode = 0;
 static void (*ring_line_callback)(void);
+
+static bool critical_section_enabled = false;
 
 // Singleton. Defined for use of rest of library
 
@@ -127,6 +129,10 @@ static void flowControlUpdate(void) {
     // If we are in a power save mode, flow control is disabled until we get a
     // RING0 ack
     if (power_save_mode == 1) {
+        return;
+    }
+
+    if (critical_section_enabled) {
         return;
     }
 
@@ -303,8 +309,9 @@ void SequansControllerClass::begin(void) {
     // SERIAL INTERFACE SETUP
 
     // LTE modules has set baud rate of 115200 for its UART0 interface
-    USART1.BAUD = (uint16_t)(
-        ((float)F_CPU * 64 / (16 * (float)SEQUANS_MODULE_BAUD_RATE)) + 0.5);
+    USART1.BAUD = (uint16_t)(((float)F_CPU * 64 /
+                              (16 * (float)SEQUANS_MODULE_BAUD_RATE)) +
+                             0.5);
 
     // Interrupt on receive completed
     USART1.CTRLA = USART_RXCIE_bm;
@@ -316,17 +323,6 @@ void SequansControllerClass::begin(void) {
                    USART_CHSIZE_8BIT_gc;
 
     flowControlUpdate();
-
-// Turn off the Status LED
-#ifdef __AVR_AVR128DB48__
-    PORTA.OUTSET |= PIN0_bm;
-#else
-#ifdef __AVR_AVR128DB64__
-    PORTG.OUTSET |= PIN2_bm;
-#else
-#error "INCOMPATIBLE_DEVICE_SELECTED"
-#endif
-#endif
 }
 
 void SequansControllerClass::end(void) {
@@ -498,7 +494,7 @@ ResponseResult SequansControllerClass::readResponse(void) {
     // Just an arbitrary value, enough to hold the default terminations
     char termination_buffer[16];
     uint8_t retry_count = 0;
-    ResponseResult response;
+    ResponseResult response = ResponseResult::NONE;
 
     do {
         response = readResponse(termination_buffer, sizeof(termination_buffer));
@@ -522,11 +518,16 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     const uint8_t index,
     char *buffer,
     const size_t buffer_size,
-    const char start_character) {
+    const char start_character,
+    bool isSign = false) {
 
     // We need a copy in order to not modify the original
-    char response_copy[strlen(response) + 1];
-    strcpy(response_copy, response);
+    size_t rcp_size = strlen(response) + 1;
+    char response_copy[rcp_size];
+    strncpy(response_copy, response, rcp_size);
+
+    // Enforce non buffer overflow
+    response_copy[rcp_size - 1] = '\0';
 
     char *data;
 
@@ -583,12 +584,11 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     // If found, set termination to the carriage return. If not, leave the
     // string be as it is
     char *first_carriage_return = strchr(start_value_ptr, '\r');
-    if (start_value_ptr != NULL) {
+    if (first_carriage_return != NULL) {
         *first_carriage_return = 0;
     }
 
     size_t value_length = strlen(start_value_ptr);
-
     // We compare inclusive for value length as we want to take the null
     // termination into consideration. So the buffer size has be
     // value_length + 1
@@ -710,4 +710,14 @@ uint8_t SequansControllerClass::waitForByte(uint8_t byte, uint32_t timeout) {
     }
 
     return SEQUANS_CONTROLLER_READ_BYTE_OK;
+}
+
+void SequansControllerClass::startCriticalSection() {
+    critical_section_enabled = true;
+    RTS_PORT.OUTSET = RTS_PIN_bm;
+}
+
+void SequansControllerClass::stopCriticalSection() {
+    critical_section_enabled = false;
+    RTS_PORT.OUTCLR = RTS_PIN_bm;
 }

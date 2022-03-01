@@ -159,6 +159,8 @@ class MqttClientClass {
      * loop for the MQTT connection to remain active.
      */
     bool signIncomingRequests(void);
+
+    bool disconnect(bool lteEvent = false);
 };
 
 extern MqttClientClass MqttClient;

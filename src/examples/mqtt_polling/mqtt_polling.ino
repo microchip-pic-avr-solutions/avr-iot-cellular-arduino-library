@@ -6,67 +6,86 @@
 #include <Arduino.h>
 
 #include <ecc608.h>
+#include <led_ctrl.h>
 #include <log.h>
 #include <lte.h>
 #include <mqtt_client.h>
 
-#define MQTT_USE_AWS   true
 #define MQTT_SUB_TOPIC "mchp_topic_sub"
 #define MQTT_PUB_TOPIC "mchp_topic_pub"
-
-// If you are not using AWS, apply these settings
-#if (!MQTT_USE_AWS)
 
 #define MQTT_THING_NAME "someuniquemchp"
 #define MQTT_BROKER     "test.mosquitto.org"
 #define MQTT_PORT       1883
 #define MQTT_USE_TLS    false
 #define MQTT_USE_ECC    false
+#define MQTT_KEEPALIVE  60
 
-#endif
+volatile bool lteConnected = false;
+volatile bool mqttConnected = false;
 
-bool connectedToBroker = false;
+void mqttDisconnectHandler() { mqttConnected = false; }
 
-void setup() {
-    Log.begin(115200);
-    Log.setLogLevel(LogLevel::DEBUG);
-    Log.info("Starting initialization of MQTT Polling\r\n");
+void lteDisconnectHandler() { lteConnected = false; }
+
+void connectMqtt() {
+    MqttClient.onConnectionStatusChange(NULL, mqttDisconnectHandler);
+
+    mqttConnected = MqttClient.begin(MQTT_THING_NAME,
+                                     MQTT_BROKER,
+                                     MQTT_PORT,
+                                     MQTT_USE_TLS,
+                                     MQTT_KEEPALIVE,
+                                     MQTT_USE_ECC);
+
+    if (mqttConnected) {
+        Log.info("Connecting to broker...");
+        while (!MqttClient.isConnected()) {
+            Log.info("Connecting...");
+            delay(500);
+
+            // If we're not connected to the network, give up
+            if (!lteConnected) {
+                return;
+            }
+        }
+
+        Log.info("Connected to broker!");
+
+        MqttClient.subscribe(MQTT_SUB_TOPIC);
+    } else {
+        Log.error("Failed to connect to broker");
+    }
+}
+
+void connectLTE() {
+
+    Lte.onConnectionStatusChange(NULL, lteDisconnectHandler);
 
     // Start LTE modem and wait until we are connected to the operator
     Lte.begin();
 
     while (!Lte.isConnected()) {
-        Log.info("Not connected to operator yet...\r\n");
+        Log.info("Not connected to operator yet...");
         delay(5000);
     }
 
-    Log.info("Connected to operator!\r\n");
+    Log.info("Connected to operator!");
+    lteConnected = true;
+}
 
-// Attempt to connect to broker
-#if (MQTT_USE_AWS)
-    connectedToBroker = MqttClient.beginAWS();
-#else
-    connectedToBroker = MqttClient.begin(
-        MQTT_THING_NAME, MQTT_BROKER, MQTT_PORT, MQTT_USE_TLS, MQTT_USE_ECC);
-#endif
+void setup() {
+    Log.begin(115200);
+    Log.setLogLevel(LogLevel::DEBUG);
+    LedCtrl.begin();
+    LedCtrl.startupCycle();
 
-    if (connectedToBroker) {
-        Log.info("Connecting to broker...\r\n");
-        // TODO: Fails on connect...
-        while (!MqttClient.isConnected()) {
-            Log.info("Connecting...\r\n");
-            delay(500);
-        }
-        Log.info("Connected to broker!\r\n");
-        MqttClient.subscribe(MQTT_SUB_TOPIC);
-    } else {
-        Log.error("Failed to connect to broker\r\n");
-    }
+    Log.info("Starting initialization of MQTT Polling");
 }
 
 void loop() {
 
-    if (connectedToBroker) {
+    if (mqttConnected) {
 
         String message = MqttClient.readMessage(MQTT_SUB_TOPIC);
 
@@ -80,19 +99,24 @@ void loop() {
             Log.info("\r\n");
         }
 
-// Publishing can fail due to network issues, so to be on the safe side
-// one should check the return value to see if the message got published
-#if ((MQTT_USE_ECC) || (MQTT_USE_AWS))
-        // If we are using the ECC (secure element), we need to poll for
-        // situations where the Sequans modem wants something signed.
-        MqttClient.signIncomingRequests();
-#endif
-
         bool publishedSuccessfully =
             MqttClient.publish(MQTT_PUB_TOPIC, "hello world");
 
         if (!publishedSuccessfully) {
-            Log.error("Failed to publish\r\n");
+            Log.error("Failed to publish");
         }
+    } else {
+        // MQTT is not connected. Need to establish connection
+
+        if (!lteConnected) {
+            // We're NOT connected to the LTE Network. Establish LTE connection
+            // first
+            Log.info("LTE is not connected. Establishing...");
+            connectLTE();
+        }
+
+        connectMqtt();
     }
+
+    delay(1000);
 }

@@ -1,5 +1,7 @@
-#include "log.h"
 #include "lte.h"
+#include "led_ctrl.h"
+#include "log.h"
+#include "mqtt_client.h"
 #include "sequans_controller.h"
 
 #define AT_COMMAND_CONNECT            "AT+CFUN=1"
@@ -67,6 +69,8 @@ static void (*power_save_abrupted_callback)(void) = NULL;
 static bool ring_line_activity = false;
 static bool is_in_power_save_mode = false;
 
+volatile static bool is_connected = false;
+
 static void connectionStatus(char *buffer) {
 
     const char stat = buffer[CEREG_STAT_CHARACTER_INDEX];
@@ -74,11 +78,21 @@ static void connectionStatus(char *buffer) {
     if (stat == STAT_REGISTERED_ROAMING ||
         stat == STAT_REGISTERED_HOME_NETWORK) {
 
-        if (connected_callback) {
+        is_connected = true;
+        LedCtrl.on(Led::CELL, true);
+
+        if (connected_callback != NULL) {
             connected_callback();
         }
     } else {
-        if (disconnected_callback) {
+        is_connected = false;
+        LedCtrl.off(Led::CELL, true);
+
+        // The modem does not give any notification of a MQTT disconnect.
+        // This must be called directly following a connection loss
+        MqttClient.disconnect(true);
+
+        if (disconnected_callback != NULL) {
             disconnected_callback();
         }
     }
@@ -195,6 +209,9 @@ void LteClass::begin(const bool enable_power_save,
 
     SequansController.begin();
 
+    // Allow 500ms for boot
+    delay(500);
+
     if (enable_power_save) {
         configurePowerSaveMode(power_save_configuration);
     }
@@ -206,6 +223,9 @@ void LteClass::begin(const bool enable_power_save,
     SequansController.retryCommand(AT_COMMAND_DISABLE_CREG_URC);
     SequansController.retryCommand(AT_COMMAND_ENABLE_CEREG_URC);
     SequansController.retryCommand(AT_COMMAND_CONNECT);
+
+    // Enable the default callback
+    SequansController.registerCallback(CEREG_CALLBACK, connectionStatus);
 
     // This is convenient when the MCU has been issued a reset, but the lte
     // modem is already connected, which will be the case during development for
@@ -225,47 +245,9 @@ void LteClass::onConnectionStatusChange(void (*connect_callback)(void),
                                         void (*disconnect_callback)(void)) {
     connected_callback = connect_callback;
     disconnected_callback = disconnect_callback;
-    SequansController.registerCallback(CEREG_CALLBACK, connectionStatus);
 }
 
-bool LteClass::isConnected(void) {
-
-    SequansController.clearReceiveBuffer();
-    SequansController.writeCommand(AT_COMMAND_CONNECTION_STATUS);
-
-    char response[RESPONSE_CONNECTION_STATUS_SIZE];
-
-    ResponseResult response_result = SequansController.readResponse(
-        response, RESPONSE_CONNECTION_STATUS_SIZE);
-
-    if (response_result != ResponseResult::OK) {
-
-        char response_result_string[18] = "";
-        SequansController.responseResultToString(response_result,
-                                                 response_result_string);
-        Log.warnf("Did not get a valid response when querying CEREG: %s\r\n",
-                  response_result_string);
-
-        return false;
-    }
-
-    // Find the stat token in the response
-    char stat_token[STAT_LENGTH];
-    bool found_token = SequansController.extractValueFromCommandResponse(
-        response, STAT_INDEX, stat_token, STAT_LENGTH);
-
-    if (!found_token) {
-        Log.errorf("Did not find token in string: %s\r\n", response);
-        return false;
-    }
-
-    if (stat_token[0] == STAT_REGISTERED_HOME_NETWORK ||
-        stat_token[0] == STAT_REGISTERED_ROAMING) {
-        return true;
-    }
-
-    return false;
-}
+bool LteClass::isConnected(void) { return is_connected; }
 
 bool LteClass::attemptToEnterPowerSaveMode(const uint32_t waiting_time_ms) {
 

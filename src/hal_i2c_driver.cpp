@@ -10,6 +10,8 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+#include <log.h>
+
 #ifdef __AVR_AVR128DB48__ // MINI
 
 #define WIRE     Wire
@@ -61,6 +63,7 @@ ATCA_STATUS hal_i2c_send(ATCAIface iface,
     // The Wire interface blocks and checks the TWIx.MSTATUS flag for WIF, which
     // give us the indication that the transmit was completed, so we return
     // success here
+
     return ATCA_SUCCESS;
 }
 
