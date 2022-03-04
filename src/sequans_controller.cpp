@@ -70,6 +70,8 @@
 #define SPACE_CHARACTER    ' '
 #define RESPONSE_DELIMITER ','
 
+static bool initialized = false;
+
 static const char OK_TERMINATION[] = "\r\nOK\r\n";
 static const char ERROR_TERMINATION[] = "\r\nERROR\r\n";
 
@@ -309,9 +311,8 @@ void SequansControllerClass::begin(void) {
     // SERIAL INTERFACE SETUP
 
     // LTE modules has set baud rate of 115200 for its UART0 interface
-    USART1.BAUD = (uint16_t)(((float)F_CPU * 64 /
-                              (16 * (float)SEQUANS_MODULE_BAUD_RATE)) +
-                             0.5);
+    USART1.BAUD = (uint16_t)(
+        ((float)F_CPU * 64 / (16 * (float)SEQUANS_MODULE_BAUD_RATE)) + 0.5);
 
     // Interrupt on receive completed
     USART1.CTRLA = USART_RXCIE_bm;
@@ -323,7 +324,11 @@ void SequansControllerClass::begin(void) {
                    USART_CHSIZE_8BIT_gc;
 
     flowControlUpdate();
+
+    initialized = true;
 }
+
+bool SequansControllerClass::isInitialized(void) { return initialized; }
 
 void SequansControllerClass::end(void) {
     USART1.CTRLA = 0;
@@ -331,6 +336,10 @@ void SequansControllerClass::end(void) {
     USART1.CTRLC = 0;
 
     pinConfigure(CTS_PIN, 0);
+
+    // Set RTS high to halt the modem
+    pinConfigure(RTS_PIN, PIN_DIR_OUTPUT);
+    digitalWrite(RTS_PIN, HIGH);
 }
 
 void SequansControllerClass::setRetryConfiguration(const uint8_t num_retries,

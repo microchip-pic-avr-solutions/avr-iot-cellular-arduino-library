@@ -53,6 +53,11 @@ class SequansControllerClass {
     void begin(void);
 
     /**
+     * @return True if begin has already been called.
+     */
+    bool isInitialized(void);
+
+    /**
      * @brief Disables interrupts used for the sequans module and closes the
      * serial interface.
      */
