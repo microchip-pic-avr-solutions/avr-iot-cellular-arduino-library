@@ -85,8 +85,8 @@ void LedCtrlClass::toggle(Led led, bool is_from_system_event) {
     if (is_from_system_event && manual_control_enabled)
         return;
 
-    const uint8_t ledPin = getLedPin(led);
-    digitalWrite(ledPin, !digitalRead(ledPin));
+    const uint8_t led_pin = getLedPin(led);
+    digitalWrite(led_pin, !digitalRead(led_pin));
 }
 
 void LedCtrlClass::startupCycle() {
