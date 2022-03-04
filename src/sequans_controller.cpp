@@ -704,6 +704,9 @@ void SequansControllerClass::responseResultToString(
     case ResponseResult::SERIAL_READ_ERROR:
         strcpy(response_string, "SERIAL_READ_ERROR");
         break;
+    case ResponseResult::NONE:
+        strcpy(response_string, "NONE");
+        break;
     }
 }
 
