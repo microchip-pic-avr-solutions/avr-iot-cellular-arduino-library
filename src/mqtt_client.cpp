@@ -1,7 +1,7 @@
-#include "mqtt_client.h"
 #include "ecc608.h"
 #include "led_ctrl.h"
 #include "log.h"
+#include "mqtt_client.h"
 #include "sequans_controller.h"
 
 #include <cryptoauthlib.h>
@@ -335,7 +335,6 @@ bool MqttClientClass::begin(const char *client_id,
 
     // The sequans modem fails if we specify 0 as TLS, so we just have to have
     // two commands for this
-    ResponseResult response;
     if (use_tls) {
 
         char command[MQTT_CONFIGURE_TLS_LENGTH] = "";
@@ -669,7 +668,7 @@ String MqttClientClass::readMessage(const char *topic, const uint16_t size) {
     return buffer;
 }
 
-bool MqttClientClass::disconnect(bool lteEvent = false) {
+bool MqttClientClass::disconnect(bool lte_event) {
     // If we're already disconnected, nothing to do
     if (!isConnected()) {
         return false;
@@ -677,7 +676,7 @@ bool MqttClientClass::disconnect(bool lteEvent = false) {
 
     // If the disconnect event comes from the LTE modem, the
     // AT+SQNSMQTTDISCONNECT command won't work. Override the handler.
-    if (lteEvent) {
+    if (lte_event) {
         internalDisconnectCallback(NULL);
         return true;
     }

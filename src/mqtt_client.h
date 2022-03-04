@@ -160,7 +160,13 @@ class MqttClientClass {
      */
     bool signIncomingRequests(void);
 
-    bool disconnect(bool lteEvent = false);
+    /**
+     * @brief Disconnects from the MQTT broker.
+     *
+     * @param lte_event If true, signifies that the disconnect came from the LTE
+     * module due to network disconnect.
+     */
+    bool disconnect(bool lte_event = false);
 };
 
 extern MqttClientClass MqttClient;
