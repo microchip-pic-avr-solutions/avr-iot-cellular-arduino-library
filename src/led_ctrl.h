@@ -27,11 +27,41 @@ class LedCtrlClass {
         return instance;
     }
 
-    bool begin(const bool manualControl = false);
+    /**
+     * @brief Starts the LED control module.
+     *
+     * @param manual_control Set to true if the system should *not* modify the
+     * leds automatically (for example when the LTE modem is connected).
+     */
+    void begin(const bool manual_control = false);
 
-    void toggle(Led led, bool isSystem = false);
-    void on(Led led, bool isSystem = false);
-    void off(Led led, bool isSystem = false);
+    /**
+     * @brief Toggle @p led.
+     *
+     * @param is_from_system_event If set to true, will toggle the led only if
+     * manual control is disabled.
+     */
+    void toggle(Led led, bool is_from_system_event = false);
+
+    /**
+     * @brief Set @p led on.
+     *
+     * @param is_from_system_event If set to true, will turn the led on only if
+     * manual control is disabled.
+     */
+    void on(Led led, bool is_from_system_event = false);
+
+    /**
+     * @brief Set @p led off.
+     *
+     * @param is_from_system_event If set to true, will turn the led off only if
+     * manual control is disabled.
+     */
+    void off(Led led, bool is_from_system_event = false);
+
+    /**
+     * @brief Cycles each LED for testing purposes
+     */
     void startupCycle();
 };
 

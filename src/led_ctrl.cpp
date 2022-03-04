@@ -23,10 +23,10 @@
 #endif
 #endif
 
-static bool manualControlEnabled = false;
+static bool manual_control_enabled = false;
 
-bool LedCtrlClass::begin(const bool manualControl = false) {
-    manualControlEnabled = manualControl;
+void LedCtrlClass::begin(const bool manual_control) {
+    manual_control_enabled = manual_control;
 
     pinMode(LED_CELL_PIN, OUTPUT);
     pinMode(LED_CON_PIN, OUTPUT);
@@ -67,21 +67,24 @@ uint8_t LedCtrlClass::getLedPin(Led led) {
     return targetPin;
 }
 
-void LedCtrlClass::on(Led led, bool isSystem = false) {
-    if (isSystem && manualControlEnabled)
+void LedCtrlClass::on(Led led, bool is_from_system_event) {
+    if (is_from_system_event && manual_control_enabled)
         return;
+
     digitalWrite(getLedPin(led), 0);
 }
 
-void LedCtrlClass::off(Led led, bool isSystem = false) {
-    if (isSystem && manualControlEnabled)
+void LedCtrlClass::off(Led led, bool is_from_system_event) {
+    if (is_from_system_event && manual_control_enabled)
         return;
+
     digitalWrite(getLedPin(led), 1);
 }
 
-void LedCtrlClass::toggle(Led led, bool isSystem = false) {
-    if (isSystem && manualControlEnabled)
+void LedCtrlClass::toggle(Led led, bool is_from_system_event) {
+    if (is_from_system_event && manual_control_enabled)
         return;
+
     const uint8_t ledPin = getLedPin(led);
     digitalWrite(ledPin, !digitalRead(ledPin));
 }
