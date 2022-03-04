@@ -27,7 +27,7 @@ int16_t printf_putchar(char c, FILE *fp) {
 }
 
 template <typename T> void LogClass::print(const T str, const char level[]) {
-    this->uart->printf("%s%s\n", level, str);
+    this->uart->printf("%s%s\r\n", level, str);
 }
 
 LogClass::LogClass(UartClass *uart) {
