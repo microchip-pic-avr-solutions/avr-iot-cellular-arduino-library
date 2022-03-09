@@ -90,7 +90,7 @@ pipeline {
                     steps {
                         script {
                             withCredentials([usernamePassword(credentialsId: 'github_mchptest', usernameVariable: 'USER_NAME', passwordVariable:'PASS' )]) {
-                                sh "python3 ${env.DEPLOY_SCRIPT_FILE} -deploy=true -gpat=${PASS} -dgid=${USER_NAME} -dburl=${env.BITBUCKET_REPO} -dgurl=${env.GITHUB_REPO} -dbranch=${env.TARGET_BRANCH} -def=\"cloudprovider.yaml, Jenkinsfilek8s\""
+                                sh "python3 ${env.DEPLOY_SCRIPT_FILE} -deploy=true -gpat=${PASS} -dgid=${USER_NAME} -dburl=${env.BITBUCKET_REPO} -dgurl=${env.GITHUB_REPO} -dbranch=${env.TARGET_BRANCH} -def=\"cloudprovider.yaml, Jenkinsfilek8s, mini_port.md, internal_readme.md\""
                             }
                         }
                     }
