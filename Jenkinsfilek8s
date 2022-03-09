@@ -19,7 +19,6 @@ pipeline {
         GITHUB_REPO = 'https://github.com/mchpTestArea/avr-iot-test'
         GITHUB_REPO_SHORT = 'avr-iot-test'
         GITHUB_ORG = 'mchpTestArea'
-        
 	}
 
     stages {
@@ -124,7 +123,7 @@ String getCommit() {
 }
 
 String gitTag(){
-    return sh(script: "git tag --contains", returnStdout: true)
+    return sh(script: "git tag --contains", returnStdout: true)?.trim()
 }
 
 def initializeGitForDeployment() {
