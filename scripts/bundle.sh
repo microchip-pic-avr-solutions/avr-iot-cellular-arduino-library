@@ -1,8 +1,8 @@
 #!/bin/bash
 
-mkdir release
-cp src release/src -r
-cp library.properties release
+mkdir -p release/avr-iot-cellular-library
+cp src release/avr-iot-cellular-library -r
+cp library.properties release/avr-iot-cellular-library
 cd release
 
 echo $1
