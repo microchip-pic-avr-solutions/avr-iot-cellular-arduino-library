@@ -19,6 +19,7 @@ pipeline {
         GITHUB_REPO = 'https://github.com/mchpTestArea/avr-iot-test'
         GITHUB_REPO_SHORT = 'avr-iot-test'
         GITHUB_ORG = 'mchpTestArea'
+        TARGET_BRANCH = 'main'
 	}
 
     stages {
@@ -67,9 +68,9 @@ pipeline {
             when {
                 allOf {
                     expression {
-                        env.GIT_TAG != null
+                        env.GIT_TAG != ''
                     }
-                    branch "deploy-tool-integration"
+                    branch env.TARGET_BRANCH
                 }
             }
 
@@ -89,7 +90,7 @@ pipeline {
                     steps {
                         script {
                             withCredentials([usernamePassword(credentialsId: 'github_mchptest', usernameVariable: 'USER_NAME', passwordVariable:'PASS' )]) {
-                                sh "python3 ${env.DEPLOY_SCRIPT_FILE} -deploy=true -gpat=${PASS} -dgid=${USER_NAME} -dburl=${env.BITBUCKET_REPO} -dgurl=${env.GITHUB_REPO} -dbranch=deploy-tool-integration -def=\"cloudprovider.yaml, Jenkinsfilek8s\""
+                                sh "python3 ${env.DEPLOY_SCRIPT_FILE} -deploy=true -gpat=${PASS} -dgid=${USER_NAME} -dburl=${env.BITBUCKET_REPO} -dgurl=${env.GITHUB_REPO} -dbranch=${env.TARGET_BRANCH} -def=\"cloudprovider.yaml, Jenkinsfilek8s\""
                             }
                         }
                     }
