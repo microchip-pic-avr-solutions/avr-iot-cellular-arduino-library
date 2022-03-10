@@ -26,6 +26,12 @@ The AVR-IoT Cellular Mini is a development board from Microchip to develop cellu
 
 </p>
 
+## Examples
+
+A set of examples can be in [src/examples](./src/examples/), and in the respective user guides on the [documentation website](https://iot.microchip.com/docs/arduino/userguide/architecture). 
+
+![](./readme_images/examples.png)
+
 ## Build Instructions
 
 **A pre-built library can be downloaded from the releases tab. This section explains how to build the library locally for Linux. The process for Windows is similar. Most users do not need to build from source.**
