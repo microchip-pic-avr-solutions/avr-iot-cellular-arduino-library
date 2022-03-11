@@ -1,8 +1,11 @@
 #include "log.h"
 #include "low_power.h"
+#include "lte.h"
 #include "sequans_controller.h"
 
 #include <Arduino.h>
+#include <avr/io.h>
+#include <avr/sleep.h>
 
 #define AT_COMMAND_DISABLE_EDRX       "AT+SQNEDRX=0"
 #define AT_COMMAND_SET_PSM            "AT+CPSMS=1,,,\"%s\",\"%s\""
@@ -15,25 +18,37 @@
 // Command without arguments: 18 bytes
 // Both arguments within the quotes are strings of 8 numbers: 8 * 2 = 16 bytes
 // Total: 18 + 16 = 34 bytes
-#define AT_COMMAND_SET_PSM_SIZE 34
+#define AT_COMMAND_SET_PSM_LENGTH 34
 
 // Max is 0b11111 = 31 for the value of the timers for power saving mode (not
 // the multipliers).
 #define PSM_VALUE_MAX 31
 
 // How long we wait between checking the ring line for activity
-#define PSM_WAITING_TIME_DELTA_MS 500
+#define PSM_WAITING_TIME_DELTA_MS 50
 
 // How long time we require the ring line to be stable before declaring that we
 // have entered power save mode
-#define PSM_RING_LINE_STABLE_THRESHOLD_MS 2000
+#define PSM_RING_LINE_STABLE_THRESHOLD_MS 2500
 #define PSM_MULTIPLIER_BM                 0xE0
 #define PSM_VALUE_BM                      0x1F
 
+// We set the active timer parameter to two seconds with this. The reason
+// behind this is that we don't care about the active period since after
+// sleep has finished, the RTS line will be active and prevent the modem
+// from going to sleep and thus the awake time is as long as the RTS
+// line is kept active.
+//
+// This parameter thus only specifies how quickly the modem can go to sleep,
+// which we want to be as low as possible.
+#define PSM_DEFAULT_AWAKE_PARAMETER "00000001"
+#define PSM_DEFAULT_AWAKE_TIME      2
+
+#define PSM_REMAINING_SLEEP_TIME_THRESHOLD 5
+
 // This includes null termination
-#define TIMER_LENGTH       11
-#define TIMER_ACTIVE_INDEX 7
-#define TIMER_SLEEP_INDEX  8
+#define TIMER_LENGTH      11
+#define TIMER_SLEEP_INDEX 8
 
 #define RING_PORT   VPORTC
 #define RING_PIN_bm PIN4_bm
@@ -41,17 +56,31 @@
 // Singleton. Defined for use of the rest of the library.
 LowPowerClass LowPower = LowPowerClass::instance();
 
-static void (*sleep_finished_callback)(void) = NULL;
+static volatile bool ring_line_activity = false;
+static volatile bool modem_is_in_power_save = false;
+static volatile bool pit_triggered = false;
 
-static bool ring_line_activity = false;
-static bool is_in_power_save_mode = false;
+static bool retrieved_sleep_time = false;
+static uint32_t sleep_time = 0;
 
-/**
- * @brief Construct a string of bits from an uint8.
- *
- * @param string (out variable) Has to be preallocated to 9 bits (include
- * termination).
- */
+ISR(RTC_PIT_vect) {
+    RTC.PITINTFLAGS = RTC_PI_bm;
+    pit_triggered = true;
+}
+
+static void ring_line_callback(void) {
+
+    ring_line_activity = true;
+
+    if (modem_is_in_power_save) {
+        modem_is_in_power_save = false;
+
+        // We got abrupted, bring the power save mode off such that UART
+        // communication is possible again
+        SequansController.setPowerSaveMode(0, NULL);
+    }
+}
+
 static void uint8ToStringOfBits(const uint8_t value, char *string) {
     // Terminate
     string[8] = 0;
@@ -75,93 +104,41 @@ static uint8_t stringOfBitsToUint8(const char *string) {
     return value;
 }
 
-static void ring_line_callback(void) {
+static uint16_t decodeSleepMultiplier(const SleepMultiplier sleep_multiplier) {
 
-    ring_line_activity = true;
-
-    if (is_in_power_save_mode) {
-        is_in_power_save_mode = false;
-
-        // We got abrupted, bring the power save mode off such that UART
-        // communication is possible again
-        SequansController.setPowerSaveMode(0, NULL);
-
-        if (sleep_finished_callback != NULL) {
-            sleep_finished_callback();
-        }
+    switch (sleep_multiplier) {
+    case SleepMultiplier::TEN_HOURS:
+        return 36000;
+    case SleepMultiplier::ONE_HOUR:
+        return 3600;
+    case SleepMultiplier::TEN_MINUTES:
+        return 600;
+    case SleepMultiplier::ONE_MINUTE:
+        return 60;
+    case SleepMultiplier::THIRTY_SECONDS:
+        return 30;
+    case SleepMultiplier::TWO_SECONDS:
+        return 2;
     }
 }
 
 /**
- * @brief Will configure power save mode for the Sequans mode.
+ * @brief Will attempt to put the LTE modem in power save mode.
  *
- * @note This method has to be called before Lte.begin().
+ * @note Will wait for @p waiting_time to see if the modem gets to low power
+ * mode.
  *
- * @return true If configuration was set successfully.
+ * @note The power save mode can be abrupted if a new message arrives from
+ * the network (for example a MQTT message). Such messages have to be
+ * handled before the LTE modem can be put back in into power save mode.
+ *
+ * @param waiting_time_ms How long to wait for the modem to get into low
+ * power mode before giving up (in milliseconds).
+ *
+ * @return true if the LTE modem was put in power save mode.
  */
-bool LowPowerClass::begin(const PowerSaveConfiguration power_save_configuration,
-                          void (*on_sleep_finished)(void)) {
-
-    // We need sequans controller to be initialized first before configuration
-    if (!SequansController.isInitialized()) {
-        SequansController.begin();
-
-        // Allow 500ms for boot
-        delay(500);
-    }
-
-    SequansController.clearReceiveBuffer();
-
-    // First we disable EDRX
-    if (!SequansController.retryCommand(AT_COMMAND_DISABLE_EDRX)) {
-        return false;
-    }
-
-    // Then we set RING behaviour
-    if (!SequansController.retryCommand(AT_COMMAND_SET_RING_BEHAVIOUR)) {
-        return false;
-    }
-
-    // Then we set the power saving mode configuration
-    char sleep_parameter[9] = "";
-    char awake_parameter[9] = "";
-
-    // We encode both the multipier and value in one value after the setup:
-    //
-    // | Mul | Value |
-    // | ... | ..... |
-    //
-    // Where every dot is one bit
-    // Max value is 0b11111 = 31, so we have to clamp to that
-    //
-    // Need to do casts here as we have strongly typed enum classes to enforce
-    // the values we have set for the multipliers
-    uint8_t value;
-
-    value =
-        (static_cast<uint8_t>(power_save_configuration.sleep_multiplier) << 5) |
-        min(power_save_configuration.sleep_value, (uint8_t)PSM_VALUE_MAX);
-
-    uint8ToStringOfBits(value, sleep_parameter);
-
-    value =
-        (static_cast<uint8_t>(power_save_configuration.awake_multiplier) << 5) |
-        min(power_save_configuration.awake_value, PSM_VALUE_MAX);
-
-    uint8ToStringOfBits(value, awake_parameter);
-
-    // Now we can embed the values for the awake and sleep periode in the
-    // power saving mode configuration command
-    char command[AT_COMMAND_SET_PSM_SIZE + 1]; // + 1 for null termination
-    sprintf(command, AT_COMMAND_SET_PSM, sleep_parameter, awake_parameter);
-
-    sleep_finished_callback = on_sleep_finished;
-
-    return SequansController.retryCommand(command);
-}
-
-bool LowPowerClass::attemptToEnterPowerSaveMode(
-    const uint32_t waiting_time_ms) {
+static bool
+attemptToEnterPowerSaveModeForModem(const unsigned long waiting_time_ms) {
 
     // First we make sure the UART buffers are empty on the modem's side so the
     // modem can go to sleep
@@ -190,79 +167,290 @@ bool LowPowerClass::attemptToEnterPowerSaveMode(
         }
 
         if (millis() - last_time_active > PSM_RING_LINE_STABLE_THRESHOLD_MS) {
-
-            is_in_power_save_mode = true;
+            modem_is_in_power_save = true;
             return true;
         }
-
     } while (millis() - start_time < waiting_time_ms);
 
     return false;
 }
 
-PowerSaveConfiguration LowPowerClass::getCurrentPowerSaveConfiguration(void) {
-    PowerSaveConfiguration power_save_configuration;
+/**
+ * @brief Finds the sleep time we got from the operator, which may deviate from
+ * what we requested.
+ *
+ * @return The sleep time in seconds. 0 if error happened and the sleep time
+ * couldn't be processed.
+ */
+static uint32_t retrieveOperatorSleepTime(void) {
 
+    // First we call CEREG in order to get the byte where the sleep time is
+    // encoded
     SequansController.clearReceiveBuffer();
     SequansController.writeCommand(AT_COMMAND_CONNECTION_STATUS);
 
     char response[RESPONSE_CONNECTION_STATUS_SIZE];
-
-    ResponseResult response_result = SequansController.readResponse(
+    const ResponseResult response_result = SequansController.readResponse(
         response, RESPONSE_CONNECTION_STATUS_SIZE);
 
     if (response_result != ResponseResult::OK) {
         char response_result_string[18] = "";
         SequansController.responseResultToString(response_result,
                                                  response_result_string);
-        return power_save_configuration;
+        Log.warnf("Did not get response result OK when retriving operator "
+                  "sleep time: %d, %s\r\n",
+                  response_result,
+                  response_result_string);
+        return 0;
     }
 
-    // Find the stat token in the response
-    char active_timer_token[TIMER_LENGTH];
-    bool found_token = SequansController.extractValueFromCommandResponse(
-        response, TIMER_ACTIVE_INDEX, active_timer_token, TIMER_LENGTH);
-
-    if (!found_token) {
-        Log.warnf(
-            "Did not find active/awake timer token, got the following: %s\r\n",
-            active_timer_token);
-        return power_save_configuration;
-    }
-
+    // Find the sleep timer token in the response
     char sleep_timer_token[TIMER_LENGTH];
-    found_token = SequansController.extractValueFromCommandResponse(
+    const bool found_token = SequansController.extractValueFromCommandResponse(
         response, TIMER_SLEEP_INDEX, sleep_timer_token, TIMER_LENGTH);
 
     if (!found_token) {
         Log.warnf("Did not find sleep timer token, got the following: %s\r\n",
                   sleep_timer_token);
-        return power_save_configuration;
+        return 0;
     }
 
     // Shift the pointer one address forward to bypass the quotation mark in
-    // the token
-    uint8_t active_timer = stringOfBitsToUint8(&(active_timer_token[1]));
-    uint8_t sleep_timer = stringOfBitsToUint8(&(sleep_timer_token[1]));
+    // the token, since it is returned like this "xxxxxxxx"
+    const uint8_t sleep_timer = stringOfBitsToUint8(&(sleep_timer_token[1]));
 
-    // Now we set up the power configuration structure
+    // The three first MSB are the multiplier
+    const SleepMultiplier sleep_multiplier =
+        static_cast<SleepMultiplier>((sleep_timer & PSM_MULTIPLIER_BM) >> 5);
 
-    power_save_configuration.sleep_multiplier =
-        static_cast<SleepUnitMultiplier>((sleep_timer & PSM_MULTIPLIER_BM) >>
-                                         5);
-    power_save_configuration.awake_multiplier =
-        static_cast<AwakeUnitMultiplier>((active_timer & PSM_MULTIPLIER_BM) >>
-                                         5);
+    // The 5 LSB are the value
+    const uint8_t sleep_value = sleep_timer & PSM_VALUE_BM;
 
-    power_save_configuration.sleep_value = sleep_timer & PSM_VALUE_BM;
-    power_save_configuration.awake_value = active_timer & PSM_VALUE_BM;
-
-    return power_save_configuration;
+    return decodeSleepMultiplier(sleep_multiplier) * sleep_value;
 }
 
-void LowPowerClass::endPowerSaveMode(void) {
-    SequansController.setPowerSaveMode(0, NULL);
-    is_in_power_save_mode = false;
+static void enablePIT(void) {
+
+    // TODO: Fix this, should use external crystal
+    // Setup the clock for RTC. CTRL_SETUP is stored here just for convenience
+    // so that we discard the modifications in the register later
+    //
+    // CLKCTRL.XOSC32KCTRLA |= CLKCTRL_RUNSTBY_bm | CLKCTRL_LPMODE_bm |
+    // CLKCTRL_ENABLE_bm;
+
+    // Wait for clock to stabilize
+    // while (CLKCTRL.MCLKSTATUS & CLKCTRL_XOSC32KS_bm &&
+    //       CLKCTRL.XOSC32KCTRLA & CLKCTRL_SEL_bm) {}
+
+    // Now we configure RTC which keeps track of the time during sleep. We do
+    // this here as we yield the RTC afterwards, so a setup every time is just
+    // to safe guard ourselves if other modules use the RTC
+    //
+    // Wait for all registers to be synchronized
+    while (RTC.PITSTATUS) {}
+
+    // TODO: use XOSC32K instead
+    RTC.CLKSEL |= RTC_CLKSEL_INT32K_gc;
+    RTC.PITINTCTRL |= RTC_PI_bm;
+    RTC.PITCTRLA |= RTC_PERIOD_CYC32768_gc | RTC_PITEN_bm;
+
+    // Now we setup the sleep mode so it is ready.
+    SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
+
+    // The first PIT intterupt will not necessarily be at the period specified,
+    // so we just wait until it has triggered and track the reminaing time from
+    // there
+    while (!pit_triggered) {}
+    pit_triggered = false;
 }
 
-bool LowPowerClass::isInPowerSaveMode(void) { return is_in_power_save_mode; }
+static void disablePIT(void) {
+
+    SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
+
+    // Disable external clock and turn off RTC PIT
+    CLKCTRL.XOSC32KCTRLA &= (~CLKCTRL_ENABLE_bm);
+    RTC.PITCTRLA &= ~RTC_PITEN_bm;
+}
+
+/**
+ * Modem sleeping and CPU deep sleep.
+ */
+static SleepStatusCode regularSleep(void) {
+
+    const unsigned long start_time_ms = millis();
+
+    if (!retrieved_sleep_time) {
+        // Retrieve the proper sleep time set by the operator, which may
+        // deviate from what we requested
+        sleep_time = retrieveOperatorSleepTime();
+
+        if (sleep_time == 0) {
+            return SleepStatusCode::INVALID_SLEEP_TIME;
+        } else {
+            retrieved_sleep_time = true;
+        }
+    }
+
+    // The timeout here is arbitrary as we attempt to put the modem in sleep in
+    // a loop, so we just choose 30 seconds = 30000 ms
+    while (!attemptToEnterPowerSaveModeForModem(30000)) {}
+
+    // If we surpassed the sleep time during setting the LTE to sleep, we
+    // don't have any more time to sleep the CPU, so just return.
+    if (millis() - start_time_ms >= sleep_time * 1000) {
+        return SleepStatusCode::TIMEOUT;
+    }
+
+    enablePIT();
+
+    uint32_t remaining_time_seconds =
+        sleep_time - (uint32_t)(((millis() - start_time_ms) / 1000.0f));
+
+    SleepStatusCode status_code = SleepStatusCode::OK;
+
+    if (remaining_time_seconds < 0) {
+        status_code = SleepStatusCode::TIMEOUT;
+    }
+
+    // As the PIT timer has a minimum frequency of 1 Hz, we loop over the
+    // remaining time and sleep for a second each time before the PIT triggers
+    // and interrupt.
+    while (remaining_time_seconds > 0) {
+
+        sleep_cpu();
+
+        // Got woken up by the PIT interrupt
+        if (pit_triggered) {
+            remaining_time_seconds -= 1;
+            pit_triggered = false;
+        }
+
+        // Modem caused the CPU to be awoken
+        if (!modem_is_in_power_save) {
+
+            if (remaining_time_seconds < PSM_REMAINING_SLEEP_TIME_THRESHOLD) {
+                status_code = SleepStatusCode::OK;
+                break;
+            } else {
+                status_code = SleepStatusCode::AWOKEN_BY_MODEM_PREMATURELY;
+                break;
+            }
+        }
+    }
+
+    if (modem_is_in_power_save) {
+        modem_is_in_power_save = false;
+        SequansController.setPowerSaveMode(0, NULL);
+    }
+
+    disablePIT();
+
+    return status_code;
+}
+
+/**
+ * Modem turned off and CPU deep sleep.
+ */
+static SleepStatusCode deepSleep(void) {
+
+    const unsigned long start_time_ms = millis();
+
+    Lte.end();
+
+    enablePIT();
+
+    uint32_t remaining_time_seconds =
+        sleep_time - (uint32_t)(((millis() - start_time_ms) / 1000.0f));
+
+    while (remaining_time_seconds > 0) {
+
+        Log.debugf("Remaining time: %d \r\n", remaining_time_seconds);
+        delay(10);
+
+        sleep_cpu();
+
+        if (pit_triggered) {
+            remaining_time_seconds -= 1;
+            pit_triggered = false;
+        }
+    }
+
+    disablePIT();
+
+    Lte.begin();
+
+    return SleepStatusCode::OK;
+}
+
+bool LowPowerClass::begin(const SleepMultiplier sleep_multiplier,
+                          const uint8_t sleep_value) {
+
+    // Reset in case there is a reconfiguration after sleep has been called
+    // previously
+    retrieved_sleep_time = false;
+    sleep_time = 0;
+
+    // We need sequans controller to be initialized first before configuration
+    if (!SequansController.isInitialized()) {
+        SequansController.begin();
+
+        // Allow 500ms for boot
+        delay(500);
+    }
+
+    SequansController.clearReceiveBuffer();
+
+    // First we disable EDRX
+    if (!SequansController.retryCommand(AT_COMMAND_DISABLE_EDRX)) {
+        return false;
+    }
+
+    // Then we set RING behaviour
+    if (!SequansController.retryCommand(AT_COMMAND_SET_RING_BEHAVIOUR)) {
+        return false;
+    }
+
+    // Then we set the power saving mode configuration
+    char sleep_parameter_str[9] = "";
+
+    // We encode both the multipier and value in one value after the setup:
+    //
+    // | Mul | Value |
+    // | ... | ..... |
+    //
+    // Where every dot is one bit
+    // Max value is 0b11111 = 31, so we have to clamp to that
+    //
+    // Need to do casts here as we have strongly typed enum classes to enforce
+    // the values we have set for the multipliers
+
+    // First set the mulitplier
+    const uint8_t sleep_parameter =
+        (static_cast<uint8_t>(sleep_multiplier) << 5) |
+        min(sleep_value, PSM_VALUE_MAX);
+
+    uint8ToStringOfBits(sleep_parameter, sleep_parameter_str);
+
+    // Now we can embed the values for the awake and sleep periode in the
+    // power saving mode configuration command
+    char command[AT_COMMAND_SET_PSM_LENGTH + 1]; // + 1 for null termination
+    sprintf(command,
+            AT_COMMAND_SET_PSM,
+            sleep_parameter_str,
+            PSM_DEFAULT_AWAKE_PARAMETER);
+
+    sleep_time = decodeSleepMultiplier(sleep_multiplier) *
+                 min(sleep_value, PSM_VALUE_MAX);
+
+    return SequansController.retryCommand(command);
+}
+
+SleepStatusCode LowPowerClass::sleep(const SleepMode sleep_mode) {
+    switch (sleep_mode) {
+    case SleepMode::REGULAR:
+        return regularSleep();
+    case SleepMode::DEEP:
+        return deepSleep();
+    }
+}

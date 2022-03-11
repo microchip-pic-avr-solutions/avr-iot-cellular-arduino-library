@@ -7,10 +7,6 @@
 
 #include <stdint.h>
 
-// For use of the rest of library, for example low power
-#define AT_COMMAND_CONNECTION_STATUS    "AT+CEREG?"
-#define RESPONSE_CONNECTION_STATUS_SIZE 70
-
 class LteClass {
 
   private:

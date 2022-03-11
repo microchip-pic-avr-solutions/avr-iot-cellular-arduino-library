@@ -340,6 +340,8 @@ void SequansControllerClass::end(void) {
     // Set RTS high to halt the modem
     pinConfigure(RTS_PIN, PIN_DIR_OUTPUT);
     digitalWrite(RTS_PIN, HIGH);
+
+    initialized = false;
 }
 
 void SequansControllerClass::setRetryConfiguration(const uint8_t num_retries,
