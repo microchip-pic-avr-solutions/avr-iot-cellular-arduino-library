@@ -119,6 +119,8 @@ static uint16_t decodeSleepMultiplier(const SleepMultiplier sleep_multiplier) {
         return 30;
     case SleepMultiplier::TWO_SECONDS:
         return 2;
+    default:
+        return 0;
     }
 }
 
@@ -453,4 +455,6 @@ SleepStatusCode LowPowerClass::sleep(const SleepMode sleep_mode) {
     case SleepMode::DEEP:
         return deepSleep();
     }
+
+    return SleepStatusCode::OK;
 }
