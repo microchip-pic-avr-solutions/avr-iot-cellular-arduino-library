@@ -8,18 +8,17 @@
 #ifdef __AVR_AVR128DB48__ // MINI
 
 #define SerialDebug Serial3
-
+#define TIMING_PIN  PIN_PE2
 #else
 #ifdef __AVR_AVR128DB64__ // Non-Mini
 
 #define SerialDebug Serial5
+#define TIMING_PIN  PIN_PE7
 
 #else
 #error "INCOMPATIBLE_DEVICE_SELECTED"
 #endif
 #endif
-
-#define TIMING_PIN PIN_PE7
 
 void setup() {
 
