@@ -81,7 +81,6 @@ pipeline {
                     steps {
                         sh "git clone ${env.DEPLOY_TOOL_URL}"
                         sh "pip3 install PyGithub atlassian-python-api jsonschema packaging lxml"
-                        sh "pwd"
                     }   
                 }
 
