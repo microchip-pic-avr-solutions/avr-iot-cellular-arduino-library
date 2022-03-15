@@ -14,5 +14,10 @@
     "files.associations": {
         "*.cfgmap": "xml",
         "led_ctrl.h": "c"
+    },
+    "workbench.colorCustomizations": {
+        "activityBar.background": "#4D1C30",
+        "titleBar.activeBackground": "#6C2843",
+        "titleBar.activeForeground": "#FEFCFD"
     }
 }
