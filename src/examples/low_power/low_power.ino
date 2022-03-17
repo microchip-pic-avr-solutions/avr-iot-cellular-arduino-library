@@ -49,7 +49,7 @@ void loop() {
 
     digitalWrite(TIMING_PIN, digitalRead(TIMING_PIN) ? 0 : 1);
 
-    WakeUpReeason wakeup_reason = LowPower.sleep();
+    WakeUpReason wakeup_reason = LowPower.sleep();
     Log.infof("Got out of sleep with wake up reason %d, doing work...\r\n",
               wakeup_reason);
 }

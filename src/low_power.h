@@ -70,7 +70,8 @@ class LowPowerClass {
      *
      * @param sleep_modem:
      * - REGULAR: Modem in sleep, CPU in deep sleep
-     * - DEEP: Modem powered off, CPU in deep sleep
+     * - DEEP: Modem powered off, CPU in deep sleep. Note that the modem will be
+     *   started again after the sleep in this mode
      *
      * @return True if configuration was set successfully.
      */
