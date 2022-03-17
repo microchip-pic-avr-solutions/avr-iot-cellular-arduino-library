@@ -27,8 +27,8 @@ void setup() {
     Log.begin(115200);
     Log.setLogLevel(LogLevel::DEBUG);
 
-    // Start LTE modem, configure the power save configuration and wait until we
-    // are connected to the operator
+    // Configure the power save configuration, start the LTE modem and wait
+    // until we are connected to the operator
     //
     // Here we say that we want to sleep for 30 seconds * 2 = 60 seconds each
     // time we invoke sleep
