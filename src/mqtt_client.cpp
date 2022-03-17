@@ -1,7 +1,7 @@
+#include "mqtt_client.h"
 #include "ecc608.h"
 #include "led_ctrl.h"
 #include "log.h"
-#include "mqtt_client.h"
 #include "sequans_controller.h"
 
 #include <cryptoauthlib.h>

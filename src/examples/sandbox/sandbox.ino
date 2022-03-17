@@ -3,6 +3,8 @@
  * experience
  */
 
+#define SANDBOX_VERSION "1.0.0"
+
 #include <Arduino.h>
 
 #include <ArduinoJson.h>
@@ -29,6 +31,7 @@ char mqtt_pub_topic[128];
 
 volatile bool lteConnected = false;
 volatile bool mqttConnected = false;
+volatile bool mqttDataReceived = false;
 
 static unsigned long lastHeartbeatTime = HEARTBEAT_INTERVAL_MS;
 static unsigned long lastDataFrame = 0;
@@ -42,18 +45,52 @@ const char heartbeatMessage[] = "{\"type\": \"heartbeat\"}";
 
 char transmitBuffer[256];
 
+static char topic_buffer[MQTT_TOPIC_MAX_LENGTH + 1] = "";
+static uint16_t message_length = 0;
+
+ISR(TCA0_OVF_vect) {
+    secondsCounted++;
+
+    LedCtrl.toggle(Led::DATA);
+
+    if (secondsCounted == targetSecondCount) {
+        streamingEnabled = false;
+        secondsCounted = 0;
+        TCA0.SINGLE.CTRLA = 0;
+        LedCtrl.off(Led::DATA);
+        LedCtrl.off(Led::USER);
+    }
+
+    TCA0.SINGLE.INTFLAGS |= (1 << 0);
+}
+
+ISR(PORTD_PORT_vect) {
+    if (PORTD.INTFLAGS && (1 << 2)) {
+        lastHeartbeatTime = HEARTBEAT_INTERVAL_MS;
+        LedCtrl.toggle(Led::ERROR);
+        PORTD.INTFLAGS |= (1 << 2);
+    }
+}
+
 void mqttDCHandler() { mqttConnected = false; }
 
 void lteDCHandler() { lteConnected = false; }
 
+void mqttDataHandler(char *topic, uint16_t msg_length) {
+    mqttDataReceived = true;
+    memcpy(topic_buffer, topic, MQTT_TOPIC_MAX_LENGTH);
+    message_length = msg_length;
+}
+
 void connectMqtt() {
     MqttClient.onConnectionStatusChange(NULL, mqttDCHandler);
+    MqttClient.onReceive(mqttDataHandler);
 
     // Attempt to connect to broker
     mqttConnected = MqttClient.beginAWS();
 
     if (mqttConnected) {
-        Log.info("Connecting to broker...");
+        Log.info("Connecting to AWS Sandbox...");
         while (!MqttClient.isConnected()) {
             Log.info("Connecting...");
             delay(500);
@@ -64,7 +101,7 @@ void connectMqtt() {
             }
         }
 
-        Log.info("Connected to broker!\r\n");
+        Log.info("Connected to AWS Sandbox!\r\n");
 
         // Subscribe to the topic
         MqttClient.subscribe(mqtt_sub_topic);
@@ -81,11 +118,11 @@ void connectLTE() {
     Lte.begin();
 
     while (!Lte.isConnected()) {
-        Log.info("Not connected to operator yet...\r\n");
+        Log.info("Not connected to Truphone yet...\r\n");
         delay(5000);
     }
 
-    Log.info("Connected to operator!\r\n");
+    Log.info("Connected to Truphone!\r\n");
     lteConnected = true;
 }
 
@@ -109,22 +146,6 @@ bool initMQTTTopics() {
     return true;
 }
 
-ISR(TCA0_OVF_vect) {
-    secondsCounted++;
-
-    LedCtrl.toggle(Led::DATA);
-
-    if (secondsCounted == targetSecondCount) {
-        streamingEnabled = false;
-        secondsCounted = 0;
-        TCA0.SINGLE.CTRLA = 0;
-        LedCtrl.off(Led::DATA);
-        LedCtrl.off(Led::USER);
-    }
-
-    TCA0.SINGLE.INTFLAGS |= (1 << 0);
-}
-
 void startStreamTimer() {
     LedCtrl.on(Led::USER);
 
@@ -143,11 +164,16 @@ void startStreamTimer() {
 
 void setup() {
     Log.begin(115200);
-    Log.setLogLevel(LogLevel::INFO);
+    Log.setLogLevel(LogLevel::DEBUG);
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
-    Log.info("Starting sandbox / landing page procedure\r\n");
+    // Set PD2 as input (button)
+    pinMode(PIN_PD2, INPUT);
+    PORTD.PIN2CTRL |= (0x3 << 0);
+
+    Log.infof("Starting sandbox / landing page procedure. Version = %s\r\n",
+              SANDBOX_VERSION);
 
     if (mcp9808.begin() == -1) {
         Log.error("Could not initialize the temperature sensor");
@@ -184,26 +210,36 @@ loopFinished:
             // Send data
             // -- Warning: Doing sprintf on a pointer without checking for
             // overflow is *bad* practice, but we do it here due to the
-            // simplicity of the loop.
+            // simplicity of the data.
             sprintf(transmitBuffer,
                     "{\"type\": \"data\",\
-	\"x\": %d, \
-	\"y\": %d \
+                    \"data\": { \
+	\"Light\": %d, \
+	\"Temperature\": %d \
+    } \
 	}",
-                    secondsCounted,
+                    5,
                     int(mcp9808.read_temp_c()));
             bool publishedSuccessfully =
                 MqttClient.publish(mqtt_pub_topic, transmitBuffer);
             if (publishedSuccessfully != true) {
                 Log.errorf("Could not publish message: %s\r\n", transmitBuffer);
             }
-            Log.infof("Sent data: %s\r\n", transmitBuffer);
         }
 
     receiveMessage:
-        // Receieve message
-        String message = MqttClient.readMessage(mqtt_sub_topic);
-        if (message != "") {
+        if (mqttDataReceived) {
+            char message[message_length + 16] = "";
+
+            if (!MqttClient.readMessage(
+                    topic_buffer, (uint8_t *)message, sizeof(message))) {
+                Log.errorf("could not read mqtt message on topic %s\r\n",
+                           topic_buffer);
+            }
+
+            mqttDataReceived = false;
+
+            Log.infof("new message: %s\r\n", message);
             StaticJsonDocument<400> doc;
             DeserializationError error = deserializeJson(doc, message);
             if (error) {
@@ -215,9 +251,9 @@ loopFinished:
             // Handle command frame
             const char *cmd = doc["state"]["cmd"];
             if (cmd == 0) {
-                Log.errorf(
-                    "Unable to get command, pointer is zero, message is %s\r\n",
-                    message.c_str());
+                Log.errorf("Unable to get command, pointer is zero, "
+                           "message is %s\r\n",
+                           message);
                 goto loopFinished;
             }
 
@@ -228,7 +264,7 @@ loopFinished:
                 if (target_led == 0) {
                     Log.errorf("Unable to get target led, pointer is zero, "
                                "message is %s\r\n",
-                               message.c_str());
+                               message);
                     goto loopFinished;
                 }
 
@@ -249,11 +285,11 @@ loopFinished:
                 const unsigned int duration =
                     doc["state"]["opts"]["duration"].as<unsigned int>();
                 const unsigned int frequency =
-                    doc["state"]["opts"]["frequency"].as<unsigned int>();
+                    doc["state"]["opts"]["freq"].as<unsigned int>();
                 if (duration == 0 || frequency == 0) {
                     Log.errorf("Unable to get duration or frequency, pointer "
                                "is zero, message is %s\r\n",
-                               message.c_str());
+                               message);
                     goto loopFinished;
                 }
 
@@ -269,8 +305,8 @@ loopFinished:
     } else {
         // MQTT is not connected. Need to re-establish connection
         if (!lteConnected) {
-            // We're NOT connected to the LTE Network. Establish LTE connection
-            // first
+            // We're NOT connected to the LTE Network. Establish LTE
+            // connection first
             connectLTE();
         }
 
