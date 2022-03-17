@@ -60,6 +60,7 @@ static volatile bool ring_line_activity = false;
 static volatile bool modem_is_in_power_save = false;
 static volatile bool pit_triggered = false;
 
+static SleepMode sleep_mode;
 static bool retrieved_sleep_time = false;
 static uint32_t sleep_time = 0;
 
@@ -278,7 +279,7 @@ static void disablePIT(void) {
 /**
  * Modem sleeping and CPU deep sleep.
  */
-static SleepStatusCode regularSleep(void) {
+static WakeUpReason regularSleep(void) {
 
     const unsigned long start_time_ms = millis();
 
@@ -288,7 +289,7 @@ static SleepStatusCode regularSleep(void) {
         sleep_time = retrieveOperatorSleepTime();
 
         if (sleep_time == 0) {
-            return SleepStatusCode::INVALID_SLEEP_TIME;
+            return WakeUpReason::INVALID_SLEEP_TIME;
         } else {
             retrieved_sleep_time = true;
         }
@@ -301,7 +302,7 @@ static SleepStatusCode regularSleep(void) {
     // If we surpassed the sleep time during setting the LTE to sleep, we
     // don't have any more time to sleep the CPU, so just return.
     if (millis() - start_time_ms >= sleep_time * 1000) {
-        return SleepStatusCode::TIMEOUT;
+        return WakeUpReason::MODEM_TIMEOUT;
     }
 
     enablePIT();
@@ -309,10 +310,10 @@ static SleepStatusCode regularSleep(void) {
     uint32_t remaining_time_seconds =
         sleep_time - (uint32_t)(((millis() - start_time_ms) / 1000.0f));
 
-    SleepStatusCode status_code = SleepStatusCode::OK;
+    WakeUpReason wakeup_reason = WakeUpReason::OK;
 
     if (remaining_time_seconds < 0) {
-        status_code = SleepStatusCode::TIMEOUT;
+        wakeup_reason = WakeUpReason::MODEM_TIMEOUT;
     }
 
     // As the PIT timer has a minimum frequency of 1 Hz, we loop over the
@@ -332,10 +333,10 @@ static SleepStatusCode regularSleep(void) {
         if (!modem_is_in_power_save) {
 
             if (remaining_time_seconds < PSM_REMAINING_SLEEP_TIME_THRESHOLD) {
-                status_code = SleepStatusCode::OK;
+                wakeup_reason = WakeUpReason::OK;
                 break;
             } else {
-                status_code = SleepStatusCode::AWOKEN_BY_MODEM_PREMATURELY;
+                wakeup_reason = WakeUpReason::AWOKEN_BY_MODEM_PREMATURELY;
                 break;
             }
         }
@@ -348,13 +349,13 @@ static SleepStatusCode regularSleep(void) {
 
     disablePIT();
 
-    return status_code;
+    return wakeup_reason;
 }
 
 /**
  * Modem turned off and CPU deep sleep.
  */
-static SleepStatusCode deepSleep(void) {
+static WakeUpReason deepSleep(void) {
 
     const unsigned long start_time_ms = millis();
 
@@ -382,11 +383,14 @@ static SleepStatusCode deepSleep(void) {
 
     Lte.begin();
 
-    return SleepStatusCode::OK;
+    return WakeUpReason::OK;
 }
 
 bool LowPowerClass::begin(const SleepMultiplier sleep_multiplier,
-                          const uint8_t sleep_value) {
+                          const uint8_t sleep_value,
+                          const SleepMode mode) {
+
+    sleep_mode = mode;
 
     // Reset in case there is a reconfiguration after sleep has been called
     // previously
@@ -448,7 +452,7 @@ bool LowPowerClass::begin(const SleepMultiplier sleep_multiplier,
     return SequansController.retryCommand(command);
 }
 
-SleepStatusCode LowPowerClass::sleep(const SleepMode sleep_mode) {
+WakeUpReason LowPowerClass::sleep(void) {
     switch (sleep_mode) {
     case SleepMode::REGULAR:
         return regularSleep();
@@ -456,5 +460,5 @@ SleepStatusCode LowPowerClass::sleep(const SleepMode sleep_mode) {
         return deepSleep();
     }
 
-    return SleepStatusCode::OK;
+    return WakeUpReason::OK;
 }
