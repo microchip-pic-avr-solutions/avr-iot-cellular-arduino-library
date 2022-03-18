@@ -33,7 +33,7 @@ volatile bool lteConnected = false;
 volatile bool mqttConnected = false;
 volatile bool mqttDataReceived = false;
 
-static unsigned long lastHeartbeatTime = HEARTBEAT_INTERVAL_MS;
+volatile static unsigned long lastHeartbeatTime = 0;
 static unsigned long lastDataFrame = 0;
 
 static bool streamingEnabled = false;
@@ -66,48 +66,44 @@ ISR(TCA0_OVF_vect) {
 
 ISR(PORTD_PORT_vect) {
     if (PORTD.INTFLAGS && (1 << 2)) {
-        lastHeartbeatTime = HEARTBEAT_INTERVAL_MS;
-        LedCtrl.toggle(Led::ERROR);
+        lastHeartbeatTime = 0;
         PORTD.INTFLAGS |= (1 << 2);
     }
 }
 
 void mqttDCHandler() { mqttConnected = false; }
+void mqttConHandler() { mqttConnected = true; }
 
 void lteDCHandler() { lteConnected = false; }
 
 void mqttDataHandler(char *topic, uint16_t msg_length) {
+    digitalWrite(PIN_A2, HIGH);
     mqttDataReceived = true;
     memcpy(topic_buffer, topic, MQTT_TOPIC_MAX_LENGTH);
     message_length = msg_length;
 }
 
 void connectMqtt() {
-    MqttClient.onConnectionStatusChange(NULL, mqttDCHandler);
+    MqttClient.onConnectionStatusChange(mqttConHandler, mqttDCHandler);
     MqttClient.onReceive(mqttDataHandler);
 
     // Attempt to connect to broker
-    mqttConnected = MqttClient.beginAWS();
+    MqttClient.beginAWS();
 
-    if (mqttConnected) {
-        Log.info("Connecting to AWS Sandbox...");
-        while (!MqttClient.isConnected()) {
-            Log.info("Connecting...");
-            delay(500);
+    Log.info("Connecting to AWS Sandbox...");
+    while (!MqttClient.isConnected()) {
+        Log.info("Connecting...");
+        delay(500);
 
-            // If we're not connected to the network, give up
-            if (!lteConnected) {
-                return;
-            }
+        // If we're not connected to the network, give up
+        if (!lteConnected) {
+            return;
         }
-
-        Log.info("Connected to AWS Sandbox!\r\n");
-
-        // Subscribe to the topic
-        MqttClient.subscribe(mqtt_sub_topic);
-    } else {
-        Log.error("Failed to connect to broker\r\n");
     }
+
+    Log.info("Connected to AWS Sandbox!\r\n");
+    // Subscribe to the topic
+    MqttClient.subscribe(mqtt_sub_topic);
 }
 
 void connectLTE() {
@@ -164,13 +160,15 @@ void startStreamTimer() {
 
 void setup() {
     Log.begin(115200);
-    Log.setLogLevel(LogLevel::DEBUG);
+    Log.setLogLevel(LogLevel::INFO);
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
     // Set PD2 as input (button)
     pinMode(PIN_PD2, INPUT);
     PORTD.PIN2CTRL |= (0x3 << 0);
+
+    pinMode(PIN_A2, OUTPUT);
 
     Log.infof("Starting sandbox / landing page procedure. Version = %s\r\n",
               SANDBOX_VERSION);
@@ -203,7 +201,7 @@ loopFinished:
         }
 
         if (streamingEnabled) {
-            if ((millis() - lastDataFrame) < (dataFrequency * 1000)) {
+            if ((millis() - lastDataFrame) < (dataFrequency)) {
                 goto receiveMessage;
             }
             lastDataFrame = millis();
@@ -238,8 +236,9 @@ loopFinished:
             }
 
             mqttDataReceived = false;
+            digitalWrite(PIN_A2, LOW);
 
-            Log.infof("new message: %s\r\n", message);
+            Log.debugf("new message: %s\r\n", message);
             StaticJsonDocument<400> doc;
             DeserializationError error = deserializeJson(doc, message);
             if (error) {
@@ -258,28 +257,41 @@ loopFinished:
             }
 
             // If it's a toggle_led command, handle it
-            if (strcmp(cmd, "toggle_led") == 0) {
+            if (strcmp(cmd, "set_led") == 0) {
                 // -- Read the led value
-                const char *target_led = doc["state"]["opts"];
+                const char *target_led = doc["state"]["opts"]["led"];
+                const unsigned int target_state =
+                    doc["state"]["opts"]["state"].as<unsigned int>();
                 if (target_led == 0) {
-                    Log.errorf("Unable to get target led, pointer is zero, "
-                               "message is %s\r\n",
-                               message);
+                    Log.errorf(
+                        "Unable to get target led or state, pointer is zero, "
+                        "message is %s\r\n",
+                        message);
                     goto loopFinished;
                 }
 
                 // -- Toggle LED based on the given value
+                Led targetLed;
+
                 if (strcmp(target_led, "USER") == 0) {
-                    LedCtrl.toggle(Led::USER);
+                    targetLed = Led::USER;
                 } else if (strcmp(target_led, "ERROR") == 0) {
-                    LedCtrl.toggle(Led::ERROR);
-                } else if (strcmp(target_led, "RAINBOW")) {
-                    LedCtrl.startupCycle();
+                    targetLed = Led::ERROR;
                 } else {
                     Log.errorf("Invalid LED value provided, "
                                "led provided = %s\r\n",
                                target_led);
                     goto loopFinished;
+                }
+
+                if (target_state) {
+                    Log.infof("Turning LED %s on\r\n", target_led);
+                    LedCtrl.on(targetLed);
+                } else {
+                    Log.infof("Turning LED %s off (\%d = %d)\r\n",
+                              target_led,
+                              targetLed);
+                    LedCtrl.off(targetLed);
                 }
             } else if (strcmp(cmd, "stream") == 0) {
                 const unsigned int duration =

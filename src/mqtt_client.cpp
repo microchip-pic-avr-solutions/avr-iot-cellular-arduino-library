@@ -401,41 +401,6 @@ bool MqttClientClass::begin(const char *client_id,
 
             delay(100);
         }
-
-        // Wait for MQTT connection URC
-        if (SequansController.waitForByte(URC_IDENTIFIER_START_CHARACTER,
-                                          POLL_TIMEOUT_MS) ==
-            SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT) {
-            Log.error(
-                "Timeout when waiting for URC_IDENTIFIER_START_CHARACTER");
-        }
-
-        // Write AT to get an "OK" response which we will search for
-        SequansController.writeCommand("AT");
-
-        char connection_response[MQTT_DEFAULT_RESPONSE_LENGTH * 4];
-
-        ResponseResult result = SequansController.readResponse(
-            connection_response, sizeof(connection_response));
-
-        if (result != ResponseResult::OK) {
-            Log.errorf("Non-OK Response when writing AT. Err = %d\n", result);
-            return false;
-        }
-
-        // +1 for null termination
-        char rc_buffer[MQTT_CONNECTION_RC_LENGTH + 1];
-
-        bool got_rc = SequansController.extractValueFromCommandResponse(
-            connection_response, 1, rc_buffer, sizeof(rc_buffer));
-
-        if (!got_rc) {
-            return false;
-        }
-
-        if (atoi(rc_buffer) != 0) {
-            return false;
-        }
     }
 
     return true;
