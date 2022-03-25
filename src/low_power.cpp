@@ -1,3 +1,4 @@
+#include "led_ctrl.h"
 #include "log.h"
 #include "low_power.h"
 #include "lte.h"
@@ -50,8 +51,22 @@
 #define TIMER_LENGTH      11
 #define TIMER_SLEEP_INDEX 8
 
-#define RING_PORT   VPORTC
+#define RING_PORT VPORTC
+
+#ifdef __AVR_AVR128DB48__ // MINI
+
+#define RING_PIN_bm PIN6_bm
+
+#else
+
+#ifdef __AVR_AVR128DB64__ // Non-Mini
+
 #define RING_PIN_bm PIN4_bm
+
+#else
+#error "INCOMPATIBLE_DEVICE_SELECTED"
+#endif
+#endif
 
 // Singleton. Defined for use of the rest of the library.
 LowPowerClass LowPower = LowPowerClass::instance();
@@ -63,6 +78,9 @@ static volatile bool pit_triggered = false;
 static SleepMode sleep_mode;
 static bool retrieved_sleep_time = false;
 static uint32_t sleep_time = 0;
+
+static uint8_t cell_led_state = 0;
+static uint8_t con_led_state = 0;
 
 ISR(RTC_PIT_vect) {
     RTC.PITINTFLAGS = RTC_PI_bm;
@@ -93,7 +111,7 @@ static void uint8ToStringOfBits(const uint8_t value, char *string) {
 
 static uint8_t stringOfBitsToUint8(const char *string) {
 
-    uint8_t value;
+    uint8_t value = 0;
 
     for (uint8_t i = 0; i < 8; i++) {
         // We assume all other values are zero, so we only shift the ones
@@ -257,9 +275,6 @@ static void enablePIT(void) {
     RTC.PITINTCTRL |= RTC_PI_bm;
     RTC.PITCTRLA |= RTC_PERIOD_CYC32768_gc | RTC_PITEN_bm;
 
-    // Now we setup the sleep mode so it is ready.
-    SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
-
     // The first PIT intterupt will not necessarily be at the period specified,
     // so we just wait until it has triggered and track the reminaing time from
     // there
@@ -269,11 +284,31 @@ static void enablePIT(void) {
 
 static void disablePIT(void) {
 
-    SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
-
     // Disable external clock and turn off RTC PIT
     CLKCTRL.XOSC32KCTRLA &= (~CLKCTRL_ENABLE_bm);
     RTC.PITCTRLA &= ~RTC_PITEN_bm;
+}
+
+static void powerDownPeripherals(void) {
+
+    cell_led_state = digitalRead(LedCtrl.getLedPin(Led::CELL));
+    con_led_state = digitalRead(LedCtrl.getLedPin(Led::CON));
+
+    LedCtrl.off(Led::CELL, true);
+    LedCtrl.off(Led::CON, true);
+    LedCtrl.off(Led::DATA, true);
+    LedCtrl.off(Led::ERROR, true);
+    LedCtrl.off(Led::USER, true);
+}
+
+static void powerUpPeripherals(void) {
+    if (cell_led_state) {
+        LedCtrl.on(Led::CELL, true);
+    }
+
+    if (con_led_state) {
+        LedCtrl.on(Led::CON, true);
+    }
 }
 
 /**
@@ -289,6 +324,7 @@ static WakeUpReason regularSleep(void) {
         sleep_time = retrieveOperatorSleepTime();
 
         if (sleep_time == 0) {
+            Log.debugf("Got invalid sleep time: %d\r\n", sleep_time);
             return WakeUpReason::INVALID_SLEEP_TIME;
         } else {
             retrieved_sleep_time = true;
@@ -297,7 +333,8 @@ static WakeUpReason regularSleep(void) {
 
     // The timeout here is arbitrary as we attempt to put the modem in sleep in
     // a loop, so we just choose 30 seconds = 30000 ms
-    while (!attemptToEnterPowerSaveModeForModem(30000)) {}
+    while (!attemptToEnterPowerSaveModeForModem(30000) &&
+           millis() - start_time_ms < sleep_time * 1000) {}
 
     // If we surpassed the sleep time during setting the LTE to sleep, we
     // don't have any more time to sleep the CPU, so just return.
@@ -360,16 +397,12 @@ static WakeUpReason deepSleep(void) {
     const unsigned long start_time_ms = millis();
 
     Lte.end();
-
     enablePIT();
 
     uint32_t remaining_time_seconds =
         sleep_time - (uint32_t)(((millis() - start_time_ms) / 1000.0f));
 
     while (remaining_time_seconds > 0) {
-
-        Log.debugf("Remaining time: %d \r\n", remaining_time_seconds);
-        delay(10);
 
         sleep_cpu();
 
@@ -380,7 +413,6 @@ static WakeUpReason deepSleep(void) {
     }
 
     disablePIT();
-
     Lte.begin();
 
     return WakeUpReason::OK;
@@ -453,12 +485,19 @@ bool LowPowerClass::begin(const SleepMultiplier sleep_multiplier,
 }
 
 WakeUpReason LowPowerClass::sleep(void) {
+
+    powerDownPeripherals();
+    SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
+
     switch (sleep_mode) {
     case SleepMode::REGULAR:
         return regularSleep();
     case SleepMode::DEEP:
         return deepSleep();
     }
+
+    SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
+    powerUpPeripherals();
 
     return WakeUpReason::OK;
 }
