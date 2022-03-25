@@ -33,7 +33,8 @@ volatile bool lteConnected = false;
 volatile bool mqttConnected = false;
 volatile bool mqttDataReceived = false;
 
-volatile static unsigned long lastHeartbeatTime = 0;
+static unsigned long lastHeartbeatTime = 0;
+volatile static bool forceHeartbeat = true;
 static unsigned long lastDataFrame = 0;
 
 static bool streamingEnabled = false;
@@ -58,7 +59,6 @@ ISR(TCA0_OVF_vect) {
         secondsCounted = 0;
         TCA0.SINGLE.CTRLA = 0;
         LedCtrl.off(Led::DATA);
-        LedCtrl.off(Led::USER);
     }
 
     TCA0.SINGLE.INTFLAGS |= (1 << 0);
@@ -66,7 +66,7 @@ ISR(TCA0_OVF_vect) {
 
 ISR(PORTD_PORT_vect) {
     if (PORTD.INTFLAGS && (1 << 2)) {
-        lastHeartbeatTime = 0;
+        forceHeartbeat = true;
         PORTD.INTFLAGS |= (1 << 2);
     }
 }
@@ -77,7 +77,6 @@ void mqttConHandler() { mqttConnected = true; }
 void lteDCHandler() { lteConnected = false; }
 
 void mqttDataHandler(char *topic, uint16_t msg_length) {
-    digitalWrite(PIN_A2, HIGH);
     mqttDataReceived = true;
     memcpy(topic_buffer, topic, MQTT_TOPIC_MAX_LENGTH);
     message_length = msg_length;
@@ -102,8 +101,11 @@ void connectMqtt() {
     }
 
     Log.info("Connected to AWS Sandbox!\r\n");
+
     // Subscribe to the topic
     MqttClient.subscribe(mqtt_sub_topic);
+
+    Log.infof("Subscribed to the MQTT topic %s\r\n", mqtt_sub_topic);
 }
 
 void connectLTE() {
@@ -143,8 +145,6 @@ bool initMQTTTopics() {
 }
 
 void startStreamTimer() {
-    LedCtrl.on(Led::USER);
-
     // We need to tell the core that we're "taking over" the TCA0 timer
     takeOverTCA0();
 
@@ -167,8 +167,6 @@ void setup() {
     // Set PD2 as input (button)
     pinMode(PIN_PD2, INPUT);
     PORTD.PIN2CTRL |= (0x3 << 0);
-
-    pinMode(PIN_A2, OUTPUT);
 
     Log.infof("Starting sandbox / landing page procedure. Version = %s\r\n",
               SANDBOX_VERSION);
@@ -194,10 +192,12 @@ loopFinished:
 
         // If it's more than HEARTBEAT_INTERVAL_MS since the last heartbeat,
         // send a heartbeat message
-        if ((millis() - lastHeartbeatTime) > HEARTBEAT_INTERVAL_MS) {
+        if (((millis() - lastHeartbeatTime) > HEARTBEAT_INTERVAL_MS) ||
+            forceHeartbeat) {
             Log.info("Sending heartbeat");
             MqttClient.publish(mqtt_pub_topic, heartbeatMessage);
             lastHeartbeatTime = millis();
+            forceHeartbeat = false;
         }
 
         if (streamingEnabled) {
@@ -236,10 +236,9 @@ loopFinished:
             }
 
             mqttDataReceived = false;
-            digitalWrite(PIN_A2, LOW);
 
             Log.debugf("new message: %s\r\n", message);
-            StaticJsonDocument<400> doc;
+            StaticJsonDocument<800> doc;
             DeserializationError error = deserializeJson(doc, message);
             if (error) {
                 Log.errorf("Unable to deserialize received JSON: %s\r\n",
@@ -288,9 +287,7 @@ loopFinished:
                     Log.infof("Turning LED %s on\r\n", target_led);
                     LedCtrl.on(targetLed);
                 } else {
-                    Log.infof("Turning LED %s off (\%d = %d)\r\n",
-                              target_led,
-                              targetLed);
+                    Log.infof("Turning LED %s off\r\n", target_led);
                     LedCtrl.off(targetLed);
                 }
             } else if (strcmp(cmd, "stream") == 0) {
@@ -311,6 +308,8 @@ loopFinished:
                 targetSecondCount = duration;
                 streamingEnabled = true;
                 startStreamTimer();
+            } else if (strcmp(cmd, "verbose_logs") == 0) {
+                Log.setLogLevel(LogLevel::DEBUG);
             }
         }
 
