@@ -51,15 +51,18 @@ static void connectionStatus(char *buffer) {
             connected_callback();
         }
     } else {
-        is_connected = false;
-        LedCtrl.off(Led::CELL, true);
 
-        // The modem does not give any notification of a MQTT disconnect.
-        // This must be called directly following a connection loss
-        MqttClient.disconnect(true);
+        if (is_connected) {
+            is_connected = false;
+            LedCtrl.off(Led::CELL, true);
 
-        if (disconnected_callback != NULL) {
-            disconnected_callback();
+            // The modem does not give any notification of a MQTT disconnect.
+            // This must be called directly following a connection loss
+            MqttClient.disconnect(true);
+
+            if (disconnected_callback != NULL) {
+                disconnected_callback();
+            }
         }
     }
 }

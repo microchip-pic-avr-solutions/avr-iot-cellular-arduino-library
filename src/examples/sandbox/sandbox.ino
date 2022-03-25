@@ -15,6 +15,9 @@
 #include <mcp9808.h>
 #include <mqtt_client.h>
 
+// TODO: temp
+#include <sequans_controller.h>
+
 #define HEARTBEAT_INTERVAL_MS 60000
 #define STREAM_DURATION       10000
 
@@ -26,122 +29,87 @@
 #define MQTT_SUB_TOPIC_FMT "$aws/things/%s/shadow/update/delta"
 #define MQTT_PUB_TOPIC_FMT "%s/sensors"
 
-char mqtt_sub_topic[128];
-char mqtt_pub_topic[128];
+#define NETWORK_CONN_FLAG                 1 << 0
+#define NETWORK_DISCONN_FLAG              1 << 1
+#define BROKER_CONN_FLAG                  1 << 2
+#define BROKER_DISCONN_FLAG               1 << 3
+#define RECEIVE_MSG_FLAG                  1 << 4
+#define SEND_HEARTBEAT_FLAG               1 << 5
+#define STOP_PUBLISHING_SENSOR_DATA_FLAG  1 << 6
+#define START_PUBLISHING_SENSOR_DATA_FLAG 1 << 7
+#define SEND_SENSOR_DATA_FLAG             1 << 8
 
-volatile bool lteConnected = false;
-volatile bool mqttConnected = false;
-volatile bool mqttDataReceived = false;
+typedef enum {
+    NOT_CONNECTED,
+    CONNECTED_TO_NETWORK,
+    CONNECTED_TO_BROKER,
+    STREAMING_DATA
+} State;
 
-static unsigned long lastHeartbeatTime = 0;
-volatile static bool forceHeartbeat = true;
-static unsigned long lastDataFrame = 0;
+static State state = NOT_CONNECTED;
 
-static bool streamingEnabled = false;
-static volatile uint16_t secondsCounted = 0;
-static volatile uint16_t targetSecondCount = 0;
-static volatile uint16_t dataFrequency = 0;
+static volatile uint16_t event_flags = 0;
 
-const char heartbeatMessage[] = "{\"type\": \"heartbeat\"}";
+static char mqtt_sub_topic[128];
+static char mqtt_pub_topic[128];
 
-char transmitBuffer[256];
+static unsigned long last_heartbeat_time = 0;
+
+static volatile uint16_t seconds_counted = 0;
+static volatile uint16_t target_seconds = 0;
+static volatile uint16_t data_frequency = 0;
+static unsigned long last_data_time = 0;
 
 static char topic_buffer[MQTT_TOPIC_MAX_LENGTH + 1] = "";
-static uint16_t message_length = 0;
+static volatile uint16_t message_length = 0;
+static const char heartbeat_message[] = "{\"type\": \"heartbeat\"}";
+
+char transmit_buffer[256];
 
 ISR(TCA0_OVF_vect) {
-    secondsCounted++;
+    seconds_counted++;
 
-    LedCtrl.toggle(Led::DATA);
-
-    if (secondsCounted == targetSecondCount) {
-        streamingEnabled = false;
-        secondsCounted = 0;
-        TCA0.SINGLE.CTRLA = 0;
-        LedCtrl.off(Led::DATA);
+    if (seconds_counted == target_seconds) {
+        event_flags |= STOP_PUBLISHING_SENSOR_DATA_FLAG;
     }
 
     TCA0.SINGLE.INTFLAGS |= (1 << 0);
 }
 
 ISR(PORTD_PORT_vect) {
-    if (PORTD.INTFLAGS && (1 << 2)) {
-        forceHeartbeat = true;
+    if (PORTD.INTFLAGS & (1 << 2)) {
+
+        event_flags |= SEND_HEARTBEAT_FLAG;
         PORTD.INTFLAGS |= (1 << 2);
     }
 }
 
-void mqttDCHandler() { mqttConnected = false; }
-void mqttConHandler() { mqttConnected = true; }
+void connectedToNetwork(void) { event_flags |= NETWORK_CONN_FLAG; }
+void disconnectedFromNetwork(void) { event_flags |= NETWORK_DISCONN_FLAG; }
+void connectedToBroker(void) { event_flags |= BROKER_CONN_FLAG; }
+void disconnectedFromBroker(void) { event_flags |= BROKER_DISCONN_FLAG; }
 
-void lteDCHandler() { lteConnected = false; }
-
-void mqttDataHandler(char *topic, uint16_t msg_length) {
-    mqttDataReceived = true;
+void receivedMessage(char *topic, uint16_t msg_length) {
+    event_flags |= RECEIVE_MSG_FLAG;
     memcpy(topic_buffer, topic, MQTT_TOPIC_MAX_LENGTH);
     message_length = msg_length;
 }
 
 void connectMqtt() {
-    MqttClient.onConnectionStatusChange(mqttConHandler, mqttDCHandler);
-    MqttClient.onReceive(mqttDataHandler);
+    MqttClient.onConnectionStatusChange(connectedToBroker,
+                                        disconnectedFromBroker);
+    MqttClient.onReceive(receivedMessage);
 
     // Attempt to connect to broker
     MqttClient.beginAWS();
-
-    Log.info("Connecting to AWS Sandbox...");
-    while (!MqttClient.isConnected()) {
-        Log.info("Connecting...");
-        delay(500);
-
-        // If we're not connected to the network, give up
-        if (!lteConnected) {
-            return;
-        }
-    }
-
-    Log.info("Connected to AWS Sandbox!\r\n");
-
-    // Subscribe to the topic
-    MqttClient.subscribe(mqtt_sub_topic);
-
-    Log.infof("Subscribed to the MQTT topic %s\r\n", mqtt_sub_topic);
 }
 
 void connectLTE() {
 
-    Lte.onConnectionStatusChange(NULL, lteDCHandler);
+    Lte.onConnectionStatusChange(connectedToNetwork, disconnectedFromNetwork);
 
     // Start LTE modem and wait until we are connected to the operator
     Lte.begin();
-
-    while (!Lte.isConnected()) {
-        Log.info("Not connected to Truphone yet...\r\n");
-        delay(5000);
-    }
-
-    Log.info("Connected to Truphone!\r\n");
-    lteConnected = true;
-}
-
-bool initMQTTTopics() {
-    ECC608.begin();
-
-    // Find the thing ID and set the publish and subscription topics
-    uint8_t thingName[128];
-    uint8_t thingNameLen = sizeof(thingName);
-
-    // -- Get the thingname
-    uint8_t err = ECC608.getThingName(thingName, &thingNameLen);
-    if (err != ECC608.ERR_OK) {
-        Log.error("Could not retrieve thingname from the ECC");
-        return false;
-    }
-
-    sprintf(mqtt_sub_topic, MQTT_SUB_TOPIC_FMT, thingName);
-    sprintf(mqtt_pub_topic, MQTT_PUB_TOPIC_FMT, thingName);
-
-    return true;
 }
 
 void startStreamTimer() {
@@ -158,9 +126,93 @@ void startStreamTimer() {
     TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV1024_gc | TCA_SINGLE_ENABLE_bm;
 }
 
+void stopStreamTimer() { TCA0.SINGLE.CTRLA = 0; }
+
+void decodeMessage(const char *message) {
+    StaticJsonDocument<800> doc;
+    DeserializationError error = deserializeJson(doc, message);
+
+    if (error) {
+        Log.errorf("Unable to deserialize received JSON: %s\r\n",
+                   error.f_str());
+        return;
+    }
+
+    // Handle command frame
+    const char *cmd = doc["state"]["cmd"];
+    if (cmd == 0) {
+        Log.errorf("Unable to get command, pointer is zero, "
+                   "message is %s\r\n",
+                   message);
+        return;
+    }
+
+    // If it's a toggle_led command, handle it
+    if (strcmp(cmd, "set_led") == 0) {
+        // -- Read the led value
+        const char *target_led = doc["state"]["opts"]["led"];
+        const unsigned int target_state =
+            doc["state"]["opts"]["state"].as<unsigned int>();
+
+        if (target_led == 0) {
+            Log.errorf("Unable to get target led or state, pointer is zero, "
+                       "message is %s\r\n",
+                       message);
+            return;
+        }
+
+        // -- Toggle LED based on the given value
+        Led led;
+
+        if (strcmp(target_led, "USER") == 0) {
+            led = Led::USER;
+        } else if (strcmp(target_led, "ERROR") == 0) {
+            led = Led::ERROR;
+        } else {
+            Log.errorf("Invalid LED value provided, "
+                       "led provided = %s\r\n",
+                       led);
+            return;
+        }
+
+        if (target_state) {
+            Log.infof("Turning LED %s on\r\n", target_led);
+            LedCtrl.on(led);
+        } else {
+            Log.infof("Turning LED %s off\r\n", target_led);
+            LedCtrl.off(led);
+        }
+
+    } else if (strcmp(cmd, "stream") == 0) {
+        const unsigned int duration =
+            doc["state"]["opts"]["duration"].as<unsigned int>();
+
+        const unsigned int frequency =
+            doc["state"]["opts"]["freq"].as<unsigned int>();
+
+        if (duration == 0 || frequency == 0) {
+            Log.errorf("Unable to get duration or frequency, pointer "
+                       "is zero, message is %s\r\n",
+                       message);
+            return;
+        }
+
+        Log.infof("Starting to stream for %d s\r\n", duration);
+
+        data_frequency = frequency;
+        seconds_counted = 0;
+        target_seconds = duration;
+
+        event_flags |= START_PUBLISHING_SENSOR_DATA_FLAG;
+    } else if (strcmp(cmd, "verbose_logs") == 0) {
+        Log.setLogLevel(LogLevel::DEBUG);
+    }
+}
+
 void setup() {
     Log.begin(115200);
-    Log.setLogLevel(LogLevel::INFO);
+    Log.setLogLevel(LogLevel::DEBUG);
+
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
@@ -175,152 +227,225 @@ void setup() {
         Log.error("Could not initialize the temperature sensor");
     }
 
-    if (initMQTTTopics() == false) {
+    ECC608.begin();
+
+    // Find the thing ID and set the publish and subscription topics
+    uint8_t thing_name[128];
+    uint8_t thing_name_len = sizeof(thing_name);
+
+    uint8_t err = ECC608.getThingName(thing_name, &thing_name_len);
+    if (err != ECC608.ERR_OK) {
+        Log.error("Could not retrieve thing name from the ECC");
         Log.error("Unable to initialize the MQTT topics. Stopping...");
-        while (1)
-            ;
+        return;
     }
 
+    sprintf(mqtt_sub_topic, MQTT_SUB_TOPIC_FMT, thing_name);
+    sprintf(mqtt_pub_topic, MQTT_PUB_TOPIC_FMT, thing_name);
+
     connectLTE();
-    connectMqtt();
 }
 
 void loop() {
-loopFinished:
-
-    if (mqttConnected) {
-
-        // If it's more than HEARTBEAT_INTERVAL_MS since the last heartbeat,
-        // send a heartbeat message
-        if (((millis() - lastHeartbeatTime) > HEARTBEAT_INTERVAL_MS) ||
-            forceHeartbeat) {
-            Log.info("Sending heartbeat");
-            MqttClient.publish(mqtt_pub_topic, heartbeatMessage);
-            lastHeartbeatTime = millis();
-            forceHeartbeat = false;
+    if (event_flags & NETWORK_CONN_FLAG) {
+        switch (state) {
+        case NOT_CONNECTED:
+            state = CONNECTED_TO_NETWORK;
+            connectMqtt();
+            break;
+        default:
+            break;
         }
 
-        if (streamingEnabled) {
-            if ((millis() - lastDataFrame) < (dataFrequency)) {
-                goto receiveMessage;
-            }
-            lastDataFrame = millis();
-            // Send data
-            // -- Warning: Doing sprintf on a pointer without checking for
-            // overflow is *bad* practice, but we do it here due to the
-            // simplicity of the data.
-            sprintf(transmitBuffer,
-                    "{\"type\": \"data\",\
-                    \"data\": { \
-	\"Light\": %d, \
-	\"Temperature\": %d \
-    } \
-	}",
-                    5,
-                    int(mcp9808.read_temp_c()));
-            bool publishedSuccessfully =
-                MqttClient.publish(mqtt_pub_topic, transmitBuffer);
-            if (publishedSuccessfully != true) {
-                Log.errorf("Could not publish message: %s\r\n", transmitBuffer);
-            }
+        event_flags &= ~NETWORK_CONN_FLAG;
+    } else if (event_flags & NETWORK_DISCONN_FLAG) {
+        switch (state) {
+        default:
+            state = NOT_CONNECTED;
+            LedCtrl.off(Led::CELL);
+            LedCtrl.off(Led::CON);
+            LedCtrl.off(Led::DATA);
+            LedCtrl.off(Led::USER);
+            LedCtrl.off(Led::ERROR);
+
+            Log.info("Network disconnection, attempting to reconnect...");
+
+            Lte.end();
+            connectLTE();
+            break;
         }
 
-    receiveMessage:
-        if (mqttDataReceived) {
+        event_flags &= ~NETWORK_DISCONN_FLAG;
+    } else if (event_flags & BROKER_CONN_FLAG) {
+
+        switch (state) {
+        case CONNECTED_TO_NETWORK:
+            state = CONNECTED_TO_BROKER;
+
+            Log.info("Connected to broker, subscribing to topic");
+
+            MqttClient.subscribe(mqtt_sub_topic);
+
+            break;
+        default:
+            break;
+        }
+
+        event_flags &= ~BROKER_CONN_FLAG;
+    } else if (event_flags & BROKER_DISCONN_FLAG) {
+
+        switch (state) {
+        case CONNECTED_TO_BROKER:
+            state = CONNECTED_TO_NETWORK;
+
+            Log.info("Lost connection to broker, attempting to reconnect...");
+
+            MqttClient.end();
+            connectMqtt();
+
+            break;
+
+        case STREAMING_DATA:
+            state = CONNECTED_TO_NETWORK;
+
+            Log.info("Lost connection to broker, attempting to reconnect...");
+
+            stopStreamTimer();
+            MqttClient.end();
+            connectMqtt();
+
+            break;
+
+        default:
+            break;
+        }
+
+        event_flags &= ~BROKER_DISCONN_FLAG;
+    } else if (event_flags & RECEIVE_MSG_FLAG) {
+
+        switch (state) {
+        case CONNECTED_TO_BROKER:
+        case STREAMING_DATA: {
+
+            Log.info("Received message");
+
+            // Extra space for termination
             char message[message_length + 16] = "";
 
             if (!MqttClient.readMessage(
                     topic_buffer, (uint8_t *)message, sizeof(message))) {
-                Log.errorf("could not read mqtt message on topic %s\r\n",
-                           topic_buffer);
+
+                Log.error("Failed to read message\r\n");
             }
 
-            mqttDataReceived = false;
+            Log.debugf("New message: %s\r\n", message);
 
-            Log.debugf("new message: %s\r\n", message);
-            StaticJsonDocument<800> doc;
-            DeserializationError error = deserializeJson(doc, message);
-            if (error) {
-                Log.errorf("Unable to deserialize received JSON: %s\r\n",
-                           error.f_str());
-                goto loopFinished;
-            }
+            decodeMessage(message);
 
-            // Handle command frame
-            const char *cmd = doc["state"]["cmd"];
-            if (cmd == 0) {
-                Log.errorf("Unable to get command, pointer is zero, "
-                           "message is %s\r\n",
-                           message);
-                goto loopFinished;
-            }
+        } break;
 
-            // If it's a toggle_led command, handle it
-            if (strcmp(cmd, "set_led") == 0) {
-                // -- Read the led value
-                const char *target_led = doc["state"]["opts"]["led"];
-                const unsigned int target_state =
-                    doc["state"]["opts"]["state"].as<unsigned int>();
-                if (target_led == 0) {
-                    Log.errorf(
-                        "Unable to get target led or state, pointer is zero, "
-                        "message is %s\r\n",
-                        message);
-                    goto loopFinished;
-                }
-
-                // -- Toggle LED based on the given value
-                Led targetLed;
-
-                if (strcmp(target_led, "USER") == 0) {
-                    targetLed = Led::USER;
-                } else if (strcmp(target_led, "ERROR") == 0) {
-                    targetLed = Led::ERROR;
-                } else {
-                    Log.errorf("Invalid LED value provided, "
-                               "led provided = %s\r\n",
-                               target_led);
-                    goto loopFinished;
-                }
-
-                if (target_state) {
-                    Log.infof("Turning LED %s on\r\n", target_led);
-                    LedCtrl.on(targetLed);
-                } else {
-                    Log.infof("Turning LED %s off\r\n", target_led);
-                    LedCtrl.off(targetLed);
-                }
-            } else if (strcmp(cmd, "stream") == 0) {
-                const unsigned int duration =
-                    doc["state"]["opts"]["duration"].as<unsigned int>();
-                const unsigned int frequency =
-                    doc["state"]["opts"]["freq"].as<unsigned int>();
-                if (duration == 0 || frequency == 0) {
-                    Log.errorf("Unable to get duration or frequency, pointer "
-                               "is zero, message is %s\r\n",
-                               message);
-                    goto loopFinished;
-                }
-
-                Log.infof("Starting to stream for %d s\r\n", duration);
-                dataFrequency = frequency;
-                secondsCounted = 0;
-                targetSecondCount = duration;
-                streamingEnabled = true;
-                startStreamTimer();
-            } else if (strcmp(cmd, "verbose_logs") == 0) {
-                Log.setLogLevel(LogLevel::DEBUG);
-            }
+        default:
+            break;
         }
 
-    } else {
-        // MQTT is not connected. Need to re-establish connection
-        if (!lteConnected) {
-            // We're NOT connected to the LTE Network. Establish LTE
-            // connection first
-            connectLTE();
+        event_flags &= ~RECEIVE_MSG_FLAG;
+    } else if (event_flags & SEND_HEARTBEAT_FLAG) {
+
+        switch (state) {
+
+        case CONNECTED_TO_BROKER:
+        case STREAMING_DATA:
+
+            Log.info("Sending hearbeat");
+            MqttClient.publish(mqtt_pub_topic, heartbeat_message);
+            last_heartbeat_time = millis();
+
+            break;
+
+        default:
+            break;
         }
 
-        connectMqtt();
+        event_flags &= ~SEND_HEARTBEAT_FLAG;
+    } else if (event_flags & START_PUBLISHING_SENSOR_DATA_FLAG) {
+        switch (state) {
+        case CONNECTED_TO_BROKER:
+
+            state = STREAMING_DATA;
+            Log.info("Starting streaming data");
+            startStreamTimer();
+            break;
+
+        default:
+            break;
+        }
+
+        event_flags &= ~START_PUBLISHING_SENSOR_DATA_FLAG;
+    } else if (event_flags & STOP_PUBLISHING_SENSOR_DATA_FLAG) {
+
+        switch (state) {
+        case STREAMING_DATA:
+            state = CONNECTED_TO_BROKER;
+            break;
+        default:
+            break;
+        }
+
+        stopStreamTimer();
+        event_flags &= ~STOP_PUBLISHING_SENSOR_DATA_FLAG;
+
+    } else if (event_flags & SEND_SENSOR_DATA_FLAG) {
+        switch (state) {
+        case STREAMING_DATA:
+
+            last_data_time = millis();
+
+            // -- Warning: Doing sprintf on a pointer without checking for
+            // overflow is *bad* practice, but we do it here due to the
+            // simplicity of the data.
+            sprintf(transmit_buffer,
+                    "{\"type\": \"data\",\
+                        \"data\": { \
+                            \"Light\": %d, \
+                            \"Temperature\": %d \
+                        } \
+                    }",
+                    5,
+                    int(mcp9808.read_temp_c()));
+
+            if (!MqttClient.publish(mqtt_pub_topic, transmit_buffer)) {
+                Log.errorf("Could not publish message: %s\r\n",
+                           transmit_buffer);
+            }
+
+            break;
+        default:
+            break;
+        }
+
+        event_flags &= ~SEND_SENSOR_DATA_FLAG;
+    }
+
+    switch (state) {
+    case CONNECTED_TO_BROKER:
+
+        if ((millis() - last_heartbeat_time) > HEARTBEAT_INTERVAL_MS) {
+            event_flags |= SEND_HEARTBEAT_FLAG;
+        }
+        break;
+
+    case STREAMING_DATA:
+        if ((millis() - last_heartbeat_time) > HEARTBEAT_INTERVAL_MS) {
+            event_flags |= SEND_HEARTBEAT_FLAG;
+        }
+
+        if ((millis() - last_data_time) > data_frequency) {
+            event_flags |= SEND_SENSOR_DATA_FLAG;
+        }
+
+        break;
+
+    default:
+        break;
     }
 }

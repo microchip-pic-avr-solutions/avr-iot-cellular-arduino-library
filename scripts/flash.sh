@@ -2,7 +2,7 @@
 
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 
-PORT=COM6
+PORT=COM8
 BUILD_DIR=$SCRIPTPATH/../build
 
 # Do path conversion for WSL
@@ -17,4 +17,4 @@ arduino-cli.exe upload \
                 -t \
                 -p $PORT \
                 -P nedbg \
-                -b DxCore:megaavr:avrdb:appspm=no,chip=avr128db64,clock=24internal,bodvoltage=1v9,bodmode=disabled,eesave=enable,resetpin=reset,millis=tcb2,startuptime=8,wiremode=mors2 \
+                -b DxCore:megaavr:avrdb:appspm=no,chip=avr128db48,clock=24internal,bodvoltage=1v9,bodmode=disabled,eesave=enable,resetpin=reset,millis=tcb2,startuptime=8,wiremode=mors2 \

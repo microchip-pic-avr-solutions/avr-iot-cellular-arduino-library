@@ -1,7 +1,7 @@
-#include "mqtt_client.h"
 #include "ecc608.h"
 #include "led_ctrl.h"
 #include "log.h"
+#include "mqtt_client.h"
 #include "sequans_controller.h"
 
 #include <cryptoauthlib.h>
@@ -314,7 +314,7 @@ bool MqttClientClass::beginAWS() {
         return false;
     }
 
-    Log.debugf("Connecting to AWS with endpoint = %s and thingname = %s\n",
+    Log.debugf("Connecting to AWS with endpoint = %s and thingname = %s\r\n",
                endpoint,
                thingName);
 
@@ -364,7 +364,8 @@ bool MqttClientClass::begin(const char *client_id,
         SequansController.readResponse(conf_resp, sizeof(conf_resp));
 
     if (result != ResponseResult::OK) {
-        Log.errorf("Non-OK Response when configuring MQTT. Err = %d\n", result);
+        Log.errorf("Non-OK Response when configuring MQTT. Err = %d\r\n",
+                   result);
         return false;
     }
 
@@ -434,10 +435,12 @@ bool MqttClientClass::publish(const char *topic,
                               const uint32_t buffer_size,
                               const MqttQoS quality_of_service) {
 
+    LedCtrl.on(Led::DATA, true);
     Log.debugf("Starting publishing on topic %s\r\n", topic);
 
     if (!isConnected()) {
         Log.error("Attempted MQTT Publish without being connected to a broker");
+        LedCtrl.off(Led::DATA, false);
         return false;
     }
 
@@ -466,6 +469,8 @@ bool MqttClientClass::publish(const char *topic,
         Log.errorf("Error when waiting for the first URC start character. "
                    "Error was %d\r\n",
                    wait_result);
+
+        LedCtrl.off(Led::DATA, false);
         return false;
     }
 
@@ -476,6 +481,8 @@ bool MqttClientClass::publish(const char *topic,
         Log.errorf("Error when waiting for the second URC start character. "
                    "Error was %d\r\n",
                    wait_result);
+
+        LedCtrl.off(Led::DATA, false);
         return false;
     }
 
@@ -488,6 +495,8 @@ bool MqttClientClass::publish(const char *topic,
 
     if (result != ResponseResult::OK) {
         Log.errorf("Failed to get publish result, result was %d \r\n", result);
+
+        LedCtrl.off(Led::DATA, false);
         return false;
     }
 
@@ -499,15 +508,21 @@ bool MqttClientClass::publish(const char *topic,
 
     if (!got_rc) {
         Log.errorf("Failed to get status code: %s \r\n", rc_buffer);
+
+        LedCtrl.off(Led::DATA, false);
         return false;
     }
 
     if (atoi(rc_buffer) != 0) {
         Log.errorf("Status code (rc) != 0: %d\r\n", atoi(rc_buffer));
+
+        LedCtrl.off(Led::DATA, false);
         return false;
     }
 
     Log.debug("Published message\r\n");
+
+    LedCtrl.off(Led::DATA, false);
 
     return true;
 }
@@ -534,8 +549,11 @@ bool MqttClientClass::subscribe(const char *topic,
     sprintf(command, MQTT_SUSBCRIBE, topic, quality_of_service);
     SequansController.writeCommand(command);
 
-    if (SequansController.readResponse() != ResponseResult::OK) {
-        Log.error("Failed to write subscribe command");
+    ResponseResult response = SequansController.readResponse();
+
+    if (response != ResponseResult::OK) {
+        Log.errorf("Failed to write subscribe command. Error code: %d\r\n",
+                   response);
         return false;
     }
 
@@ -634,6 +652,9 @@ String MqttClientClass::readMessage(const char *topic, const uint16_t size) {
 }
 
 bool MqttClientClass::disconnect(bool lte_event) {
+
+    LedCtrl.off(Led::CON, true);
+
     // If we're already disconnected, nothing to do
     if (!isConnected()) {
         return false;
