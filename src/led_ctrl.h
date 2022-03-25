@@ -16,8 +16,6 @@ class LedCtrlClass {
      */
     LedCtrlClass(){};
 
-    uint8_t getLedPin(Led led);
-
   public:
     /**
      * @brief Singleton instance.
@@ -34,6 +32,11 @@ class LedCtrlClass {
      * leds automatically (for example when the LTE modem is connected).
      */
     void begin(const bool manual_control = false);
+
+    /**
+     * @return The pin associated with the given LED.
+     */
+    uint8_t getLedPin(Led led);
 
     /**
      * @brief Toggle @p led.

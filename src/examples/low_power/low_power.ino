@@ -1,24 +1,7 @@
-#include <Arduino.h>
 #include <led_ctrl.h>
 #include <log.h>
 #include <low_power.h>
 #include <lte.h>
-#include <sequans_controller.h>
-
-#ifdef __AVR_AVR128DB48__ // MINI
-
-#define SerialDebug Serial3
-#define TIMING_PIN  PIN_PE2
-#else
-#ifdef __AVR_AVR128DB64__ // Non-Mini
-
-#define SerialDebug Serial5
-#define TIMING_PIN  PIN_PE7
-
-#else
-#error "INCOMPATIBLE_DEVICE_SELECTED"
-#endif
-#endif
 
 void setup() {
 
@@ -41,15 +24,13 @@ void setup() {
     }
 
     Log.info("Connected to operator!\r\n");
-
-    pinConfigure(TIMING_PIN, PIN_DIR_OUTPUT);
 }
 
 void loop() {
 
-    digitalWrite(TIMING_PIN, digitalRead(TIMING_PIN) ? 0 : 1);
-
     WakeUpReason wakeup_reason = LowPower.sleep();
     Log.infof("Got out of sleep with wake up reason %d, doing work...\r\n",
               wakeup_reason);
+
+    // Do work ...
 }
