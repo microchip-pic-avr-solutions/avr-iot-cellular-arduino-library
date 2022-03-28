@@ -15,9 +15,6 @@
 #include <mcp9808.h>
 #include <mqtt_client.h>
 
-// TODO: temp
-#include <sequans_controller.h>
-
 #define HEARTBEAT_INTERVAL_MS 60000
 #define STREAM_DURATION       10000
 
@@ -231,9 +228,6 @@ void setup() {
 
     // Set PD2 as input (button)
     pinConfigure(PIN_PD2, PIN_DIR_INPUT | PIN_INT_FALL);
-
-    // TODO: use pinConfigure
-    // PORTD.PIN2CTRL |= (0x3 << 0);
 
     Log.infof("Starting sandbox / landing page procedure. Version = %s\r\n",
               SANDBOX_VERSION);

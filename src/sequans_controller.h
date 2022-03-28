@@ -209,8 +209,6 @@ class SequansControllerClass {
     void startCriticalSection();
 
     void stopCriticalSection();
-
-    uint16_t bytesInReceiveBuffer();
 };
 
 extern SequansControllerClass SequansController;

@@ -241,13 +241,13 @@ ISR(USART1_RXC_vect) {
             urc_data_buffer[urc_data_buffer_length] = 0;
 
             if (urc_current_callback != NULL) {
-                // Clear the buffer since we're passing the data with the URC
-                // callback
-                rx_num_elements = 0;
-                rx_tail_index = rx_head_index;
+                // Clear the buffer for the URC since we're passing the data
+                // with the URC callback
+                rx_head_index =
+                    (rx_head_index - urc_data_buffer_length) & RX_BUFFER_MASK;
+                rx_num_elements -= urc_data_buffer_length;
 
                 urc_current_callback(urc_data_buffer);
-
                 urc_current_callback = NULL;
             }
 
@@ -744,9 +744,4 @@ void SequansControllerClass::startCriticalSection() {
 void SequansControllerClass::stopCriticalSection() {
     critical_section_enabled = false;
     RTS_PORT.OUTCLR = RTS_PIN_bm;
-}
-
-// TODO: temp
-uint16_t SequansControllerClass::bytesInReceiveBuffer() {
-    return rx_num_elements;
 }
