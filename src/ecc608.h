@@ -1,4 +1,3 @@
-
 #ifndef ECC608_H
 #define ECC608_H
 
@@ -58,7 +57,7 @@ class ECC608Class {
     ECC608Class(){};
 
     /*
-     * Extract item with given type from ECC slot.
+     * @brief Extract item with given type from ECC slot.
      *
      * This code traverses the list until matching type is found,
      * assuming there is only one item of each type in the slot.
@@ -66,14 +65,13 @@ class ECC608Class {
      *         easier string processing. This is not included in returned
      *         length, but there must be space for it in the buffer.
      *
-     * Parameters:
-     *   type: Type of requested item
-     *   buffer: Buffer to store item in
-     *   length: Pointer to length of buffer (== max length of returned data),
-     *           set to actual item length on return
-     * Returns:
-     *   Error code: 0 => OK, 1-0xff => cryptoauth error code, >= 0x100: see
-     * ecc_provision.h
+     * @param type Type of requested item
+     * @param buffer Buffer to store item in
+     * @param length Pointer to length of buffer (== max length of returned
+     * data), set to actual item length on return
+     *
+     * @return Error code: 0 => OK, 1-0xff => cryptoauth error code, >= 0x100:
+     * see ecc_provision.h
      */
     uint8_t readProvisionItem(enum ecc_data_types type,
                               uint8_t *buffer,
@@ -99,6 +97,7 @@ class ECC608Class {
     };
 
     uint8_t getEndpoint(uint8_t *endpoint, uint8_t *length);
+
     uint8_t getThingName(uint8_t *thingName, uint8_t *length);
 
     uint8_t begin();

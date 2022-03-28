@@ -124,8 +124,13 @@ class MqttClientClass {
      * @brief Register a callback function which will be called when we receive
      * a message on any topic we've subscribed on. Called from ISR, so keep this
      * function short.
+     *
+     * @param message_id This value will be -1 if the MqttQoS is set to
+     * AT_MOST_ONCE.
      */
-    void onReceive(void (*callback)(char *topic, uint16_t message_length));
+    void onReceive(void (*callback)(const char *topic,
+                                    const uint16_t message_length,
+                                    const int32_t message_id));
 
     /**
      * @brief Reads the message received on the given topic (if any).
@@ -133,12 +138,18 @@ class MqttClientClass {
      * @param topic topic message received on.
      * @param buffer Buffer to place message.
      * @param buffer_size Size of buffer. Max is 1024.
+     * @param message_id If QoS is not MqttQoS::AT_MOST_ONCE, we get a message
+     * ID during the callback. This has to be specified here. If this argument
+     * is -1, message ID will not be passed when retrieving the message.
      *
      * @return true if message was read successfully. False if there were no
      * message or the message buffer was over 1024, which is a limitation from
      * the LTE module.
      */
-    bool readMessage(const char *topic, uint8_t *buffer, uint16_t buffer_size);
+    bool readMessage(const char *topic,
+                     uint8_t *buffer,
+                     const uint16_t buffer_size,
+                     const int32_t message_id = -1);
 
     /**
      * @brief Reads the message received on the given topic (if any).

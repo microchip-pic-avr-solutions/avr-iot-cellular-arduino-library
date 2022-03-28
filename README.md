@@ -4,7 +4,7 @@
 <p align="center">
 <img width="50%" style={{paddingTop: "10px", paddingBottom: "10px"}} src="./readme_images/mini-board-2.png" />
 </p>
-The AVR-IoT Cellular Mini is a development board from Microchip to develop cellular IoT applications. 
+The AVR-IoT Cellular Mini is a development board from Microchip to develop cellular IoT applications.
 
 📓 Full Arduino support through a library built on top of the open-source [DxCore](https://github.com/SpenceKonde/DxCore)
 

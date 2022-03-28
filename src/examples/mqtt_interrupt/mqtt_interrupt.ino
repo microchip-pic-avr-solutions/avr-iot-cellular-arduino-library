@@ -63,7 +63,12 @@ void disconnectedFromNetwork(void) { callback_flags |= NETWORK_DISCONN_FLAG; }
 void connectedToBroker(void) { callback_flags |= BROKER_CONN_FLAG; }
 void disconnectedFromBroker(void) { callback_flags |= BROKER_DISCONN_FLAG; }
 
-void receive(char *topic, uint16_t msg_length) {
+void receive(const char *topic,
+             const uint16_t msg_length,
+             const int32_t message_id) {
+    // Message ID is not used here, as we don't specify a MQTT Quality of
+    // Service different from the default one. Read more about this in the
+    // documentation for the onReceive() function in MqttClient
     memcpy(topic_buffer, topic, MQTT_TOPIC_MAX_LENGTH);
     message_length = msg_length;
 

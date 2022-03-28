@@ -19,7 +19,7 @@ pipeline {
         GITHUB_REPO = 'https://github.com/mchpTestArea/avr-iot-test'
         GITHUB_REPO_SHORT = 'avr-iot-test'
         GITHUB_ORG = 'mchpTestArea'
-        TARGET_BRANCH = 'main'
+        TARGET_BRANCH = 'sandbox'
 	}
 
     stages {
@@ -81,7 +81,6 @@ pipeline {
                     steps {
                         sh "git clone ${env.DEPLOY_TOOL_URL}"
                         sh "pip3 install PyGithub atlassian-python-api jsonschema packaging lxml"
-                        sh "pwd"
                     }   
                 }
 
@@ -101,7 +100,7 @@ pipeline {
                     steps {
                         script {
                             withCredentials([usernamePassword(credentialsId: 'github_mchptest', usernameVariable: 'USER_NAME', passwordVariable:'PASS' )]) {
-                                sh "python3 ${env.DEPLOY_SCRIPT_FILE} -rlo=true -gpat=${PASS} -dgid=${USER_NAME} -rpn=${GITHUB_REPO_SHORT} -rporg=${GITHUB_ORG} -rltt=\"${env.GIT_TAG}\" -rltv=\"${env.GIT_TAG}\" -rlua=\"avr-iot-cellular-${env.GIT_TAG}.zip\""
+                                sh "python3 ${env.DEPLOY_SCRIPT_FILE} -rlo=true -gpat=${PASS} -dgid=${USER_NAME} -rpn=${GITHUB_REPO_SHORT} -rporg=${GITHUB_ORG} -rltt=\"${env.GIT_TAG}\" -rltv=\"${env.GIT_TAG}\" -rlua=\"avr-iot-cellular-${env.GIT_TAG}.zip, builds/mini/sandbox.ino.hex\""
                             }
                         }
                     }

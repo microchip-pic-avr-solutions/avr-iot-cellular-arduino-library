@@ -51,8 +51,8 @@
 #define SEQUANS_MODULE_BAUD_RATE 115200
 
 // Sizes for the circular buffers
-#define RX_BUFFER_SIZE        256
-#define TX_BUFFER_SIZE        256
+#define RX_BUFFER_SIZE        512
+#define TX_BUFFER_SIZE        512
 #define RX_BUFFER_ALMOST_FULL (RX_BUFFER_SIZE - 2)
 
 #define MAX_URC_CALLBACKS          8
@@ -76,14 +76,14 @@ static const char OK_TERMINATION[] = "\r\nOK\r\n";
 static const char ERROR_TERMINATION[] = "\r\nERROR\r\n";
 
 static uint8_t rx_buffer[RX_BUFFER_SIZE];
-static volatile uint8_t rx_head_index = 0;
-static volatile uint8_t rx_tail_index = 0;
-static volatile uint8_t rx_num_elements = 0;
+static volatile uint16_t rx_head_index = 0;
+static volatile uint16_t rx_tail_index = 0;
+static volatile uint16_t rx_num_elements = 0;
 
 static uint8_t tx_buffer[TX_BUFFER_SIZE];
-static volatile uint8_t tx_head_index = 0;
-static volatile uint8_t tx_tail_index = 0;
-static volatile uint8_t tx_num_elements = 0;
+static volatile uint16_t tx_head_index = 0;
+static volatile uint16_t tx_tail_index = 0;
+static volatile uint16_t tx_num_elements = 0;
 
 // We keep two buffers for identifier and data so that data won't be overwritten
 // whilst we are looking for a new URC. In that way the data buffer will only be
@@ -241,7 +241,14 @@ ISR(USART1_RXC_vect) {
             urc_data_buffer[urc_data_buffer_length] = 0;
 
             if (urc_current_callback != NULL) {
+                // Clear the buffer for the URC since we're passing the data
+                // with the URC callback
+                rx_head_index =
+                    (rx_head_index - urc_data_buffer_length) & RX_BUFFER_MASK;
+                rx_num_elements -= urc_data_buffer_length;
+
                 urc_current_callback(urc_data_buffer);
+                urc_current_callback = NULL;
             }
 
             urc_parse_state = URC_NOT_PARSING;
@@ -431,7 +438,7 @@ int16_t SequansControllerClass::readByte() {
     // Disable interrupts temporarily here to prevent being interleaved
     // in the middle of updating the tail index
     cli();
-    const uint8_t next_tail_index = (rx_tail_index + 1) & RX_BUFFER_MASK;
+    const uint16_t next_tail_index = (rx_tail_index + 1) & RX_BUFFER_MASK;
     rx_tail_index = next_tail_index;
     rx_num_elements--;
     sei();
@@ -466,8 +473,8 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
         retry_count = 0;
         out_buffer[i] = (uint8_t)readByte();
 
-        // We won't check for the buffer having a termination until at least 2
-        // bytes are in it
+        // We won't check for the buffer having a termination until at least
+        // 2 bytes are in it
         if (i == 0) {
             continue;
         }
@@ -720,7 +727,8 @@ uint8_t SequansControllerClass::waitForByte(uint8_t byte, uint32_t timeout) {
         readByte = SequansController.readByte();
 
         if (millis() - start > timeout) {
-            Log.error("Timed out waiting for publishing signing\r\n");
+            Log.errorf("Timed out waiting for character from modem %c \r\n",
+                       (char)byte);
             return SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT;
         }
     }

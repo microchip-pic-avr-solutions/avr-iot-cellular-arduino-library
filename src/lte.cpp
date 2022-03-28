@@ -9,9 +9,7 @@
 #define AT_COMMAND_CONNECT           "AT+CFUN=1"
 #define AT_COMMAND_DISCONNECT        "AT+CFUN=0"
 #define AT_COMMAND_CONNECTION_STATUS "AT+CEREG?"
-#define AT_COMMAND_DISABLE_CEREG_URC "AT+CEREG=0"
 #define AT_COMMAND_ENABLE_CEREG_URC  "AT+CEREG=5"
-#define AT_COMMAND_DISABLE_CREG_URC  "AT+CREG=0"
 
 #define CEREG_CALLBACK "CEREG"
 
@@ -51,15 +49,18 @@ static void connectionStatus(char *buffer) {
             connected_callback();
         }
     } else {
-        is_connected = false;
-        LedCtrl.off(Led::CELL, true);
 
-        // The modem does not give any notification of a MQTT disconnect.
-        // This must be called directly following a connection loss
-        MqttClient.disconnect(true);
+        if (is_connected) {
+            is_connected = false;
+            LedCtrl.off(Led::CELL, true);
 
-        if (disconnected_callback != NULL) {
-            disconnected_callback();
+            // The modem does not give any notification of a MQTT disconnect.
+            // This must be called directly following a connection loss
+            MqttClient.disconnect(true);
+
+            if (disconnected_callback != NULL) {
+                disconnected_callback();
+            }
         }
     }
 }
@@ -79,7 +80,6 @@ void LteClass::begin(void) {
 
     // This might fail the first times after initializing the sequans
     // controller, so we just retry until they succeed
-    SequansController.retryCommand(AT_COMMAND_DISABLE_CREG_URC);
     SequansController.retryCommand(AT_COMMAND_ENABLE_CEREG_URC);
     SequansController.retryCommand(AT_COMMAND_CONNECT);
 
