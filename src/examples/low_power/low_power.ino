@@ -1,3 +1,5 @@
+#include <avr/cpufunc.h>
+#include <avr/io.h>
 #include <led_ctrl.h>
 #include <log.h>
 #include <low_power.h>
@@ -15,7 +17,7 @@ void setup() {
     //
     // Here we say that we want to sleep for 30 seconds * 2 = 60 seconds each
     // time we invoke sleep
-    LowPower.begin(SleepMultiplier::THIRTY_SECONDS, 2, SleepMode::REGULAR);
+    LowPower.begin(SleepMultiplier::THIRTY_SECONDS, 2, SleepMode::DEEP);
     Lte.begin();
 
     while (!Lte.isConnected()) {
@@ -32,5 +34,6 @@ void loop() {
     Log.infof("Got out of sleep with wake up reason %d, doing work...\r\n",
               wakeup_reason);
 
+    delay(10000);
     // Do work ...
 }

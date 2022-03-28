@@ -5,6 +5,7 @@
 #include "sequans_controller.h"
 
 #include <Arduino.h>
+#include <avr/cpufunc.h>
 #include <avr/io.h>
 #include <avr/sleep.h>
 
@@ -252,26 +253,30 @@ static uint32_t retrieveOperatorSleepTime(void) {
 
 static void enablePIT(void) {
 
-    // TODO: Fix this, should use external crystal
-    // Setup the clock for RTC. CTRL_SETUP is stored here just for convenience
-    // so that we discard the modifications in the register later
-    //
-    // CLKCTRL.XOSC32KCTRLA |= CLKCTRL_RUNSTBY_bm | CLKCTRL_LPMODE_bm |
-    // CLKCTRL_ENABLE_bm;
+    uint8_t temp;
 
-    // Wait for clock to stabilize
-    // while (CLKCTRL.MCLKSTATUS & CLKCTRL_XOSC32KS_bm &&
-    //       CLKCTRL.XOSC32KCTRLA & CLKCTRL_SEL_bm) {}
+    // Disable first and wait for clock to stabilize
+    temp = CLKCTRL.XOSC32KCTRLA;
+    temp &= ~CLKCTRL_ENABLE_bm;
+    _PROTECTED_WRITE(CLKCTRL.XOSC32KCTRLA, temp);
+    while (CLKCTRL.MCLKSTATUS & CLKCTRL_XOSC32KS_bm) {}
 
-    // Now we configure RTC which keeps track of the time during sleep. We do
-    // this here as we yield the RTC afterwards, so a setup every time is just
-    // to safe guard ourselves if other modules use the RTC
-    //
-    // Wait for all registers to be synchronized
+    // We want the external crystal to run in standby and in low power mode
+    temp = CLKCTRL.XOSC32KCTRLA;
+    temp |= CLKCTRL_RUNSTBY_bm | CLKCTRL_LPMODE_bm;
+    temp &= ~(CLKCTRL_SEL_bm);
+    _PROTECTED_WRITE(CLKCTRL.XOSC32KCTRLA, temp);
+
+    // Choose to use external crystal on XTAL32K1 and XTAL32K2 pins and enable
+    // the clock
+    temp = CLKCTRL.XOSC32KCTRLA;
+    temp |= CLKCTRL_ENABLE_bm;
+    _PROTECTED_WRITE(CLKCTRL.XOSC32KCTRLA, temp);
+
+    // Wait for registers to synchronize
     while (RTC.PITSTATUS) {}
 
-    // TODO: use XOSC32K instead
-    RTC.CLKSEL |= RTC_CLKSEL_INT32K_gc;
+    RTC.CLKSEL |= RTC_CLKSEL_XOSC32K_gc;
     RTC.PITINTCTRL |= RTC_PI_bm;
     RTC.PITCTRLA |= RTC_PERIOD_CYC32768_gc | RTC_PITEN_bm;
 
@@ -285,7 +290,11 @@ static void enablePIT(void) {
 static void disablePIT(void) {
 
     // Disable external clock and turn off RTC PIT
-    CLKCTRL.XOSC32KCTRLA &= (~CLKCTRL_ENABLE_bm);
+    uint8_t temp;
+    temp = CLKCTRL.XOSC32KCTRLA;
+    temp &= ~(CLKCTRL_ENABLE_bm);
+    _PROTECTED_WRITE(CLKCTRL.XOSC32KCTRLA, temp);
+
     RTC.PITCTRLA &= ~RTC_PITEN_bm;
 }
 
