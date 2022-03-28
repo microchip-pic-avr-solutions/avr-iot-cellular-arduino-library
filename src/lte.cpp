@@ -9,9 +9,7 @@
 #define AT_COMMAND_CONNECT           "AT+CFUN=1"
 #define AT_COMMAND_DISCONNECT        "AT+CFUN=0"
 #define AT_COMMAND_CONNECTION_STATUS "AT+CEREG?"
-#define AT_COMMAND_DISABLE_CEREG_URC "AT+CEREG=0"
 #define AT_COMMAND_ENABLE_CEREG_URC  "AT+CEREG=5"
-#define AT_COMMAND_DISABLE_CREG_URC  "AT+CREG=0"
 
 #define CEREG_CALLBACK "CEREG"
 
@@ -82,7 +80,6 @@ void LteClass::begin(void) {
 
     // This might fail the first times after initializing the sequans
     // controller, so we just retry until they succeed
-    SequansController.retryCommand(AT_COMMAND_DISABLE_CREG_URC);
     SequansController.retryCommand(AT_COMMAND_ENABLE_CEREG_URC);
     SequansController.retryCommand(AT_COMMAND_CONNECT);
 
