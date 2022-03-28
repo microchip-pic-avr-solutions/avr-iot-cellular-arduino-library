@@ -15,8 +15,7 @@
 #include <mcp9808.h>
 #include <mqtt_client.h>
 
-#define HEARTBEAT_INTERVAL_MS 60000
-#define STREAM_DURATION       10000
+#define HEARTBEAT_INTERVAL_MS 10000
 
 // AWS defines which topic you are allowed to subscribe and publish too. This is
 // defined by the policy The default policy with the Microchip IoT Provisioning
@@ -251,6 +250,7 @@ void setup() {
     sprintf(mqtt_sub_topic, MQTT_SUB_TOPIC_FMT, thing_name);
     sprintf(mqtt_pub_topic, MQTT_PUB_TOPIC_FMT, thing_name);
 
+    Log.info("Connecting to LTE network...");
     connectLTE();
 }
 
@@ -260,6 +260,7 @@ void loop() {
         case NOT_CONNECTED:
             state = CONNECTED_TO_NETWORK;
             Log.info("Connected to LTE network");
+            Log.info("Connecting to MQTT broker...");
             connectMqtt();
             break;
         default:
