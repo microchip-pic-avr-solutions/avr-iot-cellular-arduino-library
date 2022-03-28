@@ -29,6 +29,9 @@
 #define MQTT_SUB_TOPIC_FMT "$aws/things/%s/shadow/update/delta"
 #define MQTT_PUB_TOPIC_FMT "%s/sensors"
 
+#define MQTT_MESSAGE_BUFFERS      4
+#define MQTT_MESSAGE_BUFFERS_MASK (MQTT_MESSAGE_BUFFERS - 1)
+
 #define NETWORK_CONN_FLAG                 1 << 0
 #define NETWORK_DISCONN_FLAG              1 << 1
 #define BROKER_CONN_FLAG                  1 << 2
@@ -60,8 +63,13 @@ static volatile uint16_t target_seconds = 0;
 static volatile uint16_t data_frequency = 0;
 static unsigned long last_data_time = 0;
 
-static char topic_buffer[MQTT_TOPIC_MAX_LENGTH + 1] = "";
-static volatile uint16_t message_length = 0;
+static char topic_buffer[MQTT_MESSAGE_BUFFERS][MQTT_TOPIC_MAX_LENGTH + 1] =
+    {"", "", "", ""};
+static volatile uint16_t message_length[MQTT_MESSAGE_BUFFERS] = {0, 0, 0, 0};
+static volatile int32_t message_id[MQTT_MESSAGE_BUFFERS] = {-1, -1, -1, -1};
+static volatile uint8_t message_head_index = 0;
+static volatile uint8_t message_tail_index = 0;
+
 static const char heartbeat_message[] = "{\"type\": \"heartbeat\"}";
 
 char transmit_buffer[256];
@@ -89,10 +97,15 @@ void disconnectedFromNetwork(void) { event_flags |= NETWORK_DISCONN_FLAG; }
 void connectedToBroker(void) { event_flags |= BROKER_CONN_FLAG; }
 void disconnectedFromBroker(void) { event_flags |= BROKER_DISCONN_FLAG; }
 
-void receivedMessage(char *topic, uint16_t msg_length) {
-    event_flags |= RECEIVE_MSG_FLAG;
-    memcpy(topic_buffer, topic, MQTT_TOPIC_MAX_LENGTH);
-    message_length = msg_length;
+void receivedMessage(const char *topic,
+                     const uint16_t msg_length,
+                     const int32_t msg_id) {
+
+    memcpy(topic_buffer[message_head_index], topic, MQTT_TOPIC_MAX_LENGTH);
+    message_length[message_head_index] = msg_length;
+    message_id[message_head_index] = msg_id;
+
+    message_head_index = (message_head_index + 1) & MQTT_MESSAGE_BUFFERS_MASK;
 }
 
 void connectMqtt() {
@@ -217,8 +230,10 @@ void setup() {
     LedCtrl.startupCycle();
 
     // Set PD2 as input (button)
-    pinMode(PIN_PD2, INPUT);
-    PORTD.PIN2CTRL |= (0x3 << 0);
+    pinConfigure(PIN_PD2, PIN_DIR_INPUT | PIN_INT_FALL);
+
+    // TODO: use pinConfigure
+    // PORTD.PIN2CTRL |= (0x3 << 0);
 
     Log.infof("Starting sandbox / landing page procedure. Version = %s\r\n",
               SANDBOX_VERSION);
@@ -284,7 +299,7 @@ void loop() {
 
             Log.info("Connected to broker, subscribing to topic");
 
-            MqttClient.subscribe(mqtt_sub_topic);
+            MqttClient.subscribe(mqtt_sub_topic, MqttQoS::AT_LEAST_ONCE);
 
             break;
         default:
@@ -321,26 +336,27 @@ void loop() {
         }
 
         event_flags &= ~BROKER_DISCONN_FLAG;
-    } else if (event_flags & RECEIVE_MSG_FLAG) {
+    } else if (message_head_index != message_tail_index) {
 
         switch (state) {
         case CONNECTED_TO_BROKER:
         case STREAMING_DATA: {
 
-            Log.info("Received message");
-
             // Extra space for termination
-            char message[message_length + 16] = "";
+            char message[message_length[message_tail_index] + 16] = "";
 
-            if (!MqttClient.readMessage(
-                    topic_buffer, (uint8_t *)message, sizeof(message))) {
+            if (!MqttClient.readMessage(topic_buffer[message_tail_index],
+                                        (uint8_t *)message,
+                                        sizeof(message),
+                                        message_id[message_tail_index])) {
 
                 Log.error("Failed to read message\r\n");
             }
 
-            Log.debugf("New message: %s\r\n", message);
-
             decodeMessage(message);
+
+            message_tail_index =
+                (message_tail_index + 1) & MQTT_MESSAGE_BUFFERS_MASK;
 
         } break;
 
