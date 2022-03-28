@@ -207,8 +207,6 @@ void decodeMessage(const char *message) {
             return;
         }
 
-        Log.infof("Starting to stream for %d s\r\n", duration);
-
         data_frequency = frequency;
         seconds_counted = 0;
         target_seconds = duration;
@@ -221,7 +219,6 @@ void decodeMessage(const char *message) {
 
 void setup() {
     Log.begin(115200);
-    Log.setLogLevel(LogLevel::DEBUG);
 
     LedCtrl.begin();
     LedCtrl.startupCycle();
@@ -249,6 +246,8 @@ void setup() {
         return;
     }
 
+    Log.infof("Board name: %s\r\n", thing_name);
+
     sprintf(mqtt_sub_topic, MQTT_SUB_TOPIC_FMT, thing_name);
     sprintf(mqtt_pub_topic, MQTT_PUB_TOPIC_FMT, thing_name);
 
@@ -260,6 +259,7 @@ void loop() {
         switch (state) {
         case NOT_CONNECTED:
             state = CONNECTED_TO_NETWORK;
+            Log.info("Connected to LTE network");
             connectMqtt();
             break;
         default:
@@ -291,7 +291,7 @@ void loop() {
         case CONNECTED_TO_NETWORK:
             state = CONNECTED_TO_BROKER;
 
-            Log.info("Connected to broker, subscribing to topic");
+            Log.info("Connected to MQTT broker, subscribing to topics");
 
             MqttClient.subscribe(mqtt_sub_topic, MqttQoS::AT_LEAST_ONCE);
 
@@ -382,7 +382,9 @@ void loop() {
         case CONNECTED_TO_BROKER:
 
             state = STREAMING_DATA;
-            Log.info("Starting streaming data");
+
+            Log.infof("Starting to stream data for %d seoncds\r\n",
+                      target_seconds);
             startStreamTimer();
             break;
 
