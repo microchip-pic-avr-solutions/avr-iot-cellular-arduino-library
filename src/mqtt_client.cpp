@@ -10,16 +10,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MQTT_CONFIGURE         "AT+SQNSMQTTCFG=0,\"%s\""
-#define MQTT_CONFIGURE_TLS     "AT+SQNSMQTTCFG=0,\"%s\",,,2"
-#define MQTT_CONFIGURE_TLS_ECC "AT+SQNSMQTTCFG=0,\"%s\",,,1"
-#define MQTT_CONNECT           "AT+SQNSMQTTCONNECT=0,\"%s\",%u,%u"
-#define MQTT_DISCONNECT        "AT+SQNSMQTTDISCONNECT=0"
-#define MQTT_PUBLISH           "AT+SQNSMQTTPUBLISH=0,\"%s\",%u,%lu"
-#define MQTT_SUSBCRIBE         "AT+SQNSMQTTSUBSCRIBE=0,\"%s\",%u"
-#define MQTT_RECEIVE           "AT+SQNSMQTTRCVMESSAGE=0,\"%s\""
-#define MQTT_ON_MESSAGE_URC    "SQNSMQTTONMESSAGE"
-#define MQTT_ON_CONNECT_URC    "SQNSMQTTONCONNECT"
+#define MQTT_CONFIGURE           "AT+SQNSMQTTCFG=0,\"%s\""
+#define MQTT_CONFIGURE_TLS       "AT+SQNSMQTTCFG=0,\"%s\",,,2"
+#define MQTT_CONFIGURE_TLS_ECC   "AT+SQNSMQTTCFG=0,\"%s\",,,1"
+#define MQTT_CONNECT             "AT+SQNSMQTTCONNECT=0,\"%s\",%u,%u"
+#define MQTT_DISCONNECT          "AT+SQNSMQTTDISCONNECT=0"
+#define MQTT_PUBLISH             "AT+SQNSMQTTPUBLISH=0,\"%s\",%u,%lu"
+#define MQTT_SUSBCRIBE           "AT+SQNSMQTTSUBSCRIBE=0,\"%s\",%u"
+#define MQTT_RECEIVE             "AT+SQNSMQTTRCVMESSAGE=0,\"%s\""
+#define MQTT_RECEIVE_WITH_MSG_ID "AT+SQNSMQTTRCVMESSAGE=0,\"%s\",%u"
+#define MQTT_ON_MESSAGE_URC      "SQNSMQTTONMESSAGE"
+#define MQTT_ON_CONNECT_URC      "SQNSMQTTONCONNECT"
 
 #define MQTT_ON_DISCONNECT_URC "SQNSMQTTONDISCONNECT"
 
@@ -65,6 +66,13 @@
 // Termination: 1 byte
 // Total: 155 bytes
 #define MQTT_RECEIVE_LENGTH 155
+
+// Command without any data in it (with parantheses): 27 bytes
+// Topic: 128 bytes (this is imposed by this implementation)
+// Message ID: N bytes (runtime determined)
+// Termination: 1 byte
+// Total: 156 bytes
+#define MQTT_RECEIVE_WITH_MSG_ID_LENGTH 156
 
 // Just arbitrary, but will fit 'ordinary' responses and their termination
 #define MQTT_DEFAULT_RESPONSE_LENGTH 256
@@ -117,7 +125,9 @@ static char receive_urc_buffer[URC_DATA_BUFFER_SIZE + 1];
 // extra for null termination in the max case
 static char topic_buffer[MQTT_TOPIC_MAX_LENGTH + 3];
 
-static void (*receive_callback)(char *topic, uint16_t message_length) = NULL;
+static void (*receive_callback)(const char *topic,
+                                const uint16_t message_length,
+                                const int32_t message_id) = NULL;
 
 static bool using_ecc = false;
 
@@ -184,8 +194,22 @@ static void internalOnReceiveCallback(char *urc_data) {
         return;
     }
 
+    char message_id_buffer[16];
+
+    bool got_message_id = SequansController.extractValueFromCommandResponse(
+        receive_urc_buffer, 4, message_id_buffer, sizeof(message_id_buffer), 0);
+
+    // If there is no message ID, which is the case of MqttQoS is 0, then we
+    // just specify -1.
+    int32_t message_id = -1;
+
+    if (got_message_id) {
+        message_id = (int32_t)atoi(message_id_buffer);
+    }
+
     if (receive_callback != NULL) {
-        receive_callback(topic, (uint16_t)atoi(message_length_buffer));
+        receive_callback(
+            topic, (uint16_t)atoi(message_length_buffer), message_id);
     }
 }
 
@@ -592,8 +616,9 @@ bool MqttClientClass::subscribe(const char *topic,
     return true;
 }
 
-void MqttClientClass::onReceive(void (*callback)(char *topic,
-                                                 uint16_t message_length)) {
+void MqttClientClass::onReceive(void (*callback)(const char *topic,
+                                                 const uint16_t message_length,
+                                                 const int32_t message_id)) {
     if (callback != NULL) {
 
         receive_callback = callback;
@@ -605,16 +630,27 @@ void MqttClientClass::onReceive(void (*callback)(char *topic,
 
 bool MqttClientClass::readMessage(const char *topic,
                                   uint8_t *buffer,
-                                  uint16_t buffer_size) {
+                                  const uint16_t buffer_size,
+                                  const int32_t message_id) {
     if (buffer_size > MQTT_MAX_BUFFER_SIZE) {
         return false;
     }
 
     SequansController.clearReceiveBuffer();
 
-    char command[MQTT_RECEIVE_LENGTH] = "";
-    sprintf(command, MQTT_RECEIVE, topic);
-    SequansController.writeCommand(command);
+    // We determine all message IDs lower than 0 as just no message ID passed
+    if (message_id < 0) {
+        char command[MQTT_RECEIVE_LENGTH] = "";
+        sprintf(command, MQTT_RECEIVE, topic);
+        SequansController.writeCommand(command);
+    } else {
+        const uint32_t digits_in_message_id = trunc(log10(message_id)) + 1;
+        char command[MQTT_RECEIVE_WITH_MSG_ID_LENGTH + digits_in_message_id] =
+            "";
+        sprintf(
+            command, MQTT_RECEIVE_WITH_MSG_ID, topic, (unsigned int)message_id);
+        SequansController.writeCommand(command);
+    }
 
     // Wait for first byte in receive buffer
     uint32_t start = millis();
