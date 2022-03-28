@@ -18,14 +18,14 @@ enum class SleepMultiplier {
     ONE_MINUTE = 5,
 };
 
-enum class SleepStatusCode {
+enum class WakeUpReason {
     // Invoked if the sleep time retrieved from the operator wasn't valid
     INVALID_SLEEP_TIME = 4,
 
     // Invoked if it took so long to put the modem in sleep that it wasn't time
     // left for the CPU to sleep. The sleep time should be considered to be
     // increased.
-    TIMEOUT = 3,
+    MODEM_TIMEOUT = 3,
 
     // The modem went out of sleep before the total time, which may happen if
     // e.g. the interval of needing to send MQTT heartbeat is lower than the
@@ -68,10 +68,16 @@ class LowPowerClass {
      *
      * @param sleep_value Note that max value is 31.
      *
+     * @param sleep_modem:
+     * - REGULAR: Modem in sleep, CPU in deep sleep
+     * - DEEP: Modem powered off, CPU in deep sleep. Note that the modem will be
+     *   started again after the sleep in this mode
+     *
      * @return True if configuration was set successfully.
      */
     bool begin(const SleepMultiplier sleep_multiplier,
-               const uint8_t sleep_value);
+               const uint8_t sleep_value,
+               const SleepMode = SleepMode::REGULAR);
 
     /**
      * @brief Will attempt to put the modem in sleep and then the MCU for the
@@ -80,16 +86,12 @@ class LowPowerClass {
      * some time, so the total time both of the units are asleep is highly
      * likely to be some seconds shorter than the total sleep time.
      *
-     * @param sleep_modem:
-     * - REGULAR: Modem in sleep, CPU in deep sleep
-     * - DEEP: Modem powered off, CPU in deep sleep
-     *
      * @return Status code:
      * - INVALID_SLEEP_TIME: if the sleep time configured in begin() wasn't
      * valid or something else failed. Consider modifying the sleep time.
      *
-     * - TIMEOUT: Happens when the remining time after putting the modem to
-     * sleep left there being no time for the CPU to sleep. Not necessarily a
+     * - MODEM_TIMEOUT: Happens when the remining time after putting the modem
+     * to sleep left there being no time for the CPU to sleep. Not necessarily a
      * problem, but the CPU won't get any sleep time. This can be alleviated by
      * increasing the sleep time.
      *
@@ -104,7 +106,7 @@ class LowPowerClass {
      *
      * - OK: Sleep went fine.
      */
-    SleepStatusCode sleep(const SleepMode sleep_mode);
+    WakeUpReason sleep(void);
 };
 
 extern LowPowerClass LowPower;

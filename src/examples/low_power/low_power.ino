@@ -32,7 +32,7 @@ void setup() {
     //
     // Here we say that we want to sleep for 30 seconds * 2 = 60 seconds each
     // time we invoke sleep
-    LowPower.begin(SleepMultiplier::THIRTY_SECONDS, 2);
+    LowPower.begin(SleepMultiplier::THIRTY_SECONDS, 2, SleepMode::REGULAR);
     Lte.begin();
 
     while (!Lte.isConnected()) {
@@ -49,7 +49,7 @@ void loop() {
 
     digitalWrite(TIMING_PIN, digitalRead(TIMING_PIN) ? 0 : 1);
 
-    SleepStatusCode status_code = LowPower.sleep(SleepMode::REGULAR);
-    Log.infof("Got out of sleep with status code %d, doing work...\r\n",
-              status_code);
+    WakeUpReason wakeup_reason = LowPower.sleep();
+    Log.infof("Got out of sleep with wake up reason %d, doing work...\r\n",
+              wakeup_reason);
 }
