@@ -228,7 +228,7 @@ void setup() {
     Log.infof("Starting sandbox / landing page procedure. Version = %s\r\n",
               SANDBOX_VERSION);
 
-    if (mcp9808.begin() == -1) {
+    if (Mcp9808.begin() == -1) {
         Log.error("Could not initialize the temperature sensor");
     }
 
@@ -255,6 +255,7 @@ void setup() {
 }
 
 void loop() {
+
     if (event_flags & NETWORK_CONN_FLAG) {
         switch (state) {
         case NOT_CONNECTED:
@@ -384,7 +385,7 @@ void loop() {
 
             state = STREAMING_DATA;
 
-            Log.infof("Starting to stream data for %d seoncds\r\n",
+            Log.infof("Starting to stream data for %d seconds\r\n",
                       target_seconds);
             startStreamTimer();
             break;
@@ -419,12 +420,10 @@ void loop() {
             sprintf(transmit_buffer,
                     "{\"type\": \"data\",\
                         \"data\": { \
-                            \"Light\": %d, \
                             \"Temperature\": %d \
                         } \
                     }",
-                    5,
-                    int(mcp9808.read_temp_c()));
+                    int(Mcp9808.readTempC()));
 
             if (!MqttClient.publish(mqtt_pub_topic, transmit_buffer)) {
                 Log.errorf("Could not publish message: %s\r\n",
