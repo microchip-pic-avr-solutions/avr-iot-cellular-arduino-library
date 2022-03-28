@@ -259,7 +259,7 @@ void loop() {
         switch (state) {
         case NOT_CONNECTED:
             state = CONNECTED_TO_NETWORK;
-            Log.info("Connected to LTE network");
+            Log.info("Connected to LTE network!\r\n");
             Log.info("Connecting to MQTT broker...");
             connectMqtt();
             break;
@@ -292,7 +292,7 @@ void loop() {
         case CONNECTED_TO_NETWORK:
             state = CONNECTED_TO_BROKER;
 
-            Log.info("Connected to MQTT broker, subscribing to topics");
+            Log.info("Connected to MQTT broker, subscribing to topics!\r\n");
 
             MqttClient.subscribe(mqtt_sub_topic, MqttQoS::AT_LEAST_ONCE);
 
