@@ -1,0 +1,37 @@
+{
+    "$schema": "https://bitbucket.microchip.com/projects/CITD/repos/metadata-schema/raw/main-schema.json?at=refs%2Fheads%2Fdevelop",
+    "metaDataVersion": "1.0.0",
+    "category": "com.microchip.ide.project",
+    "content": {
+        "metaDataVersion": "1.3.0",
+        "name": "com.microchip.mcu8.arduino.project.avr-iot-cellular-arduino-library",
+        "version": "1.0.0",
+        "displayName": "AVR-IoT Cellular Arduino Library",
+        "projectName": "avr-iot-cellular-arduino-library",
+        "shortDescription": "Arduino Compatible Library for the AVR-IoT Cellular Mini board",
+        "ide": {
+            "name": "Arduino",
+            "semverRange": ">=1.8.16"
+        },
+        "compiler": [{
+            "name": "AVR GCC",
+            "semverRange": "^5.4.0"
+        }],
+        "dfp": {
+            "name": "AVR-Dx_DFP",
+            "semverRange": "^1.3.65"
+        },
+        "device": {
+            "name": "AVR128DB48"
+        },
+        "author": "Johan Lofstad",
+        "peripherals": [],
+        "keywords": [
+            "Arduino",
+            "IoT",
+            "IoT Provisioning",
+            "Cellular Network",
+            "Library"
+        ]
+    }
+}

@@ -20,11 +20,9 @@ The AVR-IoT Cellular Mini is a development board from Microchip to develop cellu
 
 🤝 Built & Designed to be Familiar to Makers, featuring a [Adafruit Feather](https://learn.adafruit.com/adafruit-feather) form-factor and a [Qwiic](https://www.sparkfun.com/qwiic) / [Stemma](https://learn.adafruit.com/introducing-adafruit-stemma-qt) Connector
 
-<p align="center">
 
-<span style="font-size:2em;">👉 <u>Documentation: https://iot.microchip.com/docs/</u> 👈</span>
 
-</p>
+## 👉 *Documentation: https://iot.microchip.com/docs/* 👈
 
 ## Examples
 
