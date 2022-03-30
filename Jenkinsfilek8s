@@ -19,7 +19,7 @@ pipeline {
         GITHUB_REPO = 'https://github.com/mchpTestArea/avr-iot-test'
         GITHUB_REPO_SHORT = 'avr-iot-test'
         GITHUB_ORG = 'mchpTestArea'
-        TARGET_BRANCH = 'jenkins-test'
+        TARGET_BRANCH = 'main'
 	}
 
     stages {
