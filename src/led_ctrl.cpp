@@ -25,9 +25,7 @@
 
 static bool manual_control_enabled = false;
 
-void LedCtrlClass::begin(const bool manual_control) {
-    manual_control_enabled = manual_control;
-
+void LedCtrlClass::begin() {
     pinMode(LED_CELL_PIN, OUTPUT);
     pinMode(LED_CON_PIN, OUTPUT);
     pinMode(LED_DATA_PIN, OUTPUT);
@@ -39,6 +37,11 @@ void LedCtrlClass::begin(const bool manual_control) {
     this->off(Led::DATA);
     this->off(Led::ERROR);
     this->off(Led::USER);
+}
+
+void LedCtrlClass::beginManual() {
+    manual_control_enabled = true;
+    this->begin();
 }
 
 uint8_t LedCtrlClass::getLedPin(Led led) {

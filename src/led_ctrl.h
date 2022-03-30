@@ -31,7 +31,15 @@ class LedCtrlClass {
      * @param manual_control Set to true if the system should *not* modify the
      * leds automatically (for example when the LTE modem is connected).
      */
-    void begin(const bool manual_control = false);
+    void begin();
+
+    /**
+     * @brief Start the LED control module in manual mode. In manual mode, the
+     * system should *not* modify the LEDs automatically (for example when the
+     * LTE modem is connected).
+     *
+     */
+    void beginManual();
 
     /**
      * @return The pin associated with the given LED.
