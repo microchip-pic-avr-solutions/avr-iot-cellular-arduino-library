@@ -67,9 +67,6 @@ pipeline {
             // Only run if git tag exists and it's the master branch
             when {
                 allOf {
-                    expression {
-                        env.GIT_TAG != ''
-                    }
                     branch env.TARGET_BRANCH
                 }
             }
@@ -97,6 +94,11 @@ pipeline {
 
                 // Create a new release
                 stage('GitHub-Release') {
+                    when {
+                        expression {
+                            env.GIT_TAG != ''
+                        }
+                    }
                     steps {
                         script {
                             withCredentials([usernamePassword(credentialsId: 'pic_avr_github', usernameVariable: 'USER_NAME', passwordVariable:'PASS' )]) {
