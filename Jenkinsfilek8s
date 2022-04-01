@@ -89,7 +89,7 @@ pipeline {
                     steps {
                         script {
                             withCredentials([usernamePassword(credentialsId: 'github_mchptest', usernameVariable: 'USER_NAME', passwordVariable:'PASS' )]) {
-                                sh "python3 ${env.DEPLOY_SCRIPT_FILE} -deploy=true -gpat=${PASS} -dgid=${USER_NAME} -dburl=${env.BITBUCKET_REPO} -dgurl=${env.GITHUB_REPO} -dbranch=${env.TARGET_BRANCH} -def=\"cloudprovider.yaml, Jenkinsfilek8s, mini_port.md, internal_readme.md\""
+                                sh "python3 ${env.DEPLOY_SCRIPT_FILE} -deploy=true -gpat=${PASS} -dgid=${USER_NAME} -dburl=${env.BITBUCKET_REPO} -dgurl=${env.GITHUB_REPO} -dbranch=${env.TARGET_BRANCH}"
                             }
                         }
                     }
@@ -99,8 +99,8 @@ pipeline {
                 stage('GitHub-Release') {
                     steps {
                         script {
-                            withCredentials([usernamePassword(credentialsId: 'pic_avr_github', usernameVariable: 'USER_NAME', passwordVariable:'PASS' )]) {
-                                sh "python3 ${env.DEPLOY_SCRIPT_FILE} -rlo=true -gpat=${PASS} -dgid=${USER_NAME} -rpn=${GITHUB_REPO_SHORT} -rporg=${GITHUB_ORG} -rltt=\"${env.GIT_TAG}\" -rltv=\"${env.GIT_TAG}\" -rlua=\"avr-iot-cellular-${env.GIT_TAG}.zip, builds/mini/sandbox.ino.hex\""
+                            withCredentials([usernamePassword(credentialsId: 'github_mchptest', usernameVariable: 'USER_NAME', passwordVariable:'PASS' )]) {
+                                sh "python3 ${env.DEPLOY_SCRIPT_FILE} -rlo=true -gpat=${PASS} -dgid=${USER_NAME} -rpn=${GITHUB_REPO_SHORT} -rporg=${GITHUB_ORG} -rltt=\"${env.GIT_TAG}\" -rltv=\"${env.GIT_TAG}\" -rlua=\"avr-iot-cellular-${env.GIT_TAG}.zip,sandbox.hex\""
                             }
                         }
                     }
@@ -112,7 +112,7 @@ pipeline {
 
     post {
         success {
-            archiveArtifacts artifacts: '**/avr-iot-cellular-*.zip'
+            archiveArtifacts artifacts: '**/avr-iot-cellular-*.zip, **/sandbox.hex'
         }
     }
 }
