@@ -16,10 +16,10 @@ pipeline {
 		DEPLOY_TOOL_URL = 'https://bitbucket.microchip.com/scm/citd/tool-github-deploy.git'
         DEPLOY_SCRIPT_FILE = 'tool-github-deploy/tool-github-deploy/tool-github-deploy.py'
         BITBUCKET_REPO = 'https://bitbucket.microchip.com/scm/mcu8mass/avr-iot-cellular-arduino-library.git'
-        GITHUB_REPO = 'https://github.com/mchpTestArea/avr-iot-test'
-        GITHUB_REPO_SHORT = 'avr-iot-test'
-        GITHUB_ORG = 'mchpTestArea'
-        TARGET_BRANCH = 'sandbox'
+        GITHUB_REPO = 'https://github.com/microchip-pic-avr-solutions/avr-iot-cellular-arduino-library'
+        GITHUB_REPO_SHORT = 'avr-iot-cellular-arduino-library'
+        GITHUB_ORG = 'microchip-pic-avr-solutions'
+        TARGET_BRANCH = 'main'
 	}
 
     stages {
@@ -99,7 +99,7 @@ pipeline {
                 stage('GitHub-Release') {
                     steps {
                         script {
-                            withCredentials([usernamePassword(credentialsId: 'github_mchptest', usernameVariable: 'USER_NAME', passwordVariable:'PASS' )]) {
+                            withCredentials([usernamePassword(credentialsId: 'pic_avr_github', usernameVariable: 'USER_NAME', passwordVariable:'PASS' )]) {
                                 sh "python3 ${env.DEPLOY_SCRIPT_FILE} -rlo=true -gpat=${PASS} -dgid=${USER_NAME} -rpn=${GITHUB_REPO_SHORT} -rporg=${GITHUB_ORG} -rltt=\"${env.GIT_TAG}\" -rltv=\"${env.GIT_TAG}\" -rlua=\"avr-iot-cellular-${env.GIT_TAG}.zip, builds/mini/sandbox.ino.hex\""
                             }
                         }
