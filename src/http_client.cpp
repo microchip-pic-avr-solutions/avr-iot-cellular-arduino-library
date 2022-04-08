@@ -296,7 +296,7 @@ int16_t HttpClientClass::readBody(char *buffer, const uint32_t buffer_size) {
     size_t response_length = strlen(buffer);
 
     // Remove extra <CR> from command response
-    memset(buffer + response_length - 1, 0, 1);
+    buffer[response_length - 1] = '\0';
 
     return response_length - 1;
 }
