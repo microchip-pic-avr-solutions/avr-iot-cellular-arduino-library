@@ -577,8 +577,10 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     char *start_value_ptr = data;
     char *end_value_ptr = strchr(data, RESPONSE_DELIMITER);
 
-    // We did not find the delimiter at all, abort
-    if (end_value_ptr == NULL) {
+    // We did not find the delimiter at all, abort if the index we request is >
+    // 0. If it is 0, the command might only consist of one entry and not have a
+    // delimiter
+    if (end_value_ptr == NULL && index > 0) {
         return false;
     }
 
@@ -727,8 +729,6 @@ uint8_t SequansControllerClass::waitForByte(uint8_t byte, uint32_t timeout) {
         readByte = SequansController.readByte();
 
         if (millis() - start > timeout) {
-            Log.errorf("Timed out waiting for character from modem %c \r\n",
-                       (char)byte);
             return SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT;
         }
     }

@@ -38,6 +38,11 @@ class LteClass {
     void end(void);
 
     /**
+     * @return The operator name
+     */
+    String getOperator(void);
+
+    /**
      * @brief Registers callback functions for when the module is connected to
      * the operator and disconnected from the operator.
      */

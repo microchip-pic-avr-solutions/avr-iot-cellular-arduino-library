@@ -218,6 +218,7 @@ void decodeMessage(const char *message) {
 
 void setup() {
     Log.begin(115200);
+    Log.setLogLevel(LogLevel::DEBUG);
 
     LedCtrl.begin();
     LedCtrl.startupCycle();
@@ -228,7 +229,7 @@ void setup() {
     Log.infof("Starting sandbox / landing page procedure. Version = %s\r\n",
               SANDBOX_VERSION);
 
-    if (Mcp9808.begin() == -1) {
+    if (Mcp9808.begin(0x18) == -1) {
         Log.error("Could not initialize the temperature sensor");
     }
 
@@ -260,7 +261,8 @@ void loop() {
         switch (state) {
         case NOT_CONNECTED:
             state = CONNECTED_TO_NETWORK;
-            Log.info("Connected to LTE network!\r\n");
+            Log.infof("Connected to operator: %s\r\n",
+                      Lte.getOperator().c_str());
             Log.info("Connecting to MQTT broker...");
             connectMqtt();
             break;
