@@ -170,12 +170,15 @@ class SequansControllerClass {
      * registration.
      *
      * @param urc_callback Callback with URC data as argument.
+     * @param clear_data Whether the UART RX buffer will be cleared of the URC
+     * or not. This is to save space in the buffer.
      *
      * @return true if we didn't surpass the fixed amount of URC callbacks
      * allowed for registration.
      */
     bool registerCallback(const char *urc_identifier,
-                          void (*urc_callback)(char *));
+                          void (*urc_callback)(char *),
+                          const bool clear_data = true);
 
     /**
      * @brief Unregister callback for a given URC identifier.

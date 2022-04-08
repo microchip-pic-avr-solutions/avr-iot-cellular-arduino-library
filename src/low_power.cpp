@@ -211,7 +211,7 @@ static uint32_t retrieveOperatorSleepTime(void) {
     SequansController.clearReceiveBuffer();
     SequansController.writeCommand(AT_COMMAND_CONNECTION_STATUS);
 
-    char response[RESPONSE_CONNECTION_STATUS_SIZE];
+    char response[RESPONSE_CONNECTION_STATUS_SIZE] = "";
     const ResponseResult response_result = SequansController.readResponse(
         response, RESPONSE_CONNECTION_STATUS_SIZE);
 
@@ -227,7 +227,7 @@ static uint32_t retrieveOperatorSleepTime(void) {
     }
 
     // Find the sleep timer token in the response
-    char sleep_timer_token[TIMER_LENGTH];
+    char sleep_timer_token[TIMER_LENGTH] = "";
     const bool found_token = SequansController.extractValueFromCommandResponse(
         response, TIMER_SLEEP_INDEX, sleep_timer_token, TIMER_LENGTH);
 
@@ -336,6 +336,7 @@ static WakeUpReason regularSleep(void) {
             Log.debugf("Got invalid sleep time: %d\r\n", sleep_time);
             return WakeUpReason::INVALID_SLEEP_TIME;
         } else {
+            Log.debugf("Sleep time set to: %d seconds\r\n", sleep_time);
             retrieved_sleep_time = true;
         }
     }
@@ -369,6 +370,12 @@ static WakeUpReason regularSleep(void) {
 
         sleep_cpu();
 
+        // Woken up by some external interrupt
+        if (!pit_triggered && modem_is_in_power_save) {
+            wakeup_reason = WakeUpReason::EXTERNAL_INTERRUPT;
+            break;
+        }
+
         // Got woken up by the PIT interrupt
         if (pit_triggered) {
             remaining_time_seconds -= 1;
@@ -385,9 +392,6 @@ static WakeUpReason regularSleep(void) {
                 wakeup_reason = WakeUpReason::AWOKEN_BY_MODEM_PREMATURELY;
                 break;
             }
-        } else {
-            wakeup_reason = WakeUpReason::EXTERNAL_INTERRUPT;
-            break;
         }
     }
 

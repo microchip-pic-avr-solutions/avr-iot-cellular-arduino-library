@@ -125,7 +125,7 @@ void LteClass::begin(void) {
     }
 
     // Enable the default callback
-    SequansController.registerCallback(CEREG_CALLBACK, connectionStatus);
+    SequansController.registerCallback(CEREG_CALLBACK, connectionStatus, false);
 
     // This is convenient when the MCU has been issued a reset, but the lte
     // modem is already connected, which will be the case during development for

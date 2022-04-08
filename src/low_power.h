@@ -20,20 +20,20 @@ enum class SleepMultiplier {
 
 enum class WakeUpReason {
     // Invoked if the sleep time retrieved from the operator wasn't valid
-    INVALID_SLEEP_TIME = 3,
+    INVALID_SLEEP_TIME = 4,
 
     // Invoked if it took so long to put the modem in sleep that it wasn't time
     // left for the CPU to sleep. The sleep time should be considered to be
     // increased.
-    MODEM_TIMEOUT = 2,
+    MODEM_TIMEOUT = 3,
 
     // The modem went out of sleep before the total time, which may happen if
     // e.g. the interval of needing to send MQTT heartbeat is lower than the
     // sleep time.
-    AWOKEN_BY_MODEM_PREMATURELY = 1,
+    AWOKEN_BY_MODEM_PREMATURELY = 2,
 
     // External interrup caused the AVR to go out of sleep
-    EXTERNAL_INTERRUPT,
+    EXTERNAL_INTERRUPT = 1,
 
     OK = 0,
 };

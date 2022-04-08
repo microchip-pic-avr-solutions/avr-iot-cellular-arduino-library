@@ -88,10 +88,10 @@ static volatile uint16_t tx_num_elements = 0;
 // We keep two buffers for identifier and data so that data won't be overwritten
 // whilst we are looking for a new URC. In that way the data buffer will only be
 // overwritten if we find an URC we are looking for.
-static uint8_t urc_identifier_buffer[URC_IDENTIFIER_BUFFER_SIZE];
-static char urc_data_buffer[URC_DATA_BUFFER_SIZE];
-static volatile uint8_t urc_identifier_buffer_length = 0;
-static volatile uint8_t urc_data_buffer_length = 0;
+static volatile uint8_t urc_identifier_buffer[URC_IDENTIFIER_BUFFER_SIZE];
+static volatile char urc_data_buffer[URC_DATA_BUFFER_SIZE];
+static volatile uint16_t urc_identifier_buffer_length = 0;
+static volatile uint16_t urc_data_buffer_length = 0;
 
 typedef enum {
     URC_PARSING_IDENTIFIER,
@@ -101,8 +101,11 @@ typedef enum {
 
 static UrcParseState urc_parse_state = URC_NOT_PARSING;
 
-static char urc_lookup_table[MAX_URC_CALLBACKS][URC_IDENTIFIER_BUFFER_SIZE];
-static uint8_t urc_lookup_table_length[MAX_URC_CALLBACKS];
+static volatile uint8_t urc_index = 0;
+static volatile char urc_lookup_table[MAX_URC_CALLBACKS]
+                                     [URC_IDENTIFIER_BUFFER_SIZE];
+static volatile uint8_t urc_lookup_table_length[MAX_URC_CALLBACKS];
+static volatile bool urc_lookup_table_clear_data[MAX_URC_CALLBACKS];
 void (*urc_callbacks[MAX_URC_CALLBACKS])(char *);
 
 // Used to keep a pointer to the URC we are processing and found to be matching,
@@ -215,6 +218,8 @@ ISR(USART1_RXC_vect) {
                     if (memcmp(urc_identifier_buffer,
                                urc_lookup_table[i],
                                urc_lookup_table_length[i]) == 0) {
+
+                        urc_index = i;
                         urc_current_callback = urc_callbacks[i];
                         urc_parse_state = URC_PARSING_DATA;
 
@@ -243,9 +248,11 @@ ISR(USART1_RXC_vect) {
             if (urc_current_callback != NULL) {
                 // Clear the buffer for the URC since we're passing the data
                 // with the URC callback
-                rx_head_index =
-                    (rx_head_index - urc_data_buffer_length) & RX_BUFFER_MASK;
-                rx_num_elements -= urc_data_buffer_length;
+                if (urc_lookup_table_clear_data[urc_index]) {
+                    rx_head_index = (rx_head_index - urc_data_buffer_length) &
+                                    RX_BUFFER_MASK;
+                    rx_num_elements -= urc_data_buffer_length;
+                }
 
                 urc_current_callback(urc_data_buffer);
                 urc_current_callback = NULL;
@@ -623,7 +630,8 @@ bool SequansControllerClass::extractValueFromCommandResponse(
 }
 
 bool SequansControllerClass::registerCallback(const char *urc_identifier,
-                                              void (*urc_callback)(char *)) {
+                                              void (*urc_callback)(char *),
+                                              const bool clear_data) {
 
     // Check if we can override first
     uint8_t urc_identifier_length = strlen(urc_identifier);
@@ -631,6 +639,7 @@ bool SequansControllerClass::registerCallback(const char *urc_identifier,
         if (urc_lookup_table_length[i] == urc_identifier_length &&
             strcmp(urc_identifier, urc_lookup_table[i]) == 0) {
             urc_callbacks[i] = urc_callback;
+            urc_lookup_table_clear_data[i] = clear_data;
             return true;
         }
     }
@@ -641,6 +650,7 @@ bool SequansControllerClass::registerCallback(const char *urc_identifier,
             strcpy(urc_lookup_table[i], urc_identifier);
             urc_lookup_table_length[i] = strlen(urc_identifier);
             urc_callbacks[i] = urc_callback;
+            urc_lookup_table_clear_data[i] = clear_data;
             return true;
         }
     }
