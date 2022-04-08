@@ -12,6 +12,7 @@ void setup() {
 
     Log.begin(115200);
     LedCtrl.begin();
+    LedCtrl.startupCycle();
 
     // Start LTE modem and wait until we are connected to the operator
     Lte.begin();

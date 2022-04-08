@@ -18,6 +18,7 @@ long getTimeFromApiresp(String *resp) {
 void setup() {
 
     LedCtrl.begin();
+    LedCtrl.startupCycle();
 
     Log.begin(115200);
     Log.info("Starting HTTP Get Time Example\r\n");
