@@ -238,7 +238,8 @@ String LteClass::getOperator(void) {
             SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT) {}
 
         SequansController.clearReceiveBuffer();
-        return buffer;
+
+        return String(buffer);
     }
 
     SequansController.clearReceiveBuffer();
