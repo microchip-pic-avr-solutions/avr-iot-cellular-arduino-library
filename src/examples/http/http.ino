@@ -13,19 +13,21 @@ void setup() {
 
     // Start LTE modem and wait until we are connected to the operator
     Lte.begin();
+    Log.infof("Connecting to operator");
     while (!Lte.isConnected()) {
-        Log.info("Not connected to operator yet...\r\n");
+        Log.raw(".");
         delay(1000);
     }
 
-    Log.info("Connected!\r\n");
+    Log.raw("\r\n");
+    Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
 
     testHttp();
 }
 
 void testHttp() {
 
-    Log.info("---- Testing HTTP ----\r\n");
+    Log.info("---- Testing HTTP ----");
 
     HttpResponse response;
 
@@ -35,20 +37,23 @@ void testHttp() {
         Log.info("Failed to configure http client\r\n");
     }
 
-    Log.info("Configured to HTTP\r\n");
+    Log.info("Configured to HTTP");
 
     response = HttpClient.post("/post", "{\"hello\": \"world\"}");
     Log.infof("POST - status code: %u, data size: %u\r\n",
               response.status_code,
               response.data_size);
 
+    Log.raw("\r\n");
+
     // --- HTTPS ---
+    Log.info("---- Testing HTTPS ----");
 
     if (!HttpClient.configure(DOMAIN, 443, true)) {
         Log.info("Failed to configure https client\r\n");
     }
 
-    Log.info("Configured to HTTPS\r\n");
+    Log.info("Configured to HTTPS");
 
     response = HttpClient.head("/get");
     Log.infof("HEAD - status code: %d, data size: %d\r\n",

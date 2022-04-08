@@ -295,10 +295,10 @@ int16_t HttpClientClass::readBody(char *buffer, const uint32_t buffer_size) {
 
     size_t response_length = strlen(buffer);
 
-    // Remove extra <CR><LF> from command response
-    memset(buffer + response_length - 2, 0, 2);
+    // Remove extra <CR> from command response
+    memset(buffer + response_length - 1, 0, 1);
 
-    return response_length - 2;
+    return response_length - 1;
 }
 
 String HttpClientClass::readBody(const uint32_t size) {
@@ -309,5 +309,5 @@ String HttpClientClass::readBody(const uint32_t size) {
         return "";
     }
 
-    return buffer;
+    return String(buffer);
 }
