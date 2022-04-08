@@ -385,6 +385,9 @@ static WakeUpReason regularSleep(void) {
                 wakeup_reason = WakeUpReason::AWOKEN_BY_MODEM_PREMATURELY;
                 break;
             }
+        } else {
+            wakeup_reason = WakeUpReason::EXTERNAL_INTERRUPT;
+            break;
         }
     }
 
@@ -411,6 +414,8 @@ static WakeUpReason deepSleep(void) {
     uint32_t remaining_time_seconds =
         sleep_time - (uint32_t)(((millis() - start_time_ms) / 1000.0f));
 
+    WakeUpReason wakeup_reason = WakeUpReason::OK;
+
     while (remaining_time_seconds > 0) {
 
         sleep_cpu();
@@ -418,13 +423,16 @@ static WakeUpReason deepSleep(void) {
         if (pit_triggered) {
             remaining_time_seconds -= 1;
             pit_triggered = false;
+        } else {
+            wakeup_reason = WakeUpReason::EXTERNAL_INTERRUPT;
+            break;
         }
     }
 
     disablePIT();
     Lte.begin();
 
-    return WakeUpReason::OK;
+    return wakeup_reason;
 }
 
 bool LowPowerClass::begin(const SleepMultiplier sleep_multiplier,

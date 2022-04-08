@@ -32,6 +32,9 @@ enum class WakeUpReason {
     // sleep time.
     AWOKEN_BY_MODEM_PREMATURELY = 1,
 
+    // External interrup caused the AVR to go out of sleep
+    EXTERNAL_INTERRUPT,
+
     OK = 0,
 };
 
