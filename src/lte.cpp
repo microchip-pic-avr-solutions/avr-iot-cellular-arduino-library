@@ -185,7 +185,7 @@ String LteClass::getOperator(void) {
     uint8_t index = 0;
     char buffer[48] = "";
 
-    while (SequansController.waitForByte(URC_IDENTIFIER_START_CHARACTER, 500) !=
+    while (SequansController.waitForByte(URC_IDENTIFIER_START_CHARACTER, 100) !=
            SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT) {
 
         while (SequansController.readByte() != URC_IDENTIFIER_END_CHARACTER) {}
@@ -234,7 +234,7 @@ String LteClass::getOperator(void) {
 
         // Clear the rest of the result from querying the operators
         while (
-            SequansController.waitForByte(URC_IDENTIFIER_END_CHARACTER, 500) !=
+            SequansController.waitForByte(URC_IDENTIFIER_END_CHARACTER, 100) !=
             SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT) {}
 
         SequansController.clearReceiveBuffer();

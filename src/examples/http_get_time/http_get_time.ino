@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <http_client.h>
+#include <led_ctrl.h>
 #include <log.h>
 #include <lte.h>
 
@@ -16,18 +17,21 @@ long getTimeFromApiresp(String *resp) {
 
 void setup() {
 
+    LedCtrl.begin();
+
     Log.begin(115200);
     Log.info("Starting HTTP Get Time Example\r\n");
 
     // Start LTE modem and wait until we are connected to the operator
     Lte.begin();
-
+    Log.infof("Connecting to operator");
     while (!Lte.isConnected()) {
-        Log.info("Not connected to operator yet...\r\n");
-        delay(5000);
+        Log.raw(".");
+        delay(1000);
     }
 
-    Log.info("Connected to operator!\r\n");
+    Log.raw("\r\n");
+    Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
 
     if (!HttpClient.configure(TIMEZONE_URL, 80, false)) {
         Log.errorf("Failed to configure the http client for the domain %s\r\n",
@@ -35,9 +39,8 @@ void setup() {
         return;
     }
 
-    Log.info("Configured to HTTP\r\n");
+    Log.info("--- Configured to HTTP ---");
 
-    // TODO: Fails, get status code 0
     HttpResponse response;
     response = HttpClient.get(TIMEZONE_URI);
     if (response.status_code != HttpClient.STATUS_OK) {

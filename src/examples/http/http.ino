@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <http_client.h>
+#include <led_ctrl.h>
 #include <log.h>
 #include <lte.h>
 
@@ -10,6 +11,7 @@ void testHttp();
 void setup() {
 
     Log.begin(115200);
+    LedCtrl.begin();
 
     // Start LTE modem and wait until we are connected to the operator
     Lte.begin();
