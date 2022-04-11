@@ -137,6 +137,7 @@ void LteClass::begin(void) {
 }
 
 void LteClass::end(void) {
+    SequansController.unregisterCallback(CEREG_CALLBACK);
     SequansController.retryCommand(AT_COMMAND_DISCONNECT);
     SequansController.end();
 }

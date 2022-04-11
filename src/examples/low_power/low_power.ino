@@ -69,6 +69,7 @@ void setup() {
     // In powerSave(), after the LTE modem is sleeping, we also put the
     // CPU to sleep. When the time period is over, the CPU is woken at the same
     // time as the LTE modem is woken up.
+
     LowPower.configurePeriodicPowerSave(
         PowerSaveModePeriodMultiplier::THIRTY_SECONDS, 2);
 
@@ -93,5 +94,5 @@ void loop() {
 
     // Do work ...
     Log.info("Doing work...");
-    delay(5000);
+    delay(10000);
 }

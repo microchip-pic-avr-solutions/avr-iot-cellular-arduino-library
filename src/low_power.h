@@ -38,14 +38,6 @@ class LowPowerClass {
     }
 
     /**
-     * @brief configures the time spent in power down for both modem and CPU.
-     *
-     * @param power_down_seconds Time the LTE modem and CPU will be powered down
-     * when calling #powerDown().
-     */
-    void configurePowerDown(const uint32_t power_down_seconds);
-
-    /**
      * @brief Used to configure power save mode for the LTE modem. The total
      * power save time period for the LTE modem will be
      * @p power_save_mode_period_multiplier  * @p power_save_mode_period_value.
@@ -72,12 +64,6 @@ class LowPowerClass {
         const uint8_t power_save_mode_period_value);
 
     /**
-     * @brief Will power down both CPU and LTE modem. All active connections on
-     * the modem will be terminated.
-     */
-    void powerDown(void);
-
-    /**
      * @brief Will attempt to put the modem in power save and then power down
      * the MCU for the time configured in configurePeriodicPowerSave(). Note
      * that this happens sequentially, first it will put the modem to sleep and
@@ -86,6 +72,14 @@ class LowPowerClass {
      * sleep time.
      */
     void powerSave(void);
+
+    /**
+     * @brief Will power down both CPU and LTE modem. All active connections on
+     * the modem will be terminated.
+     *
+     * @power_down_time_seconds Seconds to remain powered down.
+     */
+    void powerDown(const uint32_t power_down_time_seconds);
 };
 
 extern LowPowerClass LowPower;

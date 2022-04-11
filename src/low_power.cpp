@@ -75,8 +75,6 @@ static volatile bool ring_line_activity = false;
 static volatile bool modem_is_in_power_save = false;
 static volatile bool pit_triggered = false;
 
-static uint32_t power_down_time = 0;
-
 static bool retrieved_period = false;
 static uint32_t period = 0;
 static uint32_t period_requested = 0;
@@ -323,10 +321,6 @@ static void powerUpPeripherals(void) {
     }
 }
 
-void LowPowerClass::configurePowerDown(const uint32_t power_down_seconds) {
-    power_down_time = power_down_seconds;
-}
-
 bool LowPowerClass::configurePeriodicPowerSave(
     const PowerSaveModePeriodMultiplier power_save_mode_period_multiplier,
     const uint8_t power_save_mode_period_value) {
@@ -438,7 +432,7 @@ void LowPowerClass::powerSave(void) {
     powerUpPeripherals();
 }
 
-void LowPowerClass::powerDown(void) {
+void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
 
     const unsigned long start_time_ms = millis();
 
@@ -449,8 +443,10 @@ void LowPowerClass::powerDown(void) {
     enablePIT();
 
     uint32_t remaining_time_seconds =
-        period - (uint32_t)(((millis() - start_time_ms) / 1000.0f));
+        power_down_time_seconds -
+        (uint32_t)(((millis() - start_time_ms) / 1000.0f));
 
+    // TODO: There is some external interrupt causing the avr to wake
     while (remaining_time_seconds > 0) {
 
         sleep_cpu();
