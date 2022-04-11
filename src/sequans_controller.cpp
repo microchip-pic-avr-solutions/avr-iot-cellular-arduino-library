@@ -123,6 +123,7 @@ static void (*ring_line_callback)(void);
 static bool critical_section_enabled = false;
 
 // Singleton. Defined for use of rest of library
+SequansControllerClass SequansController = SequansControllerClass::instance();
 
 /** @brief Flow control update for the UART interface with the LTE modules
  *
@@ -215,8 +216,8 @@ ISR(USART1_RXC_vect) {
                 if (urc_lookup_table_length[i] ==
                     urc_identifier_buffer_length) {
 
-                    if (memcmp(urc_identifier_buffer,
-                               urc_lookup_table[i],
+                    if (memcmp((const void *)urc_identifier_buffer,
+                               (const void *)urc_lookup_table[i],
                                urc_lookup_table_length[i]) == 0) {
 
                         urc_index = i;
@@ -254,7 +255,7 @@ ISR(USART1_RXC_vect) {
                     rx_num_elements -= urc_data_buffer_length;
                 }
 
-                urc_current_callback(urc_data_buffer);
+                urc_current_callback((char *)urc_data_buffer);
                 urc_current_callback = NULL;
             }
 
@@ -637,7 +638,7 @@ bool SequansControllerClass::registerCallback(const char *urc_identifier,
     uint8_t urc_identifier_length = strlen(urc_identifier);
     for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
         if (urc_lookup_table_length[i] == urc_identifier_length &&
-            strcmp(urc_identifier, urc_lookup_table[i]) == 0) {
+            strcmp(urc_identifier, (const char *)urc_lookup_table[i]) == 0) {
             urc_callbacks[i] = urc_callback;
             urc_lookup_table_clear_data[i] = clear_data;
             return true;
@@ -647,7 +648,7 @@ bool SequansControllerClass::registerCallback(const char *urc_identifier,
     // Look for empty spot
     for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
         if (urc_lookup_table_length[i] == 0) {
-            strcpy(urc_lookup_table[i], urc_identifier);
+            strcpy((char *)urc_lookup_table[i], urc_identifier);
             urc_lookup_table_length[i] = strlen(urc_identifier);
             urc_callbacks[i] = urc_callback;
             urc_lookup_table_clear_data[i] = clear_data;
@@ -661,8 +662,8 @@ bool SequansControllerClass::registerCallback(const char *urc_identifier,
 void SequansControllerClass::unregisterCallback(const char *urc_identifier) {
     const uint8_t urc_identifier_length = strlen(urc_identifier);
     for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
-        if (memcmp(urc_identifier,
-                   urc_lookup_table[i],
+        if (memcmp((const void *)urc_identifier,
+                   (const void *)urc_lookup_table[i],
                    urc_identifier_length) == 0) {
             // No need to fill the look up table identifier table, as we
             // override it if a new registration is issued, but the length is
