@@ -79,14 +79,14 @@ ISR(TCA0_OVF_vect) {
         event_flags |= STOP_PUBLISHING_SENSOR_DATA_FLAG;
     }
 
-    TCA0.SINGLE.INTFLAGS |= (1 << 0);
+    TCA0.SINGLE.INTFLAGS = TCA_SINGLE_OVF_bm;
 }
 
 ISR(PORTD_PORT_vect) {
-    if (PORTD.INTFLAGS & (1 << 2)) {
+    if (PORTD.INTFLAGS & PIN2_bm) {
 
         event_flags |= SEND_HEARTBEAT_FLAG;
-        PORTD.INTFLAGS |= (1 << 2);
+        PORTD.INTFLAGS = PIN2_bm;
     }
 }
 
