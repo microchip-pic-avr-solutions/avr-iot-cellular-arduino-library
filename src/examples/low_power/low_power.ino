@@ -42,9 +42,9 @@ void setup() {
     // Configure the power save configuration, start the LTE modem and wait
     // until we are connected to the operator
     //
-    // Here we say that we want to sleep for 30 seconds * 3 = 90 seconds each
+    // Here we say that we want to sleep for 30 seconds * 2 = 60 seconds each
     // time we invoke sleep
-    LowPower.begin(SleepMultiplier::ONE_MINUTE, 3, SleepMode::REGULAR);
+    LowPower.begin(SleepMultiplier::THIRTY_SECONDS, 2, SleepMode::REGULAR);
     Lte.begin();
     Log.infof("Connecting to operator");
     while (!Lte.isConnected()) {
@@ -73,8 +73,8 @@ void loop() {
         Log.info("Got woken up by modem prematurely");
         break;
     case WakeUpReason::MODEM_TIMEOUT:
-        Log.info(
-            "Took too long to put modem in sleep, not time left for sleeping");
+        Log.info("Took too long to put modem in sleep, no time left for "
+                 "sleeping. You might have to increase the sleep time.");
         break;
     case WakeUpReason::INVALID_SLEEP_TIME:
         Log.info("Got invalid sleep time from operator");
@@ -83,5 +83,5 @@ void loop() {
 
     // Do work ...
     Log.info("Doing work...");
-    delay(5000);
+    delay(10000);
 }

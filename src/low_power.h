@@ -102,7 +102,7 @@ class LowPowerClass {
      * can be put to sleep after the matter causing the wake up has been taken
      * care of.
      *
-     * - AWOKEN_BY_EXTERNAL_EVENT: Awoken by some external unknown interrupt.
+     * - EXTERNAL_INTERRUPT: Awoken by some external unknown interrupt.
      *
      * - OK: Sleep went fine.
      */

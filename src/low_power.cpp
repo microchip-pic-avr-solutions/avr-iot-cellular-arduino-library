@@ -43,8 +43,9 @@
 //
 // This parameter thus only specifies how quickly the modem can go to sleep,
 // which we want to be as low as possible.
-#define PSM_DEFAULT_AWAKE_PARAMETER "00000001"
-#define PSM_DEFAULT_AWAKE_TIME      2
+//
+// This is 10 seconds
+#define PSM_DEFAULT_AWAKE_PARAMETER "00000101"
 
 #define PSM_REMAINING_SLEEP_TIME_THRESHOLD 5
 
@@ -79,6 +80,7 @@ static volatile bool pit_triggered = false;
 static SleepMode sleep_mode;
 static bool retrieved_sleep_time = false;
 static uint32_t sleep_time = 0;
+static uint32_t sleep_time_requested = 0;
 
 static uint8_t cell_led_state = 0;
 static uint8_t con_led_state = 0;
@@ -333,12 +335,24 @@ static WakeUpReason regularSleep(void) {
         sleep_time = retrieveOperatorSleepTime();
 
         if (sleep_time == 0) {
-            Log.debugf("Got invalid sleep time: %d\r\n", sleep_time);
+            Log.debugf("Got invalid sleep time from operator: %d\r\n",
+                       sleep_time);
             return WakeUpReason::INVALID_SLEEP_TIME;
         } else {
-            Log.debugf("Sleep time set to: %d seconds\r\n", sleep_time);
+            if (sleep_time_requested != sleep_time) {
+                Log.warnf("Operator was not able to match the requested sleep "
+                          "time of %d seconds. ",
+                          sleep_time_requested);
+                Log.rawf("Operator sat the sleep time to %d seconds.\r\n",
+                         sleep_time);
+            }
+
             retrieved_sleep_time = true;
         }
+
+        // Retrieving the operator sleep time will call CEREG, which will
+        // trigger led ctrl, so we just disable it again.
+        LedCtrl.off(Led::CELL, true);
     }
 
     // The timeout here is arbitrary as we attempt to put the modem in sleep in
@@ -370,28 +384,38 @@ static WakeUpReason regularSleep(void) {
 
         sleep_cpu();
 
-        // Woken up by some external interrupt
-        if (!pit_triggered && modem_is_in_power_save) {
+        // Got woken up by the PIT interrupt
+        if (pit_triggered) {
+            remaining_time_seconds -= 1;
+        }
+
+        // If we are within the threshold, we assume that the awake was from the
+        // modem
+        if (remaining_time_seconds < PSM_REMAINING_SLEEP_TIME_THRESHOLD) {
+            wakeup_reason = WakeUpReason::OK;
+            break;
+
+        }
+        // If modem is already awake and the remaining time was not within
+        // the threshold, the modem has woken the CPU up prematurely to do
+        // some work
+        else if (!pit_triggered && !modem_is_in_power_save) {
+            wakeup_reason = WakeUpReason::AWOKEN_BY_MODEM_PREMATURELY;
+            break;
+        }
+        // If we are not within the remaining sleep time threshold, the modem
+        // did not wake the CPU up, neither the PIT, the reason for wake up is
+        // bound to be by some external interrupt.
+        else if (!pit_triggered) {
             wakeup_reason = WakeUpReason::EXTERNAL_INTERRUPT;
             break;
         }
 
-        // Got woken up by the PIT interrupt
+        // We clear the flag here as we want the information whether the PIT was
+        // triggered or not as well as the remaining time for the other cases
+        // above
         if (pit_triggered) {
-            remaining_time_seconds -= 1;
             pit_triggered = false;
-        }
-
-        // Modem caused the CPU to be awoken
-        if (!modem_is_in_power_save) {
-
-            if (remaining_time_seconds < PSM_REMAINING_SLEEP_TIME_THRESHOLD) {
-                wakeup_reason = WakeUpReason::OK;
-                break;
-            } else {
-                wakeup_reason = WakeUpReason::AWOKEN_BY_MODEM_PREMATURELY;
-                break;
-            }
         }
     }
 
@@ -499,8 +523,15 @@ bool LowPowerClass::begin(const SleepMultiplier sleep_multiplier,
             sleep_parameter_str,
             PSM_DEFAULT_AWAKE_PARAMETER);
 
-    sleep_time = decodeSleepMultiplier(sleep_multiplier) *
-                 min(sleep_value, PSM_VALUE_MAX);
+    sleep_time_requested = decodeSleepMultiplier(sleep_multiplier) *
+                           min(sleep_value, PSM_VALUE_MAX);
+
+    // If we choose deep sleep, the modem will be completely off and we don't
+    // have to negotiate the sleep time with the operator, thus the requested
+    // sleep time and the actual sleep time will be equal
+    if (mode == SleepMode::DEEP) {
+        sleep_time = sleep_time_requested;
+    }
 
     return SequansController.retryCommand(command);
 }
