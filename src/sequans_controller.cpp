@@ -146,11 +146,11 @@ static void flowControlUpdate(void) {
     // ISR
     if (rx_num_elements < RX_BUFFER_ALMOST_FULL) {
         // Space for more data, assert RTS line (active low)
-        RTS_PORT.OUTCLR |= RTS_PIN_bm;
+        VPORTC.OUT &= (~RTS_PIN_bm);
     } else {
         // Buffer is filling up, tell the target to stop sending data
         // for now by de-asserting RTS
-        RTS_PORT.OUTSET |= RTS_PIN_bm;
+        VPORTC.OUT |= RTS_PIN_bm;
     }
 }
 
@@ -168,15 +168,17 @@ ISR(PORTC_PORT_vect) {
             // before we enable interrupt
             HWSERIALAT.CTRLA |= USART_DREIE_bm;
         }
+
+        VPORTC.INTFLAGS = CTS_INT_bm;
     } else if (VPORTC.INTFLAGS & RING_INT_bm) {
         if (VPORTC.IN & RING_PIN) {
             if (ring_line_callback != NULL) {
                 ring_line_callback();
             }
         }
-    }
 
-    VPORTC.INTFLAGS = 0xff;
+        VPORTC.INTFLAGS = RING_INT_bm;
+    }
 }
 
 // RX complete
@@ -189,11 +191,11 @@ ISR(USART1_RXC_vect) {
     rx_buffer[rx_head_index] = data;
     rx_num_elements++;
 
-    // Here we keep track of the length of the URC when it starts and compare it
-    // against the look up table of lengths of the strings we are looking for.
-    // We compare against them first in order to save some cycles in the ISR and
-    // if the lengths match, we compare the string for the URC and against the
-    // buffer. If they match, call the callback
+    // Here we keep track of the length of the URC when it starts and
+    // compare it against the look up table of lengths of the strings we are
+    // looking for. We compare against them first in order to save some
+    // cycles in the ISR and if the lengths match, we compare the string for
+    // the URC and against the buffer. If they match, call the callback
     switch (urc_parse_state) {
 
     case URC_NOT_PARSING:
@@ -207,8 +209,8 @@ ISR(USART1_RXC_vect) {
     case URC_PARSING_IDENTIFIER:
 
         if (data == URC_IDENTIFIER_END_CHARACTER) {
-            // We set this as the initial condition and if we find a match for
-            // the URC we go on parsing the data
+            // We set this as the initial condition and if we find a match
+            // for the URC we go on parsing the data
             urc_parse_state = URC_NOT_PARSING;
 
             for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
@@ -224,8 +226,8 @@ ISR(USART1_RXC_vect) {
                         urc_current_callback = urc_callbacks[i];
                         urc_parse_state = URC_PARSING_DATA;
 
-                        // Reset the index in order to prepare the URC buffer
-                        // for data
+                        // Reset the index in order to prepare the URC
+                        // buffer for data
                         urc_data_buffer_length = 0;
                         break;
                     }
@@ -276,9 +278,9 @@ ISR(USART1_RXC_vect) {
 }
 
 /**
- * @brief Data register empty. Allows us to keep track of when the data has been
- * transmitted on the line and set up new data to be transmitted from the ring
- * buffer.
+ * @brief Data register empty. Allows us to keep track of when the data has
+ * been transmitted on the line and set up new data to be transmitted from
+ * the ring buffer.
  */
 ISR(USART1_DRE_vect) {
     if (tx_num_elements != 0) {
@@ -303,10 +305,10 @@ void SequansControllerClass::begin(void) {
 
     // Request to send (RTS) and clear to send (CTS) are the control lines
     // on the UART line. From the configuration the MCU and the LTE modem is
-    // in, we control the RTS line from the MCU to signalize if we can process
-    // more data or not from the LTE modem. The CTS line is controlled from
-    // the LTE modem and gives us the ability to know whether the LTE modem
-    // can receive more data or if we have to wait.
+    // in, we control the RTS line from the MCU to signalize if we can
+    // process more data or not from the LTE modem. The CTS line is
+    // controlled from the LTE modem and gives us the ability to know
+    // whether the LTE modem can receive more data or if we have to wait.
     //
     // Both pins are active low.
 
@@ -488,7 +490,8 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
         }
 
         // For AT command responses from the LTE module, "\r\nOK\r\n" or
-        // "\r\nERROR\r\n" signifies the end of a response, so we look "\r\n".
+        // "\r\nERROR\r\n" signifies the end of a response, so we look
+        // "\r\n".
         if (out_buffer[i - 1] == CARRIAGE_RETURN &&
             out_buffer[i] == LINE_FEED) {
 
@@ -566,11 +569,12 @@ bool SequansControllerClass::extractValueFromCommandResponse(
             return false;
         }
 
-        // Increment pointer to skip the data start character (and the following
-        // space in the start sequence of the data if it is there)
+        // Increment pointer to skip the data start character (and the
+        // following space in the start sequence of the data if it is there)
         while (*data == start_character || *data == SPACE_CHARACTER) { data++; }
     } else {
-        // If no start character is given, just set data start to string start
+        // If no start character is given, just set data start to string
+        // start
         data = response_copy;
     }
 
@@ -585,9 +589,9 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     char *start_value_ptr = data;
     char *end_value_ptr = strchr(data, RESPONSE_DELIMITER);
 
-    // We did not find the delimiter at all, abort if the index we request is >
-    // 0. If it is 0, the command might only consist of one entry and not have a
-    // delimiter
+    // We did not find the delimiter at all, abort if the index we request
+    // is > 0. If it is 0, the command might only consist of one entry and
+    // not have a delimiter
     if (end_value_ptr == NULL && index > 0) {
         return false;
     }
@@ -601,8 +605,8 @@ bool SequansControllerClass::extractValueFromCommandResponse(
         value_index++;
     }
 
-    // If we got all the way to the end, set the end_value_ptr to the end of the
-    // data ptr
+    // If we got all the way to the end, set the end_value_ptr to the end of
+    // the data ptr
     if (end_value_ptr == NULL) {
         end_value_ptr = data + strlen(data);
     }
@@ -666,9 +670,9 @@ void SequansControllerClass::unregisterCallback(const char *urc_identifier) {
                    (const void *)urc_lookup_table[i],
                    urc_identifier_length) == 0) {
             // No need to fill the look up table identifier table, as we
-            // override it if a new registration is issued, but the length is
-            // used to check if the slot is active or not, so we set that to 0
-            // and reset the callback pointer for house keeping
+            // override it if a new registration is issued, but the length
+            // is used to check if the slot is active or not, so we set that
+            // to 0 and reset the callback pointer for house keeping
             urc_lookup_table_length[i] = 0;
             urc_callbacks[i] = NULL;
             break;
@@ -696,8 +700,8 @@ void SequansControllerClass::setPowerSaveMode(const uint8_t mode,
 
             // We have interrupt on change here since there is sometimes
             // a too small interval for the sensing to sense a rising edge.
-            // This is fine as any change will yield that we are out of power
-            // save mode.
+            // This is fine as any change will yield that we are out of
+            // power save mode.
             pinConfigure(RING_PIN, PIN_DIR_INPUT | PIN_INT_CHANGE);
         }
 
