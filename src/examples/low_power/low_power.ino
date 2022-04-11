@@ -20,19 +20,31 @@
 #endif
 #endif
 
-void setup() {
+#define SW0 PIN_PD2
 
+ISR(PORTD_PORT_vect) {
+    if (PORTD.INTFLAGS & PIN2_bm) {
+        PORTD.INTFLAGS = PIN2_bm;
+    }
+}
+
+void setup() {
     Log.begin(115200);
+    Log.setLogLevel(LogLevel::DEBUG);
 
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
+    // Configure SW0 for interrupt so we can wake the device up from sleep by
+    // pressing the button
+    pinConfigure(SW0, PIN_DIR_INPUT | PIN_INT_FALL);
+
     // Configure the power save configuration, start the LTE modem and wait
     // until we are connected to the operator
     //
-    // Here we say that we want to sleep for 30 seconds * 2 = 60 seconds each
+    // Here we say that we want to sleep for 30 seconds * 3 = 90 seconds each
     // time we invoke sleep
-    LowPower.begin(SleepMultiplier::THIRTY_SECONDS, 2, SleepMode::REGULAR);
+    LowPower.begin(SleepMultiplier::ONE_MINUTE, 3, SleepMode::REGULAR);
     Lte.begin();
     Log.infof("Connecting to operator");
     while (!Lte.isConnected()) {
@@ -45,14 +57,31 @@ void setup() {
 }
 
 void loop() {
-
     Log.raw("\r\n");
     Log.info("Going to sleep...");
     delay(100);
     WakeUpReason wakeup_reason = LowPower.sleep();
-    Log.infof("Got out of sleep with wake up reason %d, doing work...\r\n",
-              wakeup_reason);
 
-    delay(10000);
+    switch (wakeup_reason) {
+    case WakeUpReason::OK:
+        Log.info("Finished sleep");
+        break;
+    case WakeUpReason::EXTERNAL_INTERRUPT:
+        Log.info("Got woken up by external interrupt");
+        break;
+    case WakeUpReason::AWOKEN_BY_MODEM_PREMATURELY:
+        Log.info("Got woken up by modem prematurely");
+        break;
+    case WakeUpReason::MODEM_TIMEOUT:
+        Log.info(
+            "Took too long to put modem in sleep, not time left for sleeping");
+        break;
+    case WakeUpReason::INVALID_SLEEP_TIME:
+        Log.info("Got invalid sleep time from operator");
+        break;
+    }
+
     // Do work ...
+    Log.info("Doing work...");
+    delay(5000);
 }
