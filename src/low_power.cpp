@@ -35,17 +35,15 @@
 #define PSM_MULTIPLIER_BM                 0xE0
 #define PSM_VALUE_BM                      0x1F
 
-// We set the active timer parameter to two seconds with this. The reason
+// We set the active/paging timer parameter to ten seconds with this. The reason
 // behind this is that we don't care about the active period since after
 // sleep has finished, the RTS line will be active and prevent the modem
 // from going to sleep and thus the awake time is as long as the RTS
 // line is kept active.
 //
 // This parameter thus only specifies how quickly the modem can go to sleep,
-// which we want to be as low as possible.
-//
-// This is 10 seconds
-#define PSM_DEFAULT_AWAKE_PARAMETER "00000101"
+// which we want to be quite low, but long enough time for sufficient paging.
+#define PSM_DEFAULT_PAGING_PARAMETER "00000101"
 
 #define PSM_REMAINING_SLEEP_TIME_THRESHOLD 5
 
@@ -77,10 +75,11 @@ static volatile bool ring_line_activity = false;
 static volatile bool modem_is_in_power_save = false;
 static volatile bool pit_triggered = false;
 
-static SleepMode sleep_mode;
-static bool retrieved_sleep_time = false;
-static uint32_t sleep_time = 0;
-static uint32_t sleep_time_requested = 0;
+static uint32_t power_down_time = 0;
+
+static bool retrieved_period = false;
+static uint32_t period = 0;
+static uint32_t period_requested = 0;
 
 static uint8_t cell_led_state = 0;
 static uint8_t con_led_state = 0;
@@ -126,20 +125,21 @@ static uint8_t stringOfBitsToUint8(const char *string) {
     return value;
 }
 
-static uint16_t decodeSleepMultiplier(const SleepMultiplier sleep_multiplier) {
+static uint16_t
+decodePeriodMultiplier(const PowerSaveModePeriodMultiplier multiplier) {
 
-    switch (sleep_multiplier) {
-    case SleepMultiplier::TEN_HOURS:
+    switch (multiplier) {
+    case PowerSaveModePeriodMultiplier::TEN_HOURS:
         return 36000;
-    case SleepMultiplier::ONE_HOUR:
+    case PowerSaveModePeriodMultiplier::ONE_HOUR:
         return 3600;
-    case SleepMultiplier::TEN_MINUTES:
+    case PowerSaveModePeriodMultiplier::TEN_MINUTES:
         return 600;
-    case SleepMultiplier::ONE_MINUTE:
+    case PowerSaveModePeriodMultiplier::ONE_MINUTE:
         return 60;
-    case SleepMultiplier::THIRTY_SECONDS:
+    case PowerSaveModePeriodMultiplier::THIRTY_SECONDS:
         return 30;
-    case SleepMultiplier::TWO_SECONDS:
+    case PowerSaveModePeriodMultiplier::TWO_SECONDS:
         return 2;
     default:
         return 0;
@@ -228,29 +228,30 @@ static uint32_t retrieveOperatorSleepTime(void) {
         return 0;
     }
 
-    // Find the sleep timer token in the response
-    char sleep_timer_token[TIMER_LENGTH] = "";
+    // Find the period timer token in the response
+    char period_timer_token[TIMER_LENGTH] = "";
     const bool found_token = SequansController.extractValueFromCommandResponse(
-        response, TIMER_SLEEP_INDEX, sleep_timer_token, TIMER_LENGTH);
+        response, TIMER_SLEEP_INDEX, period_timer_token, TIMER_LENGTH);
 
     if (!found_token) {
-        Log.warnf("Did not find sleep timer token, got the following: %s\r\n",
-                  sleep_timer_token);
+        Log.warnf("Did not find period timer token, got the following: %s\r\n",
+                  period_timer_token);
         return 0;
     }
 
     // Shift the pointer one address forward to bypass the quotation mark in
     // the token, since it is returned like this "xxxxxxxx"
-    const uint8_t sleep_timer = stringOfBitsToUint8(&(sleep_timer_token[1]));
+    const uint8_t period_timer = stringOfBitsToUint8(&(period_timer_token[1]));
 
     // The three first MSB are the multiplier
-    const SleepMultiplier sleep_multiplier =
-        static_cast<SleepMultiplier>((sleep_timer & PSM_MULTIPLIER_BM) >> 5);
+    const PowerSaveModePeriodMultiplier psm_period_multiplier =
+        static_cast<PowerSaveModePeriodMultiplier>(
+            (period_timer & PSM_MULTIPLIER_BM) >> 5);
 
     // The 5 LSB are the value
-    const uint8_t sleep_value = sleep_timer & PSM_VALUE_BM;
+    const uint8_t psm_period_value = period_timer & PSM_VALUE_BM;
 
-    return decodeSleepMultiplier(sleep_multiplier) * sleep_value;
+    return decodePeriodMultiplier(psm_period_multiplier) * psm_period_value;
 }
 
 static void enablePIT(void) {
@@ -322,157 +323,17 @@ static void powerUpPeripherals(void) {
     }
 }
 
-/**
- * Modem sleeping and CPU deep sleep.
- */
-static WakeUpReason regularSleep(void) {
-
-    const unsigned long start_time_ms = millis();
-
-    if (!retrieved_sleep_time) {
-        // Retrieve the proper sleep time set by the operator, which may
-        // deviate from what we requested
-        sleep_time = retrieveOperatorSleepTime();
-
-        if (sleep_time == 0) {
-            Log.debugf("Got invalid sleep time from operator: %d\r\n",
-                       sleep_time);
-            return WakeUpReason::INVALID_SLEEP_TIME;
-        } else {
-            if (sleep_time_requested != sleep_time) {
-                Log.warnf("Operator was not able to match the requested sleep "
-                          "time of %d seconds. ",
-                          sleep_time_requested);
-                Log.rawf("Operator sat the sleep time to %d seconds.\r\n",
-                         sleep_time);
-            }
-
-            retrieved_sleep_time = true;
-        }
-
-        // Retrieving the operator sleep time will call CEREG, which will
-        // trigger led ctrl, so we just disable it again.
-        LedCtrl.off(Led::CELL, true);
-    }
-
-    // The timeout here is arbitrary as we attempt to put the modem in sleep in
-    // a loop, so we just choose 30 seconds = 30000 ms
-    while (!attemptToEnterPowerSaveModeForModem(30000) &&
-           millis() - start_time_ms < sleep_time * 1000) {}
-
-    // If we surpassed the sleep time during setting the LTE to sleep, we
-    // don't have any more time to sleep the CPU, so just return.
-    if (millis() - start_time_ms >= sleep_time * 1000) {
-        return WakeUpReason::MODEM_TIMEOUT;
-    }
-
-    enablePIT();
-
-    uint32_t remaining_time_seconds =
-        sleep_time - (uint32_t)(((millis() - start_time_ms) / 1000.0f));
-
-    WakeUpReason wakeup_reason = WakeUpReason::OK;
-
-    if (remaining_time_seconds < 0) {
-        wakeup_reason = WakeUpReason::MODEM_TIMEOUT;
-    }
-
-    // As the PIT timer has a minimum frequency of 1 Hz, we loop over the
-    // remaining time and sleep for a second each time before the PIT triggers
-    // and interrupt.
-    while (remaining_time_seconds > 0) {
-
-        sleep_cpu();
-
-        // Got woken up by the PIT interrupt
-        if (pit_triggered) {
-            remaining_time_seconds -= 1;
-        }
-
-        // If we are within the threshold, we assume that the awake was from the
-        // modem
-        if (remaining_time_seconds < PSM_REMAINING_SLEEP_TIME_THRESHOLD) {
-            wakeup_reason = WakeUpReason::OK;
-            break;
-
-        }
-        // If modem is already awake and the remaining time was not within
-        // the threshold, the modem has woken the CPU up prematurely to do
-        // some work
-        else if (!pit_triggered && !modem_is_in_power_save) {
-            wakeup_reason = WakeUpReason::AWOKEN_BY_MODEM_PREMATURELY;
-            break;
-        }
-        // If we are not within the remaining sleep time threshold, the modem
-        // did not wake the CPU up, neither the PIT, the reason for wake up is
-        // bound to be by some external interrupt.
-        else if (!pit_triggered) {
-            wakeup_reason = WakeUpReason::EXTERNAL_INTERRUPT;
-            break;
-        }
-
-        // We clear the flag here as we want the information whether the PIT was
-        // triggered or not as well as the remaining time for the other cases
-        // above
-        if (pit_triggered) {
-            pit_triggered = false;
-        }
-    }
-
-    if (modem_is_in_power_save) {
-        modem_is_in_power_save = false;
-        SequansController.setPowerSaveMode(0, NULL);
-    }
-
-    disablePIT();
-
-    return wakeup_reason;
+void LowPowerClass::configurePowerDown(const uint32_t power_down_seconds) {
+    power_down_time = power_down_seconds;
 }
 
-/**
- * Modem turned off and CPU deep sleep.
- */
-static WakeUpReason deepSleep(void) {
-
-    const unsigned long start_time_ms = millis();
-
-    Lte.end();
-    enablePIT();
-
-    uint32_t remaining_time_seconds =
-        sleep_time - (uint32_t)(((millis() - start_time_ms) / 1000.0f));
-
-    WakeUpReason wakeup_reason = WakeUpReason::OK;
-
-    while (remaining_time_seconds > 0) {
-
-        sleep_cpu();
-
-        if (pit_triggered) {
-            remaining_time_seconds -= 1;
-            pit_triggered = false;
-        } else {
-            wakeup_reason = WakeUpReason::EXTERNAL_INTERRUPT;
-            break;
-        }
-    }
-
-    disablePIT();
-    Lte.begin();
-
-    return wakeup_reason;
-}
-
-bool LowPowerClass::begin(const SleepMultiplier sleep_multiplier,
-                          const uint8_t sleep_value,
-                          const SleepMode mode) {
-
-    sleep_mode = mode;
+bool LowPowerClass::configurePeriodicPowerSave(
+    const PowerSaveModePeriodMultiplier power_save_mode_period_multiplier,
+    const uint8_t power_save_mode_period_value) {
 
     // Reset in case there is a reconfiguration after sleep has been called
     // previously
-    retrieved_sleep_time = false;
-    sleep_time = 0;
+    retrieved_period = false;
 
     // We need sequans controller to be initialized first before configuration
     if (!SequansController.isInitialized()) {
@@ -495,7 +356,7 @@ bool LowPowerClass::begin(const SleepMultiplier sleep_multiplier,
     }
 
     // Then we set the power saving mode configuration
-    char sleep_parameter_str[9] = "";
+    char period_parameter_str[9] = "";
 
     // We encode both the multipier and value in one value after the setup:
     //
@@ -509,47 +370,103 @@ bool LowPowerClass::begin(const SleepMultiplier sleep_multiplier,
     // the values we have set for the multipliers
 
     // First set the mulitplier
-    const uint8_t sleep_parameter =
-        (static_cast<uint8_t>(sleep_multiplier) << 5) |
-        min(sleep_value, PSM_VALUE_MAX);
+    const uint8_t period_parameter =
+        (static_cast<uint8_t>(power_save_mode_period_multiplier) << 5) |
+        min(power_save_mode_period_value, PSM_VALUE_MAX);
 
-    uint8ToStringOfBits(sleep_parameter, sleep_parameter_str);
+    uint8ToStringOfBits(period_parameter, period_parameter_str);
 
     // Now we can embed the values for the awake and sleep periode in the
     // power saving mode configuration command
     char command[AT_COMMAND_SET_PSM_LENGTH + 1]; // + 1 for null termination
     sprintf(command,
             AT_COMMAND_SET_PSM,
-            sleep_parameter_str,
-            PSM_DEFAULT_AWAKE_PARAMETER);
+            period_parameter_str,
+            PSM_DEFAULT_PAGING_PARAMETER);
 
-    sleep_time_requested = decodeSleepMultiplier(sleep_multiplier) *
-                           min(sleep_value, PSM_VALUE_MAX);
-
-    // If we choose deep sleep, the modem will be completely off and we don't
-    // have to negotiate the sleep time with the operator, thus the requested
-    // sleep time and the actual sleep time will be equal
-    if (mode == SleepMode::DEEP) {
-        sleep_time = sleep_time_requested;
-    }
+    period_requested =
+        decodePeriodMultiplier(power_save_mode_period_multiplier) *
+        min(power_save_mode_period_value, PSM_VALUE_MAX);
 
     return SequansController.retryCommand(command);
 }
 
-WakeUpReason LowPowerClass::sleep(void) {
+void LowPowerClass::powerSave(void) {
 
     powerDownPeripherals();
     SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
 
-    switch (sleep_mode) {
-    case SleepMode::REGULAR:
-        return regularSleep();
-    case SleepMode::DEEP:
-        return deepSleep();
+    const unsigned long start_time_ms = millis();
+
+    if (!retrieved_period) {
+        // Retrieve the proper sleep time set by the operator, which may
+        // deviate from what we requested
+        period = retrieveOperatorSleepTime();
+
+        if (period == 0) {
+            Log.warnf("Got invalid period from operator: %d\r\n", period);
+            return;
+        } else {
+            if (period_requested != period) {
+                Log.warnf("Operator was not able to match the requested power "
+                          "save mode period of %d seconds. ",
+                          period_requested);
+                Log.rawf("Operator sat the period to %d seconds.\r\n", period);
+            }
+
+            retrieved_period = true;
+        }
+
+        // Retrieving the operator sleep time will call CEREG, which will
+        // trigger led ctrl, so we just disable it again.
+        LedCtrl.off(Led::CELL, true);
+    }
+
+    // The timeout here is arbitrary as we attempt to put the modem in sleep in
+    // a loop, so we just choose 30 seconds = 30000 ms
+    while (!attemptToEnterPowerSaveModeForModem(30000) &&
+           millis() - start_time_ms < period * 1000) {}
+
+    sleep_cpu();
+
+    if (modem_is_in_power_save) {
+        modem_is_in_power_save = false;
+        SequansController.setPowerSaveMode(0, NULL);
     }
 
     SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
     powerUpPeripherals();
+}
 
-    return WakeUpReason::OK;
+void LowPowerClass::powerDown(void) {
+
+    const unsigned long start_time_ms = millis();
+
+    powerDownPeripherals();
+    SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
+
+    Lte.end();
+    enablePIT();
+
+    uint32_t remaining_time_seconds =
+        period - (uint32_t)(((millis() - start_time_ms) / 1000.0f));
+
+    while (remaining_time_seconds > 0) {
+
+        sleep_cpu();
+
+        if (pit_triggered) {
+            remaining_time_seconds -= 1;
+            pit_triggered = false;
+        } else {
+            // External interrupt caused the CPU to wake
+            break;
+        }
+    }
+
+    disablePIT();
+    Lte.begin();
+
+    SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
+    powerUpPeripherals();
 }

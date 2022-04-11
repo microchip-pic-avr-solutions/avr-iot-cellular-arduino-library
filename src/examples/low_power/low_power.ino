@@ -39,14 +39,42 @@ void setup() {
     // pressing the button
     pinConfigure(SW0, PIN_DIR_INPUT | PIN_INT_FALL);
 
-    // Configure the power save configuration, start the LTE modem and wait
-    // until we are connected to the operator
+    // Now we configure the power save configuration. Note that this has to be
+    // done before calling Lte.begin().
     //
-    // Here we say that we want to sleep for 30 seconds * 2 = 60 seconds each
-    // time we invoke sleep
-    LowPower.begin(SleepMultiplier::THIRTY_SECONDS, 2, SleepMode::REGULAR);
+    // This mode for LowPower is somewhat more complex than a plain power down,
+    // which cuts the power to the LTE modem and puts the AVR CPU in sleep for
+    // as long as we want.
+    //
+    // Let's break this mode down:
+    //
+    // 1. We first configure the LTE modem with this power save configuration.
+    // That tells the LTE modem that it will be active for some time period
+    // sending data and syncing up with the operator, then it can go to sleep
+    // for the remaining time of this time period. That means that the LTE modem
+    // will not be sleeping for the whole time period, but most of it. This
+    // repeats as long as we want.
+    //
+    // Here we say that we want to have a power save period of 30 seconds * 2 =
+    // 60 seconds.
+    //
+    // 2. This happens periodically as long as we tell it that it's okay for it
+    // to go into power save, which we do with LowPower.powerSave(). Note that
+    // the LTE modem is the one responsible for knowing where we are in this
+    // time period, thus, if we call LowPower.powerSave() in the middle of the
+    // time period, it will only sleep for half the time before being woken up
+    // again. This is totally fine, and can for example happen if we do some
+    // operations on the CPU which takes a lot of time.
+    //
+    // In powerSave(), after the LTE modem is sleeping, we also put the
+    // CPU to sleep. When the time period is over, the CPU is woken at the same
+    // time as the LTE modem is woken up.
+    LowPower.configurePeriodicPowerSave(
+        PowerSaveModePeriodMultiplier::THIRTY_SECONDS, 2);
+
     Lte.begin();
     Log.infof("Connecting to operator");
+
     while (!Lte.isConnected()) {
         Log.raw(".");
         delay(1000);
@@ -60,28 +88,10 @@ void loop() {
     Log.raw("\r\n");
     Log.info("Going to sleep...");
     delay(100);
-    WakeUpReason wakeup_reason = LowPower.sleep();
 
-    switch (wakeup_reason) {
-    case WakeUpReason::OK:
-        Log.info("Finished sleep");
-        break;
-    case WakeUpReason::EXTERNAL_INTERRUPT:
-        Log.info("Got woken up by external interrupt");
-        break;
-    case WakeUpReason::AWOKEN_BY_MODEM_PREMATURELY:
-        Log.info("Got woken up by modem prematurely");
-        break;
-    case WakeUpReason::MODEM_TIMEOUT:
-        Log.info("Took too long to put modem in sleep, no time left for "
-                 "sleeping. You might have to increase the sleep time.");
-        break;
-    case WakeUpReason::INVALID_SLEEP_TIME:
-        Log.info("Got invalid sleep time from operator");
-        break;
-    }
+    LowPower.powerSave();
 
     // Do work ...
     Log.info("Doing work...");
-    delay(10000);
+    delay(5000);
 }
