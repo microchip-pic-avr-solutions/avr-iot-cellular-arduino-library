@@ -256,14 +256,23 @@ void setup() {
     connectLTE();
 }
 
+unsigned long timeLastCellToggle = millis() + 500;
+
 void loop() {
 
     // ----------------------------------------------------------
+    if (state == NOT_CONNECTED) {
+        if ((millis() - timeLastCellToggle) > 500) {
+            LedCtrl.toggle(Led::CELL);
+            timeLastCellToggle = millis();
+        }
+    }
 
     if (event_flags & NETWORK_CONN_FLAG) {
         switch (state) {
         case NOT_CONNECTED:
             state = CONNECTED_TO_NETWORK;
+            LedCtrl.on(Led::CELL);
             Log.infof("Connected to operator: %s\r\n",
                       Lte.getOperator().c_str());
             Log.info("Connecting to MQTT broker...");
