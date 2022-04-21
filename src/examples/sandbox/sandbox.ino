@@ -14,6 +14,7 @@
 #include <lte.h>
 #include <mcp9808.h>
 #include <mqtt_client.h>
+#include <veml3328.h>
 
 #include <Wire.h>
 
@@ -230,8 +231,16 @@ void setup() {
     Log.infof("Starting sandbox / landing page procedure. Version = %s\r\n",
               SANDBOX_VERSION);
 
-    if (Mcp9808.begin(0x18)) {
+    if (Mcp9808.begin()) {
         Log.error("Could not initialize the temperature sensor");
+    }
+
+    if (Veml3328.begin()) {
+        Log.error("Could not initialize the light sensor");
+    }
+
+    if (Veml3328.wake()) {
+        Log.error("Could not wake up the light sensor");
     }
 
     ECC608.begin();
@@ -434,10 +443,12 @@ void loop() {
             sprintf(transmit_buffer,
                     "{\"type\": \"data\",\
                         \"data\": { \
-                            \"Temperature\": %d \
+                            \"Temperature\": %d, \
+                            \"Red Light\": %d \
                         } \
                     }",
-                    int(Mcp9808.readTempC()));
+                    int(Mcp9808.readTempC()),
+                    Veml3328.getRed());
 
             if (!MqttClient.publish(mqtt_pub_topic, transmit_buffer)) {
                 Log.errorf("Could not publish message: %s\r\n",
