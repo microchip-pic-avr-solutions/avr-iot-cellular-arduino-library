@@ -11,8 +11,8 @@
 #include <lte.h>
 #include <mqtt_client.h>
 
-#define MQTT_SUB_TOPIC "mchp_topic_sub"
-#define MQTT_PUB_TOPIC "mchp_topic_pub"
+#define MQTT_SUB_TOPIC "mchp_topic"
+#define MQTT_PUB_TOPIC "mchp_topic"
 
 #define MQTT_THING_NAME "someuniquemchp"
 #define MQTT_BROKER     "test.mosquitto.org"
@@ -76,12 +76,13 @@ void connectLTE() {
 
 void setup() {
     Log.begin(115200);
-    Log.setLogLevel(LogLevel::DEBUG);
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
     Log.info("Starting initialization of MQTT Polling");
 }
+
+static uint32_t counter = 0;
 
 void loop() {
 
@@ -92,17 +93,19 @@ void loop() {
         // Read message will return an empty string if there were no new
         // messages, so anything other than that means that there were a new
         // message
-
         if (message != "") {
-            Log.info("Got new message: ");
-            Log.info(message);
-            Log.info("\r\n");
+            Log.infof("Got new message: %s\r\n", message.c_str());
         }
 
-        bool publishedSuccessfully =
-            MqttClient.publish(MQTT_PUB_TOPIC, "hello world");
+        String message_to_publish = String("Hello world: " + String(counter));
 
-        if (!publishedSuccessfully) {
+        bool publishedSuccessfully =
+            MqttClient.publish(MQTT_PUB_TOPIC, message_to_publish.c_str());
+
+        if (publishedSuccessfully) {
+            Log.infof("Published message: %s\r\n", message_to_publish.c_str());
+            counter++;
+        } else {
             Log.error("Failed to publish");
         }
     } else {
