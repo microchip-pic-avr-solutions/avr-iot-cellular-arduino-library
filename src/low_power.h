@@ -38,6 +38,13 @@ class LowPowerClass {
     }
 
     /**
+     * @brief Configures the low power module for power down configuration.
+     *
+     * @return true if the configuration was successful.
+     */
+    bool configurePowerDown(void);
+
+    /**
      * @brief Used to configure power save mode for the LTE modem. The total
      * power save time period for the LTE modem will be
      * @p power_save_mode_period_multiplier  * @p power_save_mode_period_value.

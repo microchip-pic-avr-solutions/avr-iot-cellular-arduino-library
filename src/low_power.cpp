@@ -10,7 +10,8 @@
 #include <avr/sleep.h>
 
 #define AT_COMMAND_DISABLE_EDRX       "AT+SQNEDRX=0"
-#define AT_COMMAND_SET_PSM            "AT+CPSMS=1,,,\"%s\",\"%s\""
+#define AT_COMMAND_ENABLE_PSM         "AT+CPSMS=1,,,\"%s\",\"%s\""
+#define AT_COMMAND_DISABLE_PSM        "AT+CPSMS=0"
 #define AT_COMMAND_SET_RING_BEHAVIOUR "AT+SQNRICFG=1,2,1000"
 #define AT_COMMAND_CONNECTION_STATUS  "AT+CEREG?"
 
@@ -20,7 +21,7 @@
 // Command without arguments: 18 bytes
 // Both arguments within the quotes are strings of 8 numbers: 8 * 2 = 16 bytes
 // Total: 18 + 16 = 34 bytes
-#define AT_COMMAND_SET_PSM_LENGTH 34
+#define AT_COMMAND_ENABLE_PSM_LENGTH 34
 
 // Max is 0b11111 = 31 for the value of the timers for power saving mode (not
 // the multipliers).
@@ -321,6 +322,33 @@ static void powerUpPeripherals(void) {
     }
 }
 
+bool LowPowerClass::configurePowerDown(void) {
+
+    // We need sequans controller to be initialized first before configuration.
+    // This is because we need to disable the PSM mode so that the modem don't
+    // do periodic power save, but we can shut it down completely.
+    if (!SequansController.isInitialized()) {
+        SequansController.begin();
+
+        // Allow 500ms for boot
+        delay(500);
+    }
+
+    SequansController.clearReceiveBuffer();
+
+    // First we disable EDRX
+    if (!SequansController.retryCommand(AT_COMMAND_DISABLE_EDRX)) {
+        return false;
+    }
+
+    // Disable PSM
+    if (!SequansController.retryCommand(AT_COMMAND_DISABLE_PSM)) {
+        return false;
+    }
+
+    return true;
+}
+
 bool LowPowerClass::configurePeriodicPowerSave(
     const PowerSaveModePeriodMultiplier power_save_mode_period_multiplier,
     const uint8_t power_save_mode_period_value) {
@@ -372,9 +400,9 @@ bool LowPowerClass::configurePeriodicPowerSave(
 
     // Now we can embed the values for the awake and sleep periode in the
     // power saving mode configuration command
-    char command[AT_COMMAND_SET_PSM_LENGTH + 1]; // + 1 for null termination
+    char command[AT_COMMAND_ENABLE_PSM_LENGTH + 1]; // + 1 for null termination
     sprintf(command,
-            AT_COMMAND_SET_PSM,
+            AT_COMMAND_ENABLE_PSM,
             period_parameter_str,
             PSM_DEFAULT_PAGING_PARAMETER);
 
@@ -446,7 +474,6 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
         power_down_time_seconds -
         (uint32_t)(((millis() - start_time_ms) / 1000.0f));
 
-    // TODO: There is some external interrupt causing the avr to wake
     while (remaining_time_seconds > 0) {
 
         sleep_cpu();
