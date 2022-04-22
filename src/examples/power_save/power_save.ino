@@ -1,24 +1,9 @@
-#include <avr/cpufunc.h>
 #include <avr/io.h>
 #include <led_ctrl.h>
 #include <log.h>
 #include <low_power.h>
 #include <lte.h>
 #include <sequans_controller.h>
-
-#ifdef __AVR_AVR128DB48__ // MINI
-
-#define SerialDebug Serial3
-
-#else
-#ifdef __AVR_AVR128DB64__ // Non-Mini
-
-#define SerialDebug Serial5
-
-#else
-#error "INCOMPATIBLE_DEVICE_SELECTED"
-#endif
-#endif
 
 #define SW0 PIN_PD2
 

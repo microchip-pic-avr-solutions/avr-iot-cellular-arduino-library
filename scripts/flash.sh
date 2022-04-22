@@ -2,7 +2,7 @@
 
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 
-PORT=COM7
+PORT=COM9
 BUILD_DIR=$SCRIPTPATH/../build
 
 # Do path conversion for WSL

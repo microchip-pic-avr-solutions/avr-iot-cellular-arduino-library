@@ -1,23 +1,10 @@
+#include <Wire.h>
 #include <avr/io.h>
 #include <led_ctrl.h>
 #include <log.h>
 #include <low_power.h>
 #include <lte.h>
 #include <sequans_controller.h>
-
-#ifdef __AVR_AVR128DB48__ // MINI
-
-#define SerialDebug Serial3
-
-#else
-#ifdef __AVR_AVR128DB64__ // Non-Mini
-
-#define SerialDebug Serial5
-
-#else
-#error "INCOMPATIBLE_DEVICE_SELECTED"
-#endif
-#endif
 
 #define SW0 PIN_PD2
 
@@ -37,7 +24,8 @@ void setup() {
     // pressing the button
     pinConfigure(SW0, PIN_DIR_INPUT | PIN_INT_FALL);
 
-    // Now we configure the low power module for power down configuration.
+    // Now we configure the low power module for power down configuration, where
+    // the LTE modem and the CPU will be powered down
     LowPower.configurePowerDown();
 
     Lte.begin();
@@ -49,11 +37,12 @@ void setup() {
     }
 
     Log.raw("\r\n");
+
     Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
 }
 
 void loop() {
-    Log.raw("\r\n");
+
     Log.info("Powering down...");
     delay(100);
 
