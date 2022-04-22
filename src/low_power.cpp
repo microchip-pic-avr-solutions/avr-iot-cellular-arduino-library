@@ -56,7 +56,8 @@
 
 #ifdef __AVR_AVR128DB48__ // MINI
 
-#define RING_PIN_bm         PIN6_bm
+#define RING_PIN_bm PIN6_bm
+
 #define LOWQ_PIN            PIN_PB4
 #define VOLTAGE_MEASURE_PIN PIN_PB3
 
@@ -76,6 +77,20 @@
 #ifdef __AVR_AVR128DB64__ // Non-Mini
 
 #define RING_PIN_bm PIN4_bm
+
+#define LOWQ_PIN            PIN_PB4
+#define VOLTAGE_MEASURE_PIN PIN_PB3
+
+#define DEBUGGER_TX_PIN  PIN_PB0
+#define DEBUGGER_RX_PIN  PIN_PB1
+#define DEBUGGER_LED_PIN PIN_PB2
+#define DEBUGGER_SW0_PIN PIN_PD2
+#define DEBUGGER_USART   USART3
+
+#define I2C0_SDA_PIN PIN_PC2
+#define I2C0_SCL_PIN PIN_PC3
+#define I2C1_SDA_PIN PIN_PF2
+#define I2C1_SCL_PIN PIN_PF3
 
 #else
 #error "INCOMPATIBLE_DEVICE_SELECTED"
