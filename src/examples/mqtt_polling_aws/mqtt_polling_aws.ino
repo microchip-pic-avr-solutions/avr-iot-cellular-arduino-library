@@ -16,7 +16,7 @@
 // Tool allows for publishing and subscribing on thing_id/topic. If you want to
 // publish and subscribe on other topics, see the AWS IoT Core Policy
 // documentation.
-#define MQTT_SUB_TOPIC_FMT "%s/mchp_topic_sub"
+#define MQTT_SUB_TOPIC_FMT "%s/sensors"
 #define MQTT_PUB_TOPIC_FMT "%s/sensors"
 
 char mqtt_sub_topic[128];
@@ -94,7 +94,6 @@ bool initMQTTTopics() {
 
 void setup() {
     Log.begin(115200);
-    Log.setLogLevel(LogLevel::DEBUG);
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
@@ -120,15 +119,15 @@ void loop() {
         // new message
 
         if (message != "") {
-            Log.info("Got new message: ");
-            Log.info(message);
-            Log.info("\r\n");
+            Log.infof("Got new message: %s\r\n", message.c_str());
         }
 
         bool publishedSuccessfully =
             MqttClient.publish(mqtt_pub_topic, "{\"light\": 9, \"temp\": 9}");
 
-        if (!publishedSuccessfully) {
+        if (publishedSuccessfully) {
+            Log.info("Published message");
+        } else {
             Log.error("Failed to publish\r\n");
         }
     } else {
