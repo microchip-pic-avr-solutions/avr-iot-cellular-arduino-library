@@ -30,7 +30,6 @@ ISR(PORTD_PORT_vect) {
 
 void setup() {
     Log.begin(115200);
-    Log.setLogLevel(LogLevel::DEBUG);
 
     LedCtrl.begin();
     LedCtrl.startupCycle();
@@ -87,10 +86,12 @@ void setup() {
 
 void loop() {
     Log.raw("\r\n");
-    Log.info("Going to sleep...");
+    Log.info("Power saving...");
     delay(100);
 
     LowPower.powerSave();
+
+    Log.info("Woke up!");
 
     // Do work ...
     Log.info("Doing work...");

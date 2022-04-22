@@ -2,7 +2,7 @@
 
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 
-TARGET=$SCRIPTPATH/../src/examples/http_get_time/http_get_time.ino
+TARGET=$SCRIPTPATH/../src/examples/power_down/power_down.ino
 EXTRA_ARGS=--clean
 
 if [ "$1" = "clean" ]; then
