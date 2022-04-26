@@ -4,6 +4,15 @@
 <p align="center">
 <img width="50%" style={{paddingTop: "10px", paddingBottom: "10px"}} src="./readme_images/mini-board-2.png" />
 </p>
+
+## Installation Instructions
+
+Open the [releases tab](https://github.com/microchip-pic-avr-solutions/avr-iot-cellular-arduino-library/releases/latest) and download the latest version as a zip folder. It is found under the Assets tab. The file to download has the following naming scheme *avr-iot-cellular-a.b.c-\*.zip*.
+
+**It is important to download the library from the releases and not clone it as a git repository.** This has to do with a library dependency to *cryptoauthlib*, which is bundled as a pre-compiled static library with the .zip file from the [releases tab](https://github.com/microchip-pic-avr-solutions/avr-iot-cellular-arduino-library/releases/latest). This is not the case if directly cloning the repository. If it is necessary to clone the repository (for the development of the library itself), see [Build Instructions](#build-instructions) further down on the page.
+
+## Board Description
+
 The AVR-IoT Cellular Mini is a development board from Microchip to develop cellular IoT applications.
 
 📓 Full Arduino support through a library built on top of the open-source [DxCore](https://github.com/SpenceKonde/DxCore)
@@ -20,9 +29,8 @@ The AVR-IoT Cellular Mini is a development board from Microchip to develop cellu
 
 🤝 Built & Designed to be Familiar to Makers, featuring a [Adafruit Feather](https://learn.adafruit.com/adafruit-feather) form-factor and a [Qwiic](https://www.sparkfun.com/qwiic) / [Stemma](https://learn.adafruit.com/introducing-adafruit-stemma-qt) Connector
 
-
-
 ## 👉 *Documentation: https://iot.microchip.com/docs/* 👈
+
 
 ## Examples
 
