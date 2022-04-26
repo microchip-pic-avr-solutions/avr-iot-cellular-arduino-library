@@ -1,15 +1,15 @@
-#include <Wire.h>
 #include <avr/io.h>
 #include <led_ctrl.h>
 #include <log.h>
 #include <low_power.h>
 #include <lte.h>
-#include <sequans_controller.h>
 
 #define SW0 PIN_PD2
 
 ISR(PORTD_PORT_vect) {
     if (PORTD.INTFLAGS & PIN2_bm) {
+        // Reset the interupt flag so that we can process the next incoming
+        // interrupt
         PORTD.INTFLAGS = PIN2_bm;
     }
 }
@@ -44,6 +44,8 @@ void setup() {
 void loop() {
 
     Log.info("Powering down...");
+    // Allow some time for the log message to be transmitted before we power
+    // down
     delay(100);
 
     // Power down for 60 seconds

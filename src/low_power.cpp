@@ -331,9 +331,6 @@ static void disablePIT(void) {
 static void powerDownPeripherals(void) {
 
     // LEDs
-    cell_led_state = digitalRead(LedCtrl.getLedPin(Led::CELL));
-    con_led_state = digitalRead(LedCtrl.getLedPin(Led::CON));
-
     pinConfigure(LedCtrl.getLedPin(Led::CELL),
                  PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
     pinConfigure(LedCtrl.getLedPin(Led::CON),
@@ -510,6 +507,8 @@ bool LowPowerClass::configurePeriodicPowerSave(
 }
 
 void LowPowerClass::powerSave(void) {
+    cell_led_state = digitalRead(LedCtrl.getLedPin(Led::CELL));
+    con_led_state = digitalRead(LedCtrl.getLedPin(Led::CON));
 
     powerDownPeripherals();
     SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
@@ -556,6 +555,9 @@ void LowPowerClass::powerSave(void) {
 
     SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
     powerUpPeripherals();
+
+    digitalWrite(LedCtrl.getLedPin(Led::CELL), cell_led_state);
+    digitalWrite(LedCtrl.getLedPin(Led::CON), con_led_state);
 }
 
 void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
