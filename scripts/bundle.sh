@@ -13,4 +13,4 @@ else
 fi
 
 cd -
-cp ./builds/mini/sandbox/sandbox.ino.hex ./sandbox.hex1
+cp ./builds/mini/sandbox/sandbox.ino.hex ./sandbox.hex
