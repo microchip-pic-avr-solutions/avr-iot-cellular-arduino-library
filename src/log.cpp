@@ -41,6 +41,26 @@ void LogClass::setLogLevel(const LogLevel log_level) {
     this->log_level = log_level;
 }
 
+bool LogClass::setLogLevelStr(const char *log_level) {
+    LogLevel ll = LogLevel::NONE;
+    if (strstr(log_level, "debug") != NULL) {
+        ll = LogLevel::DEBUG;
+    } else if (strstr(log_level, "info") != NULL) {
+        ll = LogLevel::INFO;
+    } else if (strstr(log_level, "warn") != NULL) {
+        ll = LogLevel::WARN;
+    } else if (strstr(log_level, "error") != NULL) {
+        ll = LogLevel::ERROR;
+    }
+
+    if (ll == LogLevel::NONE) {
+        return false;
+    }
+
+    this->setLogLevel(ll);
+    return true;
+}
+
 void LogClass::begin(const unsigned long baud_rate) {
     this->uart->begin(baud_rate);
 }

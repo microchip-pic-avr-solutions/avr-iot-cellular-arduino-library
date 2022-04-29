@@ -3,7 +3,7 @@
  * experience
  */
 
-#define SANDBOX_VERSION "1.0.0"
+#define SANDBOX_VERSION "1.1.0"
 
 #include <Arduino.h>
 
@@ -219,6 +219,62 @@ void decodeMessage(const char *message) {
     }
 }
 
+void remove_spaces(char *s) {
+    char *d = s;
+    do {
+        while (*d == ' ') { ++d; }
+    } while (*s++ = *d++);
+}
+
+void printHelp() {
+    Log.rawf("\nAvailable Commands\n"
+             "-----------------------\n"
+             "help\t\t Print this message\n"
+             "loglevel=level\t Set the log level. Available levels are debug, "
+             "info, warn, error\n"
+             "-----------------------\r\n");
+}
+
+void handleSerialCommand(const char *instruction, uint16_t instructionLen) {
+    // Find the first occurrence of '='
+    char *equalIndex = strchr(instruction, '=');
+
+    // If we did not find it, treat is at a non-value command
+    if (equalIndex == NULL) {
+        equalIndex = (char *)(&instruction[instructionLen - 1]);
+        Log.debug("Given command is non-value");
+    }
+
+    // Extract the command
+    uint16_t cmdLen = equalIndex - instruction;
+    char cmd[cmdLen + 1];
+    memcpy(cmd, instruction, cmdLen);
+    cmd[cmdLen] = '\0';
+
+    // Extract the value
+    uint16_t valueLen = instructionLen - cmdLen - 1;
+    char value[valueLen + 1];
+    memcpy(value, instruction + cmdLen + 1, valueLen);
+    value[valueLen] = '\0';
+
+    // Depending on the cmd content, execute different commands
+    if (strcmp(cmd, "help") == 0) {
+        printHelp();
+    } else if (strcmp(cmd, "loglevel") == 0) {
+        if (!Log.setLogLevelStr(value)) {
+            Log.errorf("Could not set log level %s\r\n", value);
+        } else {
+            Log.rawf("Log level is now %s\r\n", value);
+        }
+    } else if (strcmp(cmd, "heartbeat") == 0) {
+        event_flags |= SEND_HEARTBEAT_FLAG;
+    } else {
+        Log.info("\nInvalid command");
+        printHelp();
+        return;
+    }
+}
+
 void setup() {
     Log.begin(115200);
 
@@ -253,6 +309,7 @@ void setup() {
     if (err != ECC608.ERR_OK) {
         Log.error("Could not retrieve thing name from the ECC");
         Log.error("Unable to initialize the MQTT topics. Stopping...");
+        LedCtrl.on(Led::ERROR);
         return;
     }
 
@@ -268,6 +325,12 @@ void setup() {
 unsigned long timeLastCellToggle = millis() + 500;
 
 void loop() {
+
+    // See if there are any messages for the command handler
+    if (Serial3.available()) {
+        String extractedString = Serial3.readStringUntil('\n');
+        handleSerialCommand(extractedString.c_str(), extractedString.length());
+    }
 
     // ----------------------------------------------------------
     if (state == NOT_CONNECTED) {
@@ -444,7 +507,7 @@ void loop() {
                     "{\"type\": \"data\",\
                         \"data\": { \
                             \"Temperature\": %d, \
-                            \"Red Light\": %d \
+                            \"Light Intensity\": %d \
                         } \
                     }",
                     int(Mcp9808.readTempC()),

@@ -18,6 +18,7 @@ class LogClass {
     void setOutputUart(UartClass *uart);
 
     void setLogLevel(const LogLevel log_level);
+    bool setLogLevelStr(const char *log_level);
 
     void begin(const unsigned long baud_rate);
     void end();
