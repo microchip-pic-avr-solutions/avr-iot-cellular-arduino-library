@@ -91,6 +91,13 @@ ISR(PORTD_PORT_vect) {
     }
 }
 
+ISR(PORTF_PORT_vect) {
+    if (PORTF.INTFLAGS & PIN6_bm) {
+        asm("jmp 0");
+        PORTF.INTFLAGS = PIN6_bm;
+    }
+}
+
 void connectedToNetwork(void) { event_flags |= NETWORK_CONN_FLAG; }
 void disconnectedFromNetwork(void) { event_flags |= NETWORK_DISCONN_FLAG; }
 void connectedToBroker(void) { event_flags |= BROKER_CONN_FLAG; }
@@ -261,6 +268,8 @@ void handleSerialCommand(const char *instruction, uint16_t instructionLen) {
         }
     } else if (strcmp(cmd, "heartbeat") == 0) {
         event_flags |= SEND_HEARTBEAT_FLAG;
+    } else if (strcmp(cmd, "reset") == 0) {
+        asm("jmp 0");
     } else {
         Log.info("\nInvalid command");
         printHelp();
@@ -276,6 +285,11 @@ void setup() {
 
     // Set PD2 as input (button)
     pinConfigure(PIN_PD2, PIN_DIR_INPUT | PIN_INT_FALL);
+
+    // Set PF6 as input (reset button)
+    pinConfigure(PIN_PF6, PIN_DIR_INPUT | PIN_INT_FALL);
+
+    sei();
 
     Log.infof("Starting sandbox / landing page procedure. Version = %s\r\n",
               SANDBOX_VERSION);
