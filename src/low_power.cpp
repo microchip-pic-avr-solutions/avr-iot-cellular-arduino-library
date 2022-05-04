@@ -344,10 +344,16 @@ static void powerDownPeripherals(void) {
 
     // Make sure that I2C pins are pulled up and there won't be a voltage drop
     // over them
-    pinConfigure(I2C0_SDA_PIN, PIN_DIR_INPUT | PIN_INPUT_DISABLE);
-    pinConfigure(I2C0_SCL_PIN, PIN_DIR_INPUT | PIN_INPUT_DISABLE);
-    pinConfigure(I2C1_SDA_PIN, PIN_DIR_INPUT | PIN_INPUT_DISABLE);
-    pinConfigure(I2C1_SCL_PIN, PIN_DIR_INPUT | PIN_INPUT_DISABLE);
+    pinConfigure(I2C0_SDA_PIN, PIN_DIR_OUTPUT);
+    pinConfigure(I2C0_SCL_PIN, PIN_DIR_OUTPUT);
+    pinConfigure(I2C1_SDA_PIN, PIN_DIR_OUTPUT);
+    pinConfigure(I2C1_SCL_PIN, PIN_DIR_OUTPUT);
+
+    // Set in order to not have voltage drop across external resistors
+    digitalWrite(I2C0_SDA_PIN, HIGH);
+    digitalWrite(I2C0_SCL_PIN, HIGH);
+    digitalWrite(I2C0_SDA_PIN, HIGH);
+    digitalWrite(I2C1_SCL_PIN, HIGH);
 
     // Voltage measure
     digitalWrite(VOLTAGE_MEASURE_PIN, LOW);

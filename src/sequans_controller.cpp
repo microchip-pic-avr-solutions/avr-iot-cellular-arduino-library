@@ -353,6 +353,7 @@ void SequansControllerClass::end(void) {
     USART1.CTRLC = 0;
 
     pinConfigure(CTS_PIN, PIN_ISC_DISABLE);
+    digitalWrite(CTS_PIN, HIGH);
 
     // Set RTS high to halt the modem
     pinConfigure(RTS_PIN, PIN_DIR_OUTPUT);
