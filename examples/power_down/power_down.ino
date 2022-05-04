@@ -3,8 +3,6 @@
 #include <log.h>
 #include <low_power.h>
 #include <lte.h>
-
-// TODO: test
 #include <mcp9808.h>
 #include <veml3328.h>
 
