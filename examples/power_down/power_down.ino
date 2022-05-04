@@ -4,6 +4,10 @@
 #include <low_power.h>
 #include <lte.h>
 
+// TODO: test
+#include <mcp9808.h>
+#include <veml3328.h>
+
 #define SW0 PIN_PD2
 
 ISR(PORTD_PORT_vect) {
@@ -28,6 +32,12 @@ void setup() {
     // the LTE modem and the CPU will be powered down
     LowPower.configurePowerDown();
 
+    // Make sure sensors are turned off
+    Veml3328.begin();
+    Mcp9808.begin();
+    Veml3328.shutdown();
+    Mcp9808.shutdown();
+
     Lte.begin();
     Log.infof("Connecting to operator");
 
@@ -42,8 +52,8 @@ void setup() {
 }
 
 void loop() {
-
     Log.info("Powering down...");
+
     // Allow some time for the log message to be transmitted before we power
     // down
     delay(100);

@@ -3,7 +3,9 @@
 #include <log.h>
 #include <low_power.h>
 #include <lte.h>
+#include <mcp9808.h>
 #include <sequans_controller.h>
+#include <veml3328.h>
 
 #define SW0 PIN_PD2
 
@@ -56,6 +58,12 @@ void setup() {
 
     LowPower.configurePeriodicPowerSave(
         PowerSaveModePeriodMultiplier::THIRTY_SECONDS, 2);
+
+    // Make sure sensors are turned off
+    Veml3328.begin();
+    Mcp9808.begin();
+    Veml3328.shutdown();
+    Mcp9808.shutdown();
 
     Lte.begin();
     Log.infof("Connecting to operator");
