@@ -1,6 +1,6 @@
-#include "low_power.h"
 #include "led_ctrl.h"
 #include "log.h"
+#include "low_power.h"
 #include "lte.h"
 #include "sequans_controller.h"
 
@@ -393,7 +393,6 @@ static void powerUpPeripherals(void) {
     pinConfigure(DEBUGGER_TX_PIN, PIN_DIR_OUTPUT);
     pinConfigure(DEBUGGER_RX_PIN, PIN_DIR_INPUT | PIN_INPUT_ENABLE);
     pinConfigure(DEBUGGER_LED_PIN, PIN_DIR_OUTPUT);
-    pinConfigure(DEBUGGER_SW0_PIN, PIN_DIR_INPUT | PIN_INPUT_ENABLE);
 }
 
 static void enableLDO(void) {
