@@ -5,8 +5,6 @@
 
 #define SANDBOX_VERSION "1.1.0"
 
-#include <Arduino.h>
-
 #include <ArduinoJson.h>
 #include <ecc608.h>
 #include <led_ctrl.h>
@@ -15,8 +13,6 @@
 #include <mcp9808.h>
 #include <mqtt_client.h>
 #include <veml3328.h>
-
-#include <Wire.h>
 
 #define HEARTBEAT_INTERVAL_MS 10000
 
@@ -28,18 +24,16 @@
 #define MQTT_SUB_TOPIC_FMT "$aws/things/%s/shadow/update/delta"
 #define MQTT_PUB_TOPIC_FMT "%s/sensors"
 
-#define MQTT_MESSAGE_BUFFERS      4
-#define MQTT_MESSAGE_BUFFERS_MASK (MQTT_MESSAGE_BUFFERS - 1)
+#define MQTT_MESSAGE_BUFFERS 4
 
 #define NETWORK_CONN_FLAG                 1 << 0
 #define NETWORK_DISCONN_FLAG              1 << 1
 #define BROKER_CONN_FLAG                  1 << 2
 #define BROKER_DISCONN_FLAG               1 << 3
-#define RECEIVE_MSG_FLAG                  1 << 4
-#define SEND_HEARTBEAT_FLAG               1 << 5
-#define STOP_PUBLISHING_SENSOR_DATA_FLAG  1 << 6
-#define START_PUBLISHING_SENSOR_DATA_FLAG 1 << 7
-#define SEND_SENSOR_DATA_FLAG             1 << 8
+#define SEND_HEARTBEAT_FLAG               1 << 4
+#define STOP_PUBLISHING_SENSOR_DATA_FLAG  1 << 5
+#define START_PUBLISHING_SENSOR_DATA_FLAG 1 << 6
+#define SEND_SENSOR_DATA_FLAG             1 << 7
 
 typedef enum {
     NOT_CONNECTED,
@@ -111,7 +105,7 @@ void receivedMessage(const char *topic,
     message_length[message_head_index] = msg_length;
     message_id[message_head_index] = msg_id;
 
-    message_head_index = (message_head_index + 1) & MQTT_MESSAGE_BUFFERS_MASK;
+    message_head_index = (message_head_index + 1) % MQTT_MESSAGE_BUFFERS;
 }
 
 void connectMqtt() {
@@ -303,7 +297,7 @@ void setup() {
     }
 
     if (Veml3328.wake()) {
-        Log.error("Could not wake up the light sensor");
+        Log.error("Could not initialize the light sensor");
     }
 
     ECC608.begin();
@@ -445,7 +439,7 @@ void loop() {
             decodeMessage(message);
 
             message_tail_index =
-                (message_tail_index + 1) & MQTT_MESSAGE_BUFFERS_MASK;
+                (message_tail_index + 1) % MQTT_MESSAGE_BUFFERS;
 
         } break;
 
@@ -453,7 +447,6 @@ void loop() {
             break;
         }
 
-        event_flags &= ~RECEIVE_MSG_FLAG;
     } else if (event_flags & SEND_HEARTBEAT_FLAG) {
 
         switch (state) {
