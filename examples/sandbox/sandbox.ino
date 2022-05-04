@@ -296,10 +296,6 @@ void setup() {
         Log.error("Could not initialize the light sensor");
     }
 
-    if (Veml3328.wake()) {
-        Log.error("Could not initialize the light sensor");
-    }
-
     ECC608.begin();
 
     // Find the thing ID and set the publish and subscription topics
