@@ -49,6 +49,14 @@ pipeline {
             }
         }
 
+        stage('install-libraries') {
+            steps {
+                sh 'arduino-cli lib install ArduinoJson'
+                sh 'ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://bitbucket.microchip.com/scm/mcu8mass/veml3328_arduino_driver.git'
+                sh 'ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://bitbucket.microchip.com/scm/mcu8mass/mcp9808_arduino_driver.git'
+            }
+        }
+
         stage('build-examples') {
             steps {
                 sh 'chmod +x ./scripts/compile_examples.sh'

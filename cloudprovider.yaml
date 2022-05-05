@@ -5,7 +5,7 @@ metadata:
 spec:
   containers:
     - name: arduino-gcc
-      image: artifacts.microchip.com:7999/microchip/mcu8mass/arduino-gcc:latest
+      image: artifacts.microchip.com:7999/microchip/mcu8mass/arduino-gcc:blank
       imagePullPolicy: Always
       command: ["cat"]
       tty: true
