@@ -27,6 +27,8 @@ The AVR-IoT Cellular Mini is a development board from Microchip to develop cellu
 
 🔋  Battery Charging Circuitry with Connectors
 
+☁️ Complete AWS Support with easy provisioning through the [IoT Provisioning Tool](https://github.com/microchip-pic-avr-tools/iotprovision-bin)
+
 🤝 Built & Designed to be Familiar to Makers, featuring a [Adafruit Feather](https://learn.adafruit.com/adafruit-feather) form-factor and a [Qwiic](https://www.sparkfun.com/qwiic) / [Stemma](https://learn.adafruit.com/introducing-adafruit-stemma-qt) Connector
 
 ## 👉 *Documentation: https://iot.microchip.com/docs/* 👈
