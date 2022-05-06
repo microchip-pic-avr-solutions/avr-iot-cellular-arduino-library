@@ -1,142 +1,142 @@
-// Jenkinsfile v2.0.0
-pipeline {
-    agent {
-        kubernetes {
-            defaultContainer 'arduino-gcc'
-            yamlFile 'cloudprovider.yaml'
+    // Jenkinsfile v2.0.1
+    pipeline {
+        agent {
+            kubernetes {
+                defaultContainer 'arduino-gcc'
+                yamlFile 'cloudprovider.yaml'
+            }
         }
-    }
 
-    options {
-        timestamps()
-        timeout(time: 30, unit: 'MINUTES')
-    }
+        options {
+            timestamps()
+            timeout(time: 30, unit: 'MINUTES')
+        }
 
-    environment {	    
-		DEPLOY_TOOL_URL = 'https://bitbucket.microchip.com/scm/citd/tool-github-deploy.git'
-        DEPLOY_SCRIPT_FILE = 'tool-github-deploy/tool-github-deploy/tool-github-deploy.py'
-        BITBUCKET_REPO = 'https://bitbucket.microchip.com/scm/mcu8mass/avr-iot-cellular-arduino-library.git'
-        GITHUB_REPO = 'https://github.com/microchip-pic-avr-solutions/avr-iot-cellular-arduino-library'
-        GITHUB_REPO_SHORT = 'avr-iot-cellular-arduino-library'
-        GITHUB_ORG = 'microchip-pic-avr-solutions'
-        TARGET_BRANCH = 'main'
-	}
+        environment {	    
+            DEPLOY_TOOL_URL = 'https://bitbucket.microchip.com/scm/citd/tool-github-deploy.git'
+            DEPLOY_SCRIPT_FILE = 'tool-github-deploy/tool-github-deploy/tool-github-deploy.py'
+            BITBUCKET_REPO = 'https://bitbucket.microchip.com/scm/mcu8mass/avr-iot-cellular-arduino-library.git'
+            GITHUB_REPO = 'https://github.com/microchip-pic-avr-solutions/avr-iot-cellular-arduino-library'
+            GITHUB_REPO_SHORT = 'avr-iot-cellular-arduino-library'
+            GITHUB_ORG = 'microchip-pic-avr-solutions'
+            TARGET_BRANCH = 'main'
+        }
 
-    stages {
-        stage('setup') {
-            steps {
-                checkout scm
-                script {
-                    env.GIT_TAG = gitTag()
-                    env.GIT_COMMIT = getCommit()
+        stages {
+            stage('setup') {
+                steps {
+                    checkout scm
+                    script {
+                        env.GIT_TAG = gitTag()
+                        env.GIT_COMMIT = getCommit()
 
-                    if(env.GIT_TAG != '') {
-                        currentBuild.displayName = "#${BUILD_NUMBER} | ${JOB_NAME} | RELEASE-CANDIDATE-${env.GIT_TAG}"
-                        env.RELEASE_NAME = env.GIT_TAG
-                    } else {
-                        currentBuild.displayName = "#${BUILD_NUMBER} | ${JOB_NAME} | ${env.GIT_COMMIT}"
-                        env.RELEASE_NAME = env.GIT_COMMIT
+                        if(env.GIT_TAG != '') {
+                            currentBuild.displayName = "#${BUILD_NUMBER} | ${JOB_NAME} | RELEASE-CANDIDATE-${env.GIT_TAG}"
+                            env.RELEASE_NAME = env.GIT_TAG
+                        } else {
+                            currentBuild.displayName = "#${BUILD_NUMBER} | ${JOB_NAME} | ${env.GIT_COMMIT}"
+                            env.RELEASE_NAME = env.GIT_COMMIT
+                        }
                     }
                 }
             }
-        }
 
 
-        stage('build-cryptoauthlib') {
-            steps {
-                sh 'chmod +x ./scripts/inject_cryptoauthlib.sh'
-                sh './scripts/inject_cryptoauthlib.sh'
-            }
-        }
-
-        stage('install-libraries') {
-            steps {
-                sh 'arduino-cli lib install ArduinoJson'
-                sh 'ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://bitbucket.microchip.com/scm/mcu8mass/veml3328_arduino_driver.git'
-                sh 'ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://bitbucket.microchip.com/scm/mcu8mass/mcp9808_arduino_driver.git'
-            }
-        }
-
-        stage('build-examples') {
-            steps {
-                sh 'chmod +x ./scripts/compile_examples.sh'
-                sh './scripts/compile_examples.sh'
-            }
-        }
-
-        stage('bundle') {
-            steps {
-                sh 'chmod +x ./scripts/bundle.sh'
-                sh './scripts/bundle.sh $RELEASE_NAME'
-            }
-        }
-
-        stage('deploy'){
-            // Only run if git tag exists and it's the master branch
-            when {
-                allOf {
-                    branch env.TARGET_BRANCH
+            stage('build-cryptoauthlib') {
+                steps {
+                    sh 'chmod +x ./scripts/inject_cryptoauthlib.sh'
+                    sh './scripts/inject_cryptoauthlib.sh'
                 }
             }
 
-            // Multi-Stage Deploy
-            stages {
-                // Clone the deploy tool
-                stage('GitHub-Setup') {
-                    steps {
-                        sh "git clone ${env.DEPLOY_TOOL_URL}"
-                        sh "pip3 install PyGithub atlassian-python-api jsonschema packaging lxml"
-                    }   
+            stage('install-libraries') {
+                steps {
+                    sh 'arduino-cli lib install ArduinoJson'
+                    sh 'ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://bitbucket.microchip.com/scm/mcu8mass/veml3328_arduino_driver.git'
+                    sh 'ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://bitbucket.microchip.com/scm/mcu8mass/mcp9808_arduino_driver.git'
+                }
+            }
+
+            stage('build-examples') {
+                steps {
+                    sh 'chmod +x ./scripts/compile_examples.sh'
+                    sh './scripts/compile_examples.sh'
+                }
+            }
+
+            stage('bundle') {
+                steps {
+                    sh 'chmod +x ./scripts/bundle.sh'
+                    sh './scripts/bundle.sh $RELEASE_NAME'
+                }
+            }
+
+            stage('deploy'){
+                // Only run if git tag exists and it's the master branch
+                when {
+                    allOf {
+                        branch env.TARGET_BRANCH
+                    }
                 }
 
-                // Sync the bitbucket repository with the github repository
-                stage('GitHub-Sync') {
-                    steps {
-                        script {
-                            withCredentials([usernamePassword(credentialsId: 'pic_avr_github', usernameVariable: 'USER_NAME', passwordVariable:'PASS' )]) {
-                                sh "python3 ${env.DEPLOY_SCRIPT_FILE} -deploy=true -gpat=${PASS} -dgid=${USER_NAME} -dburl=${env.BITBUCKET_REPO} -dgurl=${env.GITHUB_REPO} -dbranch=${env.TARGET_BRANCH}"
+                // Multi-Stage Deploy
+                stages {
+                    // Clone the deploy tool
+                    stage('GitHub-Setup') {
+                        steps {
+                            sh "git clone ${env.DEPLOY_TOOL_URL}"
+                            sh "pip3 install PyGithub atlassian-python-api jsonschema packaging lxml"
+                        }   
+                    }
+
+                    // Sync the bitbucket repository with the github repository
+                    stage('GitHub-Sync') {
+                        steps {
+                            script {
+                                withCredentials([usernamePassword(credentialsId: 'pic_avr_github', usernameVariable: 'USER_NAME', passwordVariable:'PASS' )]) {
+                                    sh "python3 ${env.DEPLOY_SCRIPT_FILE} -deploy=true -gpat=${PASS} -dgid=${USER_NAME} -dburl=${env.BITBUCKET_REPO} -dgurl=${env.GITHUB_REPO} -dbranch=${env.TARGET_BRANCH}"
+                                }
                             }
                         }
                     }
-                }
 
-                // Create a new release
-                stage('GitHub-Release') {
-                    when {
-                        expression {
-                            env.GIT_TAG != ''
-                        }
-                    }
-                    steps {
-                        script {
-                            withCredentials([usernamePassword(credentialsId: 'pic_avr_github', usernameVariable: 'USER_NAME', passwordVariable:'PASS' )]) {
-                                sh "python3 ${env.DEPLOY_SCRIPT_FILE} -rlo=true -gpat=${PASS} -dgid=${USER_NAME} -rpn=${GITHUB_REPO_SHORT} -rporg=${GITHUB_ORG} -rltt=\"${env.GIT_TAG}\" -rltv=\"${env.GIT_TAG}\" -rlua=\"avr-iot-cellular-${env.GIT_TAG}.zip,sandbox.hex\""
+                    // Create a new release
+                    stage('GitHub-Release') {
+                        when {
+                            expression {
+                                env.GIT_TAG != ''
                             }
                         }
+                        steps {
+                            script {
+                                withCredentials([usernamePassword(credentialsId: 'pic_avr_github', usernameVariable: 'USER_NAME', passwordVariable:'PASS' )]) {
+                                    sh "python3 ${env.DEPLOY_SCRIPT_FILE} -rlo=true -gpat=${PASS} -dgid=${USER_NAME} -rpn=${GITHUB_REPO_SHORT} -rporg=${GITHUB_ORG} -rltt=\"${env.GIT_TAG}\" -rltv=\"${env.GIT_TAG}\" -rlua=\"avr-iot-cellular-${env.GIT_TAG}.zip,sandbox.hex\""
+                                }
+                            }
+                        }
+                        
                     }
-                    
                 }
+            }
+        }
+
+        post {
+            success {
+                archiveArtifacts artifacts: '**/avr-iot-cellular-*.zip, **/sandbox.hex'
             }
         }
     }
 
-    post {
-        success {
-            archiveArtifacts artifacts: '**/avr-iot-cellular-*.zip, **/sandbox.hex'
-        }
+
+    String getCommit() {
+        return sh(script: 'git rev-parse HEAD', returnStdout: true)?.trim()
     }
-}
 
+    String gitTag(){
+        return sh(script: "git tag --contains", returnStdout: true)?.trim()
+    }
 
-String getCommit() {
-    return sh(script: 'git rev-parse HEAD', returnStdout: true)?.trim()
-}
-
-String gitTag(){
-    return sh(script: "git tag --contains", returnStdout: true)?.trim()
-}
-
-def initializeGitForDeployment() {
-    execute("git config --global user.email 'microchip@microchip.com'")
-    execute("git config --global user.name 'Microchip Technology'")
-}
+    def initializeGitForDeployment() {
+        execute("git config --global user.email 'microchip@microchip.com'")
+        execute("git config --global user.name 'Microchip Technology'")
+    }
