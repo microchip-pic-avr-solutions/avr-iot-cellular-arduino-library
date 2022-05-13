@@ -24,8 +24,6 @@
 #define MQTT_SUB_TOPIC_FMT "$aws/things/%s/shadow/update/delta"
 #define MQTT_PUB_TOPIC_FMT "%s/sensors"
 
-#define MQTT_MESSAGE_BUFFERS 4
-
 #define NETWORK_CONN_FLAG                 1 << 0
 #define NETWORK_DISCONN_FLAG              1 << 1
 #define BROKER_CONN_FLAG                  1 << 2
@@ -56,12 +54,7 @@ static volatile uint16_t target_seconds = 0;
 static volatile uint16_t data_frequency = 0;
 static unsigned long last_data_time = 0;
 
-static char topic_buffer[MQTT_MESSAGE_BUFFERS][MQTT_TOPIC_MAX_LENGTH + 1] =
-    {"", "", "", ""};
-static volatile uint16_t message_length[MQTT_MESSAGE_BUFFERS] = {0, 0, 0, 0};
-static volatile int32_t message_id[MQTT_MESSAGE_BUFFERS] = {-1, -1, -1, -1};
-static volatile uint8_t message_head_index = 0;
-static volatile uint8_t message_tail_index = 0;
+static volatile uint16_t awaiting_messages = 0;
 
 static const char heartbeat_message[] = "{\"type\": \"heartbeat\"}";
 
@@ -100,12 +93,7 @@ void disconnectedFromBroker(void) { event_flags |= BROKER_DISCONN_FLAG; }
 void receivedMessage(const char *topic,
                      const uint16_t msg_length,
                      const int32_t msg_id) {
-
-    memcpy(topic_buffer[message_head_index], topic, MQTT_TOPIC_MAX_LENGTH);
-    message_length[message_head_index] = msg_length;
-    message_id[message_head_index] = msg_id;
-
-    message_head_index = (message_head_index + 1) % MQTT_MESSAGE_BUFFERS;
+    awaiting_messages++;
 }
 
 void connectMqtt() {
@@ -141,8 +129,9 @@ void startStreamTimer() {
 
 void stopStreamTimer() { TCA0.SINGLE.CTRLA = 0; }
 
+static StaticJsonDocument<800> doc;
+
 void decodeMessage(const char *message) {
-    StaticJsonDocument<800> doc;
     DeserializationError error = deserializeJson(doc, message);
 
     if (error) {
@@ -221,11 +210,11 @@ void decodeMessage(const char *message) {
 }
 
 void printHelp() {
-    Log.rawf("\nAvailable Commands\n"
-             "-----------------------\n"
-             "help\t\t Print this message\n"
+    Log.rawf("\r\nAvailable Commands\r\n"
+             "-----------------------\r\n"
+             "help\t\t Print this message\r\n"
              "loglevel=level\t Set the log level. Available levels are debug, "
-             "info, warn, error\n"
+             "info, warn, error\r\n"
              "-----------------------\r\n");
 }
 
@@ -322,7 +311,6 @@ void setup() {
 unsigned long timeLastCellToggle = millis() + 500;
 
 void loop() {
-
     // See if there are any messages for the command handler
     if (Serial3.available()) {
         String extractedString = Serial3.readStringUntil('\n');
@@ -378,7 +366,7 @@ void loop() {
 
             Log.info("Connected to MQTT broker, subscribing to topics!\r\n");
 
-            MqttClient.subscribe(mqtt_sub_topic, MqttQoS::AT_LEAST_ONCE);
+            MqttClient.subscribe(mqtt_sub_topic);
 
             break;
         default:
@@ -415,27 +403,37 @@ void loop() {
         }
 
         event_flags &= ~BROKER_DISCONN_FLAG;
-    } else if (message_head_index != message_tail_index) {
+    } else if (awaiting_messages > 0) {
 
         switch (state) {
         case CONNECTED_TO_BROKER:
         case STREAMING_DATA: {
 
-            // Extra space for termination
-            char message[message_length[message_tail_index] + 16] = "";
+            char message[400] = "";
 
-            if (!MqttClient.readMessage(topic_buffer[message_tail_index],
-                                        (uint8_t *)message,
-                                        sizeof(message),
-                                        message_id[message_tail_index])) {
+            const bool message_read_successfully = MqttClient.readMessage(
+                mqtt_sub_topic, (uint8_t *)message, sizeof(message));
 
+            cli();
+            awaiting_messages--;
+            sei();
+
+            if (message_read_successfully) {
+                decodeMessage(message);
+            } else {
                 Log.error("Failed to read message\r\n");
+
+                if (awaiting_messages > 0) {
+                    Log.errorf("Lost %d message(s) due to messages coming in "
+                               "too quickly to process\r\n",
+                               awaiting_messages);
+
+                    MqttClient.clearMessages(mqtt_sub_topic, awaiting_messages);
+                    cli();
+                    awaiting_messages = 0;
+                    sei();
+                }
             }
-
-            decodeMessage(message);
-
-            message_tail_index =
-                (message_tail_index + 1) % MQTT_MESSAGE_BUFFERS;
 
         } break;
 
@@ -452,6 +450,7 @@ void loop() {
 
             Log.info("Sending hearbeat");
             MqttClient.publish(mqtt_pub_topic, heartbeat_message);
+
             last_heartbeat_time = millis();
 
             break;
