@@ -70,10 +70,7 @@ ATCA_STATUS hal_i2c_receive(ATCAIface iface,
                             uint8_t *rxdata,
                             uint16_t *rxlength) {
 
-    // TODO: Somehow, the TWI driver gets into an infinite loop if we don't
-    // delay some here. This might be due to two operations happening quickly
-    // after each other. Two reads for example.
-    // This is really bad though :/
+    // Need some delay here for the Wire driver to keep up
     atca_delay_ms(100);
 
     *rxlength = WIRE.requestFrom(word_address, (size_t)(*rxlength));
