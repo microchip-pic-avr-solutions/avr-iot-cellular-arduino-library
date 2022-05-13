@@ -414,24 +414,22 @@ void loop() {
             const bool message_read_successfully = MqttClient.readMessage(
                 mqtt_sub_topic, (uint8_t *)message, sizeof(message));
 
-            cli();
             awaiting_messages--;
-            sei();
 
             if (message_read_successfully) {
                 decodeMessage(message);
             } else {
                 Log.error("Failed to read message\r\n");
 
+                // In case we lost some messages, we clear them out from the
+                // Sequans Modem such that the memory is freed
                 if (awaiting_messages > 0) {
                     Log.errorf("Lost %d message(s) due to messages coming in "
                                "too quickly to process\r\n",
                                awaiting_messages);
 
                     MqttClient.clearMessages(mqtt_sub_topic, awaiting_messages);
-                    cli();
                     awaiting_messages = 0;
-                    sei();
                 }
             }
 
