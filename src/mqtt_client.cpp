@@ -106,7 +106,9 @@
 #define HCESIGN_DIGEST_LENGTH  64
 #define HCESIGN_CTX_ID_LENGTH  5
 
-#define POLL_TIMEOUT_MS 20000
+#define SIGN_TIMEOUT_MS       20000
+#define MQTT_TIMEOUT_MS       50
+#define DISCONNECT_TIMEOUT_MS 20000
 
 // Singleton instance
 MqttClientClass MqttClient = MqttClientClass::instance();
@@ -154,7 +156,6 @@ static void internalConnectedCallback(char *urc_data) {
 
 static void internalDisconnectCallback(char *urc_data) {
     connected_to_broker = false;
-    // LedCtrl.off(Led::CON, true);
 
     if (disconnected_callback != NULL) {
         disconnected_callback();
@@ -286,7 +287,10 @@ static bool generateSigningCommand(char *data, char *command_buffer) {
     return true;
 }
 
-bool MqttClientClass::signIncomingRequests(void) {
+/**
+ * @brief Sends the signed message from the ECC back to the Sequans modem
+ */
+static bool signIncomingRequests(void) {
     if (signing_request_flag) {
 
         SequansController.startCriticalSection();
@@ -418,7 +422,7 @@ bool MqttClientClass::begin(const char *client_id,
             uint32_t start = millis();
 
             while (signIncomingRequests() == false) {
-                if (millis() - start > POLL_TIMEOUT_MS) {
+                if (millis() - start > SIGN_TIMEOUT_MS) {
                     Log.error("Timed out waiting for pub signing\r\n");
                     return false;
                 }
@@ -475,19 +479,24 @@ bool MqttClientClass::publish(const char *topic,
     char command[MQTT_PUBLISH_LENGTH_PRE_DATA + digits_in_buffer_size];
 
     // Fill everything besides the data
-    sprintf(command, MQTT_PUBLISH, topic, quality_of_service, buffer_size);
+    sprintf(command,
+            MQTT_PUBLISH,
+            topic,
+            quality_of_service,
+            (unsigned long)buffer_size);
     SequansController.writeCommand(command);
 
     // Wait for start character for delivering payload
-    if (SequansController.waitForByte('>', POLL_TIMEOUT_MS) ==
+    if (SequansController.waitForByte('>', MQTT_TIMEOUT_MS) ==
         SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT) {
-        Log.error("Timed out waiting for >");
+        Log.error("Timed out waiting for signal to deliver MQTT payload.");
+        return false;
     }
     SequansController.writeBytes(buffer, buffer_size);
 
     // Wait until we receive the first URC which we discard
     uint8_t wait_result = SequansController.waitForByte(
-        URC_IDENTIFIER_START_CHARACTER, POLL_TIMEOUT_MS);
+        URC_IDENTIFIER_START_CHARACTER, MQTT_TIMEOUT_MS);
 
     if (wait_result != SEQUANS_CONTROLLER_READ_BYTE_OK) {
         Log.errorf("Error when waiting for the first URC start character. "
@@ -500,7 +509,7 @@ bool MqttClientClass::publish(const char *topic,
 
     // Wait until we receive the second URC which includes the status code
     wait_result = SequansController.waitForByte(URC_IDENTIFIER_START_CHARACTER,
-                                                POLL_TIMEOUT_MS);
+                                                MQTT_TIMEOUT_MS);
     if (wait_result != SEQUANS_CONTROLLER_READ_BYTE_OK) {
         Log.errorf("Error when waiting for the second URC start character. "
                    "Error was %d\r\n",
@@ -583,7 +592,7 @@ bool MqttClientClass::subscribe(const char *topic,
 
     // Now we wait for the URC
     if (SequansController.waitForByte(URC_IDENTIFIER_START_CHARACTER,
-                                      POLL_TIMEOUT_MS) ==
+                                      MQTT_TIMEOUT_MS) ==
         SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT) {
         Log.error("Timed out waiting for start byte in MQTT subscribe");
         return false;
@@ -655,7 +664,7 @@ bool MqttClientClass::readMessage(const char *topic,
     // Wait for first byte in receive buffer
     uint32_t start = millis();
     while (!SequansController.isRxReady()) {
-        if (millis() - start > POLL_TIMEOUT_MS) {
+        if (millis() - start > MQTT_TIMEOUT_MS) {
             Log.error("Timed out waiting for reading MQTT message");
             return SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT;
         }
@@ -687,6 +696,18 @@ String MqttClientClass::readMessage(const char *topic, const uint16_t size) {
     return buffer;
 }
 
+void MqttClientClass::clearMessages(const char *topic,
+                                    const uint16_t num_messages) {
+
+    SequansController.clearReceiveBuffer();
+    char command[MQTT_RECEIVE_LENGTH] = "";
+    sprintf(command, MQTT_RECEIVE, topic);
+
+    for (uint16_t i = 0; i < num_messages; i++) {
+        SequansController.writeCommand(command);
+    }
+}
+
 bool MqttClientClass::disconnect(bool lte_event) {
 
     LedCtrl.off(Led::CON, true);
@@ -716,7 +737,7 @@ bool MqttClientClass::disconnect(bool lte_event) {
     // Wait for the broker to disconnect
     uint32_t start = millis();
     while (connected_to_broker) {
-        if (millis() - start > 20000) {
+        if (millis() - start > DISCONNECT_TIMEOUT_MS) {
             Log.error("Timed out waiting for broker disconnect URC");
             return false;
         }

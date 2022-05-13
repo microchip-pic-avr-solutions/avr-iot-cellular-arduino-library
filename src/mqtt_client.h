@@ -162,14 +162,13 @@ class MqttClientClass {
     String readMessage(const char *topic, const uint16_t size = 256);
 
     /**
-     * @brief If the MQTT connection is encrypted with the hardware crypto
-     * engine, we need to regularly check and sign the data going back and
-     * forward (for example when the unit is pinging the broker).
+     * @brief Reads @p num_messages MQTT messages from the Sequans modem and
+     * discards them.
      *
-     * @note This function has to be called regularly, for example in the main
-     * loop for the MQTT connection to remain active.
+     * @param topic Topic to clear the messages from.
+     * @param num_messages Number of messages to discard.
      */
-    bool signIncomingRequests(void);
+    void clearMessages(const char *topic, const uint16_t num_messages);
 
     /**
      * @brief Disconnects from the MQTT broker.
