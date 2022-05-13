@@ -209,9 +209,9 @@ class SequansControllerClass {
      */
     uint8_t waitForByte(uint8_t byte, uint32_t timeout_ms);
 
-    void startCriticalSection();
+    void startCriticalSection(void);
 
-    void stopCriticalSection();
+    void stopCriticalSection(void);
 };
 
 extern SequansControllerClass SequansController;

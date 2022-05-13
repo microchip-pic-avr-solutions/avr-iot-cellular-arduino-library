@@ -370,10 +370,10 @@ void SequansControllerClass::setRetryConfiguration(const uint8_t num_retries,
 }
 
 bool SequansControllerClass::isTxReady(void) {
-    return (tx_num_elements != TX_BUFFER_SIZE);
+    return tx_num_elements != TX_BUFFER_SIZE;
 }
 
-bool SequansControllerClass::isRxReady(void) { return (rx_num_elements != 0); }
+bool SequansControllerClass::isRxReady(void) { return rx_num_elements > 0; }
 
 bool SequansControllerClass::writeByte(const uint8_t data) {
 
@@ -388,10 +388,9 @@ bool SequansControllerClass::writeByte(const uint8_t data) {
         _delay_ms(sleep_between_retries_ms);
     }
 
+    cli();
     tx_head_index = (tx_head_index + 1) & TX_BUFFER_MASK;
     tx_buffer[tx_head_index] = data;
-
-    cli();
     tx_num_elements++;
     sei();
 
@@ -441,7 +440,7 @@ bool SequansControllerClass::writeBytes(const uint8_t *data,
     return writeByte('\r');
 }
 
-int16_t SequansControllerClass::readByte() {
+int16_t SequansControllerClass::readByte(void) {
     if (!isRxReady()) {
         return -1;
     }
@@ -541,6 +540,8 @@ void SequansControllerClass::clearReceiveBuffer(void) {
     rx_num_elements = 0;
     rx_tail_index = rx_head_index;
     sei();
+
+    flowControlUpdate();
 }
 
 bool SequansControllerClass::extractValueFromCommandResponse(
@@ -752,12 +753,12 @@ uint8_t SequansControllerClass::waitForByte(uint8_t byte, uint32_t timeout) {
     return SEQUANS_CONTROLLER_READ_BYTE_OK;
 }
 
-void SequansControllerClass::startCriticalSection() {
+void SequansControllerClass::startCriticalSection(void) {
     critical_section_enabled = true;
     RTS_PORT.OUTSET = RTS_PIN_bm;
 }
 
-void SequansControllerClass::stopCriticalSection() {
+void SequansControllerClass::stopCriticalSection(void) {
     critical_section_enabled = false;
     RTS_PORT.OUTCLR = RTS_PIN_bm;
 }
