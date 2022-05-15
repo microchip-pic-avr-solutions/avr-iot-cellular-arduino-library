@@ -13,7 +13,7 @@ Open the [releases tab](https://github.com/microchip-pic-avr-solutions/avr-iot-c
 
 ## Board Description
 
-The AVR-IoT Cellular Mini is a development board from Microchip to develop cellular IoT applications.
+The [AVR-IoT Cellular Mini](https://www.microchip.com/en-us/development-tool/EV70N78A) is a development board from Microchip to develop cellular IoT applications.
 
 📓 Full Arduino support through a library built on top of the open-source [DxCore](https://github.com/SpenceKonde/DxCore)
 
