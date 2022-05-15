@@ -40,6 +40,19 @@ A set of examples can be in [src/examples](./src/examples/), and in the respecti
 
 ![](./readme_images/examples.png)
 
+## Sensor Drivers
+
+The [AVR-IoT Celluar Mini](https://www.microchip.com/en-us/development-tool/EV70N78A) features two sensors. The drivers for these sensors can be found at the following locations
+
+* Temperature Sensor - MCP9808
+  * [Source Code](https://github.com/microchip-pic-avr-solutions/mcp9808_arduino_driver)
+  * [Documentation](https://iot.microchip.com/docs/arduino/userguide/sensor-drivers/MCP9808)
+* RGBCIR Sensor - Color Sensor
+  * [Source Code](https://github.com/microchip-pic-avr-solutions/veml3328_arduino_driver)
+  * [Documentation](https://iot.microchip.com/docs/arduino/userguide/sensor-drivers/VEML3328)
+
+Some examples featured in this library use these sensor drivers. Specifically the sandbox and low power examples. To compile said examples, both sensor driver libraries must be installed.
+
 ## Build Instructions
 
 **A pre-built library can be downloaded from the releases tab. This section explains how to build the library locally for Linux. The process for Windows is similar. Most users do not need to build from source.**
