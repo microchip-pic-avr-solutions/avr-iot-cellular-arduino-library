@@ -28,8 +28,10 @@ class LteClass {
     /**
      * @brief Initializes the LTE module and its controller interface. Starts
      * searching for operator.
+     *
+     * @return True if initialization was successful.
      */
-    void begin(void);
+    bool begin(void);
 
     /**
      * @brief Disables the interface with the LTE module. Disconnects from

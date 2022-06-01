@@ -109,8 +109,9 @@ void connectLTE() {
 
     Lte.onConnectionStatusChange(connectedToNetwork, disconnectedFromNetwork);
 
-    // Start LTE modem and wait until we are connected to the operator
-    Lte.begin();
+    // Start LTE modem and wait until we are connected to the operator.
+    // If initialization fails, we just retry in the loop
+    while (!Lte.begin()) {}
 }
 
 void startStreamTimer() {

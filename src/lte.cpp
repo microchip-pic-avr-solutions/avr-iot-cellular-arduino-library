@@ -70,7 +70,7 @@ static void connectionStatus(char *buffer) {
     }
 }
 
-void LteClass::begin(void) {
+bool LteClass::begin(void) {
 
     // If low power is utilized, sequans controller will already been
     // initialized, so don't reset it by calling begin again
@@ -104,7 +104,7 @@ void LteClass::begin(void) {
     if (result != ResponseResult::OK) {
         Log.error("Checking SIM status failed, is the SIM card inserted?");
         SequansController.retryCommand(AT_COMMAND_DISCONNECT);
-        return;
+        return false;
     }
 
     char sim_status[16] = "";
@@ -114,14 +114,14 @@ void LteClass::begin(void) {
 
         Log.error("Failed to extract value from command response during SIM "
                   "status check");
-        return;
+        return false;
     }
 
     // strncmp returns 0 if the strings are equal
     if (strncmp(sim_status, "READY", 5)) {
         Log.errorf("SIM card is not ready, error: %s\r\n", sim_status);
         SequansController.retryCommand(AT_COMMAND_DISCONNECT);
-        return;
+        return false;
     }
 
     // Enable the default callback
@@ -134,6 +134,8 @@ void LteClass::begin(void) {
     if (isConnected() && connected_callback != NULL) {
         connected_callback();
     }
+
+    return true;
 }
 
 void LteClass::end(void) {
