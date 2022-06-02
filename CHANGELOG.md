@@ -15,3 +15,10 @@
 * Fixed a bug where the board buttons were disabled during sleep, and could not wake up the MCU
 * Removed configuring button as input again after not disabling it
 * Fixed a bug where flow control was not correctly applied when the receive buffer was full. This particularly affected the sandbox. 
+
+# 1.1.1
+
+## Bugfixes
+
+* Fixes a bug where LTE connectivity in sandbox was not reconnecting
+* Added temporarily work around for TLS certificate verification in certain regions
