@@ -1,7 +1,7 @@
 #include <log.h>
 #include <sequans_controller.h>
 
-#define AT_HTTPS_CONFIGURE_SECURITY_PROFILE "AT+SQNSPCFG=3,2,\"\",1,1"
+#define AT_HTTPS_CONFIGURE_SECURITY_PROFILE "AT+SQNSPCFG=3,2,\"\",0,1"
 
 void setup() {
     Log.begin(115200);

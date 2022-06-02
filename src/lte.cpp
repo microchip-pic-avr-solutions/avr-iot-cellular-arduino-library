@@ -83,14 +83,14 @@ bool LteClass::begin(void) {
 
     SequansController.clearReceiveBuffer();
 
-    // This might fail the first times after initializing the sequans
-    // controller, so we just retry until they succeed
     SequansController.retryCommand(AT_COMMAND_ENABLE_CEREG_URC);
-
     SequansController.retryCommand(AT_COMMAND_CONNECT);
 
     // CPIN might fail if issued to quickly after CFUN
     delay(500);
+
+    // Clear receive buffer before querying the SIM card
+    SequansController.clearReceiveBuffer();
 
     // We check that the SIM card is inserted and ready. Note that we can only
     // do this and get a meaningful response in CFUN=1 or CFUN=4.
@@ -114,6 +114,7 @@ bool LteClass::begin(void) {
 
         Log.error("Failed to extract value from command response during SIM "
                   "status check");
+        SequansController.retryCommand(AT_COMMAND_DISCONNECT);
         return false;
     }
 
