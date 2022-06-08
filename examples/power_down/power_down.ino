@@ -1,3 +1,13 @@
+/**
+ * Note that this example requires the Mcp9808 and Veml3328 driver, they can be
+ * found here:
+ *
+ * Mcp9808:
+ * https://github.com/microchip-pic-avr-solutions/mcp9808_arduino_driver
+ * Veml3328:
+ * https://github.com/microchip-pic-avr-solutions/veml3328_arduino_driver
+ */
+
 #include <avr/io.h>
 #include <led_ctrl.h>
 #include <log.h>
