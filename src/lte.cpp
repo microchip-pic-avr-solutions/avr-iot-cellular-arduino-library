@@ -6,15 +6,22 @@
 
 #include <Arduino.h>
 
-#define AT_COMMAND_CONNECT             "AT+CFUN=1"
-#define AT_COMMAND_DISCONNECT          "AT+CFUN=0"
-#define AT_COMMAND_CONNECTION_STATUS   "AT+CEREG?"
-#define AT_COMMAND_ENABLE_CEREG_URC    "AT+CEREG=5"
-#define AT_COMMAND_CHECK_SIM           "AT+CPIN?"
-#define AT_COMMAND_QUERY_OPERATOR      "AT+COPS?"
-#define AT_COMMAND_QUERY_OPERATOR_LIST "AT+COPN"
+#define AT_COMMAND_CONNECT                                    "AT+CFUN=1"
+#define AT_COMMAND_DISCONNECT                                 "AT+CFUN=0"
+#define AT_COMMAND_CONNECTION_STATUS                          "AT+CEREG?"
+#define AT_COMMAND_ENABLE_CEREG_URC                           "AT+CEREG=5"
+#define AT_COMMAND_CHECK_SIM                                  "AT+CPIN?"
+#define AT_COMMAND_QUERY_OPERATOR                             "AT+COPS?"
+#define AT_COMMAND_QUERY_OPERATOR_LIST                        "AT+COPN"
+#define AT_COMMAND_ENABLE_AUTOMATIC_TIME_UPDATE               "AT+CTZU=0"
+#define AT_COMMAND_ENABLE_AUTOMATIC_TIME_UPDATE_NOTIFICATIONS "AT+CTZR=0"
+#define AT_COMMAND_GET_CLOCK                                  "AT+CCLK?"
+#define AT_COMMAND_SYNC_NTP_ON_DEMAND                         "AT+SQNNTP=0"
+#define AT_COMMAND_SYNC_NTP                                   "AT+SQNNTP=2"
 
-#define CEREG_CALLBACK "CEREG"
+#define CEREG_CALLBACK    "CEREG"
+#define TIMEZONE_CALLBACK "CTZV"
+#define NTP_CALLBACK      "SQNNTP"
 
 // This includes null termination
 #define STAT_LENGTH                  2
@@ -38,7 +45,10 @@ LteClass Lte = LteClass::instance();
 
 static void (*connected_callback)(void) = NULL;
 static void (*disconnected_callback)(void) = NULL;
-volatile static bool is_connected = false;
+static volatile bool is_connected = false;
+static volatile bool got_timezone = false;
+static volatile bool got_ntp_callback = false;
+static volatile bool got_ntp_sync = false;
 
 static void connectionStatus(char *buffer) {
 
@@ -48,6 +58,14 @@ static void connectionStatus(char *buffer) {
         stat == STAT_REGISTERED_HOME_NETWORK) {
 
         is_connected = true;
+
+        // Guard for the first time the LTE modem is connected and we check the
+        // time synchronization. We don't want to fire the callback to the user
+        // before we have made sure that the time is synchronized
+        if (!got_ntp_sync) {
+            return;
+        }
+
         LedCtrl.on(Led::CELL, true);
 
         if (connected_callback != NULL) {
@@ -70,6 +88,17 @@ static void connectionStatus(char *buffer) {
     }
 }
 
+static void timezoneCallback(char *buffer) { got_timezone = true; }
+
+static void ntpCallback(char *buffer) {
+    got_ntp_callback = true;
+
+    // Check that the status is 0, which signifies that the NTP sync was OK.
+    if (buffer[1] == '0') {
+        got_ntp_sync = true;
+    }
+}
+
 bool LteClass::begin(void) {
 
     // If low power is utilized, sequans controller will already been
@@ -83,10 +112,16 @@ bool LteClass::begin(void) {
 
     SequansController.clearReceiveBuffer();
 
+    SequansController.retryCommand(AT_COMMAND_ENABLE_AUTOMATIC_TIME_UPDATE);
+    SequansController.retryCommand(
+        AT_COMMAND_ENABLE_AUTOMATIC_TIME_UPDATE_NOTIFICATIONS);
+
+    SequansController.registerCallback(TIMEZONE_CALLBACK, timezoneCallback);
+
     SequansController.retryCommand(AT_COMMAND_ENABLE_CEREG_URC);
     SequansController.retryCommand(AT_COMMAND_CONNECT);
 
-    // CPIN might fail if issued to quickly after CFUN
+    // CPIN might fail if issued to quickly after CFUN, so delay some
     delay(500);
 
     // Clear receive buffer before querying the SIM card
@@ -111,7 +146,6 @@ bool LteClass::begin(void) {
 
     if (!SequansController.extractValueFromCommandResponse(
             response, 0, sim_status, sizeof(sim_status))) {
-
         Log.error("Failed to extract value from command response during SIM "
                   "status check");
         SequansController.retryCommand(AT_COMMAND_DISCONNECT);
@@ -125,13 +159,89 @@ bool LteClass::begin(void) {
         return false;
     }
 
-    // Enable the default callback
+    // Wait for connection before we can check the time synchronization
     SequansController.registerCallback(CEREG_CALLBACK, connectionStatus, false);
+    while (!isConnected()) { delay(100); }
 
-    // This is convenient when the MCU has been issued a reset, but the lte
-    // modem is already connected, which will be the case during development for
-    // example. In that way, the user gets the callback upon start and doesn't
-    // have to check themselves
+    /*
+    // First we do on demand to see if it goes through with the NTP time
+    SequansController.clearReceiveBuffer();
+    SequansController.retryCommand(AT_COMMAND_SYNC_NTP_ON_DEMAND);
+    */
+
+    SequansController.clearReceiveBuffer();
+    SequansController.writeCommand(AT_COMMAND_GET_CLOCK);
+
+    char clock_response[48] = "";
+    result =
+        SequansController.readResponse(clock_response, sizeof(clock_response));
+
+    if (result != ResponseResult::OK) {
+        Log.errorf("Retrieving LTE modem time failed");
+        SequansController.retryCommand(AT_COMMAND_DISCONNECT);
+        return false;
+    }
+
+    char time[32] = "";
+
+    if (!SequansController.extractValueFromCommandResponse(
+            clock_response, 0, time, sizeof(time))) {
+        Log.error("Failed to extract current time from LTE modem");
+        SequansController.retryCommand(AT_COMMAND_DISCONNECT);
+        return false;
+    }
+
+    char year[3] = "";
+    char month[3] = "";
+    char day[3] = "";
+    memcpy(year, &time[0] + 1, 2);
+    memcpy(month, &time[0] + 4, 2);
+    memcpy(day, &time[0] + 7, 2);
+
+    // We check the date and whether it is unix epoch start or not
+    if (atoi(year) == 70 && atoi(month) == 1 && atoi(day) == 1) {
+
+        // Not valid time, have to do sync
+        unsigned long start = millis();
+        while (start - millis() > 2000 && !got_timezone) {}
+
+        if (!got_timezone) {
+            // Do manual sync with NTP server
+            Log.info("Did not get time synchronization from operator, "
+                     "doing NTP synchronization. This can take some time.");
+
+            SequansController.clearReceiveBuffer();
+            SequansController.registerCallback(NTP_CALLBACK, ntpCallback);
+
+            while (!got_ntp_sync) {
+                SequansController.clearReceiveBuffer();
+                SequansController.retryCommand(AT_COMMAND_SYNC_NTP);
+
+                Log.infof("Waiting for NTP sync");
+                while (!got_ntp_callback) {
+                    Log.rawf(".");
+                    delay(5000);
+                }
+                Log.rawf("\r\n");
+
+                if (got_ntp_sync) {
+                    break;
+                } else {
+                    Log.info("NTP synchronization timed out, retrying...");
+                    got_ntp_callback = false;
+                }
+            }
+
+            Log.info("Got NTP synchronization");
+
+            SequansController.unregisterCallback(NTP_CALLBACK);
+        }
+    }
+
+    // This is convenient when the MCU has been issued a reset, but the LTE
+    // modem is already connected, which will be the case during development
+    // for example. In that way, the user gets the callback upon start and
+    // doesn't have to check themselves
     if (isConnected() && connected_callback != NULL) {
         connected_callback();
     }
@@ -140,7 +250,13 @@ bool LteClass::begin(void) {
 }
 
 void LteClass::end(void) {
+    is_connected = false;
+    got_timezone = false;
+    got_ntp_sync = false;
+    got_ntp_callback = false;
+
     SequansController.unregisterCallback(CEREG_CALLBACK);
+    SequansController.unregisterCallback(TIMEZONE_CALLBACK);
     SequansController.retryCommand(AT_COMMAND_DISCONNECT);
     SequansController.end();
 }
