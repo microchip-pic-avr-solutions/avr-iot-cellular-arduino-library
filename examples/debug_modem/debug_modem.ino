@@ -2,6 +2,18 @@
 #include <log.h>
 #include <sequans_controller.h>
 
+void setup() {
+
+    Log.begin(115200);
+    Log.setLogLevel(LogLevel::DEBUG);
+
+    SequansController.begin();
+}
+
+void loop() { debugBridgeUpdate(); }
+
+// ------------------------------ DEBUG BRIDGE ----------------------------- //
+
 #ifdef __AVR_AVR128DB48__ // MINI
 
 #define SerialDebug Serial3
@@ -15,18 +27,6 @@
 #error "INCOMPATIBLE_DEVICE_SELECTED"
 #endif
 #endif
-
-void setup() {
-
-    Log.begin(115200);
-    Log.setLogLevel(LogLevel::DEBUG);
-
-    SequansController.begin();
-}
-
-void loop() { debugBridgeUpdate(); }
-
-// ------------------------------ DEBUG BRIDGE ----------------------------- //
 
 #define DEL_CHARACTER   127
 #define ENTER_CHARACTER 13
