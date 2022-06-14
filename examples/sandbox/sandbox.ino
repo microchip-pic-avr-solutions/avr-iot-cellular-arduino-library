@@ -307,13 +307,14 @@ void setup() {
     sprintf(mqtt_pub_topic, MQTT_PUB_TOPIC_FMT, thing_name);
 
     // - Patch begin -
-    // Patch for TLS verification in certain regions
+    // Updated patch for TLS verification in certain regions
+    // This now turns on TLS certificate verification
     SequansController.begin();
 
     // Allow time for boot
     delay(500);
     while (!SequansController.retryCommand(
-        "AT+SQNSPCFG=1,2,\"0xC02B\",0,19,0,0,\"\",\"\",1,0,0")) {}
+        "AT+SQNSPCFG=1,2,\"0xC02B\",1,19,0,0,\"\",\"\",1,0,0")) {}
     // - Patch end -
 
     Log.info("Connecting to LTE network...");
