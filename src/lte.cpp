@@ -13,8 +13,8 @@
 #define AT_COMMAND_CHECK_SIM                                  "AT+CPIN?"
 #define AT_COMMAND_QUERY_OPERATOR                             "AT+COPS?"
 #define AT_COMMAND_QUERY_OPERATOR_LIST                        "AT+COPN"
-#define AT_COMMAND_ENABLE_AUTOMATIC_TIME_UPDATE               "AT+CTZU=0"
-#define AT_COMMAND_ENABLE_AUTOMATIC_TIME_UPDATE_NOTIFICATIONS "AT+CTZR=0"
+#define AT_COMMAND_ENABLE_AUTOMATIC_TIME_UPDATE               "AT+CTZU=1"
+#define AT_COMMAND_ENABLE_AUTOMATIC_TIME_UPDATE_NOTIFICATIONS "AT+CTZR=1"
 #define AT_COMMAND_GET_CLOCK                                  "AT+CCLK?"
 #define AT_COMMAND_SYNC_NTP_ON_DEMAND                         "AT+SQNNTP=0"
 #define AT_COMMAND_SYNC_NTP                                   "AT+SQNNTP=2"
@@ -203,7 +203,7 @@ bool LteClass::begin(void) {
 
         // Not valid time, have to do sync
         unsigned long start = millis();
-        while (start - millis() > 2000 && !got_timezone) {}
+        while (start - millis() > 4000 && !got_timezone) {}
 
         if (!got_timezone) {
             // Do manual sync with NTP server
