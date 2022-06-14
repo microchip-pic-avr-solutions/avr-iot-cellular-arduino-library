@@ -62,6 +62,8 @@
 #define RX_BUFFER_MASK (RX_BUFFER_SIZE - 1)
 #define TX_BUFFER_MASK (TX_BUFFER_SIZE - 1)
 
+#define RX_ELEMENTS_MASK (RX_BUFFER_SIZE * 2 - 1)
+
 // CTS, control line for the MCU sending the LTE module data
 #define sequansModuleIsReadyForData() (!(VPORTC.IN & CTS_PIN_bm))
 
@@ -95,6 +97,7 @@ static volatile uint16_t urc_data_buffer_length = 0;
 
 typedef enum {
     URC_PARSING_IDENTIFIER,
+    URC_EVALUATING_IDENTIFIER,
     URC_PARSING_DATA,
     URC_NOT_PARSING
 } UrcParseState;
@@ -199,8 +202,23 @@ ISR(USART1_RXC_vect) {
     switch (urc_parse_state) {
 
     case URC_NOT_PARSING:
+
         if (data == URC_IDENTIFIER_START_CHARACTER) {
             urc_identifier_buffer_length = 0;
+            urc_parse_state = URC_EVALUATING_IDENTIFIER;
+        }
+
+        break;
+
+    case URC_EVALUATING_IDENTIFIER:
+
+        // Some commands return a '+' followed by numbers which can be mistaken
+        // for an URC, so we check against that and disregard the data if that
+        // is the case
+        if (data >= '0' && data <= '9') {
+            urc_parse_state = URC_NOT_PARSING;
+        } else {
+            urc_identifier_buffer[urc_identifier_buffer_length++] = data;
             urc_parse_state = URC_PARSING_IDENTIFIER;
         }
 
@@ -209,6 +227,7 @@ ISR(USART1_RXC_vect) {
     case URC_PARSING_IDENTIFIER:
 
         if (data == URC_IDENTIFIER_END_CHARACTER) {
+
             // We set this as the initial condition and if we find a match
             // for the URC we go on parsing the data
             urc_parse_state = URC_NOT_PARSING;
@@ -226,13 +245,31 @@ ISR(USART1_RXC_vect) {
                         urc_current_callback = urc_callbacks[i];
                         urc_parse_state = URC_PARSING_DATA;
 
+                        // Clear data if requested and if the data hasn't
+                        // already been read
+                        if (urc_lookup_table_clear_data[urc_index] &&
+                            rx_num_elements >= urc_identifier_buffer_length) {
+
+                            rx_head_index =
+                                (rx_head_index - urc_identifier_buffer_length) &
+                                RX_BUFFER_MASK;
+
+                            rx_num_elements = (rx_num_elements -
+                                               urc_identifier_buffer_length) &
+                                              RX_ELEMENTS_MASK;
+                        }
+
                         // Reset the index in order to prepare the URC
                         // buffer for data
                         urc_data_buffer_length = 0;
+
                         break;
                     }
                 }
             }
+
+            urc_identifier_buffer_length = 0;
+
         } else if (urc_identifier_buffer_length == URC_IDENTIFIER_BUFFER_SIZE) {
             urc_parse_state = URC_NOT_PARSING;
         } else {
@@ -248,20 +285,25 @@ ISR(USART1_RXC_vect) {
             // Add termination since we're done
             urc_data_buffer[urc_data_buffer_length] = 0;
 
-            if (urc_current_callback != NULL) {
-                // Clear the buffer for the URC since we're passing the data
-                // with the URC callback
-                if (urc_lookup_table_clear_data[urc_index]) {
-                    rx_head_index = (rx_head_index - urc_data_buffer_length) &
-                                    RX_BUFFER_MASK;
-                    rx_num_elements -= urc_data_buffer_length;
-                }
+            // Clear the buffer for the URC if requested and if it already
+            // hasn't been read
+            if (urc_lookup_table_clear_data[urc_index] &&
+                rx_num_elements >= urc_data_buffer_length) {
 
+                rx_head_index =
+                    (rx_head_index - urc_data_buffer_length) & RX_BUFFER_MASK;
+                rx_num_elements = (rx_num_elements - urc_data_buffer_length) &
+                                  RX_ELEMENTS_MASK;
+            }
+
+            if (urc_current_callback != NULL) {
                 urc_current_callback((char *)urc_data_buffer);
                 urc_current_callback = NULL;
             }
 
             urc_parse_state = URC_NOT_PARSING;
+            urc_data_buffer_length = 0;
+
         } else if (urc_data_buffer_length == URC_DATA_BUFFER_SIZE) {
             // This is just a failsafe
             urc_parse_state = URC_NOT_PARSING;
