@@ -510,12 +510,6 @@ bool LowPowerClass::configurePeriodicPowerSave(
 }
 
 void LowPowerClass::powerSave(void) {
-    cell_led_state = digitalRead(LedCtrl.getLedPin(Led::CELL));
-    con_led_state = digitalRead(LedCtrl.getLedPin(Led::CON));
-
-    powerDownPeripherals();
-    SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
-
     if (!retrieved_period) {
         // Retrieve the proper sleep time set by the operator, which may
         // deviate from what we requested
@@ -540,25 +534,31 @@ void LowPowerClass::powerSave(void) {
         LedCtrl.off(Led::CELL, true);
     }
 
+    cell_led_state = digitalRead(LedCtrl.getLedPin(Led::CELL));
+    con_led_state = digitalRead(LedCtrl.getLedPin(Led::CON));
+
     if (!attemptToEnterPowerSaveModeForModem(30000)) {
         Log.error("Failed to put LTE modem in sleep. Power save functionality "
                   "might not be available for your operator.");
     }
 
     if (modem_is_in_power_save) {
+        powerDownPeripherals();
+        SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
+
         enableLDO();
         sleep_cpu();
 
         // Will sleep here until we get the RING line activity and wake up
         disableLDO();
 
+        SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
+        powerUpPeripherals();
+
         modem_is_in_power_save = false;
     }
 
     SequansController.setPowerSaveMode(0, NULL);
-
-    SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
-    powerUpPeripherals();
 
     digitalWrite(LedCtrl.getLedPin(Led::CELL), cell_led_state);
     digitalWrite(LedCtrl.getLedPin(Led::CON), con_led_state);
