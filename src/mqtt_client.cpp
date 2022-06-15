@@ -107,7 +107,7 @@
 #define HCESIGN_CTX_ID_LENGTH  5
 
 #define SIGN_TIMEOUT_MS       20000
-#define MQTT_TIMEOUT_MS       50
+#define MQTT_TIMEOUT_MS       200
 #define DISCONNECT_TIMEOUT_MS 20000
 
 // Singleton instance
