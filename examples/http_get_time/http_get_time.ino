@@ -23,15 +23,12 @@ void setup() {
     Log.begin(115200);
     Log.info("Starting HTTP Get Time Example\r\n");
 
-    // Start LTE modem and wait until we are connected to the operator
-    Lte.begin();
-    Log.infof("Connecting to operator");
-    while (!Lte.isConnected()) {
-        Log.raw(".");
-        delay(1000);
+    // Start LTE modem and connect to the operator
+    if (!Lte.begin()) {
+        Log.info("Failed to connect to operator");
+        return;
     }
 
-    Log.raw("\r\n");
     Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
 
     if (!HttpClient.configure(TIMEZONE_URL, 80, false)) {
@@ -69,6 +66,4 @@ void setup() {
     Log.infof("Got the time (unixtime) %lu\r\n", getTimeFromApiresp(&body));
 }
 
-void loop() {
-    while (true) {}
-}
+void loop() {}

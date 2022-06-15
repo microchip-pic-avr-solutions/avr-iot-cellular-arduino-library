@@ -29,6 +29,9 @@
 #define STAT_REGISTERED_HOME_NETWORK '1'
 #define STAT_REGISTERED_ROAMING      '5'
 
+#define NTP_STATUS_INDEX 1
+#define NTP_OK           '0'
+
 #define RESPONSE_CONNECTION_STATUS_SIZE 70
 
 #define CEREG_DATA_LENGTH 2
@@ -94,12 +97,12 @@ static void ntpCallback(char *buffer) {
     got_ntp_callback = true;
 
     // Check that the status is 0, which signifies that the NTP sync was OK.
-    if (buffer[1] == '0') {
+    if (buffer[NTP_STATUS_INDEX] == NTP_OK) {
         got_ntp_sync = true;
     }
 }
 
-bool LteClass::begin(void) {
+bool LteClass::begin(const bool print_messages) {
 
     // If low power is utilized, sequans controller will already been
     // initialized, so don't reset it by calling begin again
@@ -161,13 +164,22 @@ bool LteClass::begin(void) {
 
     // Wait for connection before we can check the time synchronization
     SequansController.registerCallback(CEREG_CALLBACK, connectionStatus, false);
-    while (!isConnected()) { delay(100); }
 
-    /*
-    // First we do on demand to see if it goes through with the NTP time
-    SequansController.clearReceiveBuffer();
-    SequansController.retryCommand(AT_COMMAND_SYNC_NTP_ON_DEMAND);
-    */
+    if (print_messages) {
+        Log.infof("Connecting to operator");
+    }
+
+    while (!isConnected()) {
+        delay(500);
+
+        if (print_messages) {
+            Log.rawf(".");
+        }
+    }
+
+    if (print_messages) {
+        Log.rawf(" OK!\r\n");
+    }
 
     SequansController.clearReceiveBuffer();
     SequansController.writeCommand(AT_COMMAND_GET_CLOCK);
@@ -207,8 +219,11 @@ bool LteClass::begin(void) {
 
         if (!got_timezone) {
             // Do manual sync with NTP server
-            Log.info("Did not get time synchronization from operator, "
-                     "doing NTP synchronization. This can take some time.");
+
+            if (print_messages) {
+                Log.info("Did not get time synchronization from operator, "
+                         "doing NTP synchronization. This can take some time.");
+            }
 
             SequansController.clearReceiveBuffer();
             SequansController.registerCallback(NTP_CALLBACK, ntpCallback);
@@ -217,22 +232,33 @@ bool LteClass::begin(void) {
                 SequansController.clearReceiveBuffer();
                 SequansController.retryCommand(AT_COMMAND_SYNC_NTP);
 
-                Log.infof("Waiting for NTP sync");
-                while (!got_ntp_callback) {
-                    Log.rawf(".");
-                    delay(5000);
+                if (print_messages) {
+                    Log.infof("Waiting for NTP sync");
                 }
-                Log.rawf("\r\n");
+
+                while (!got_ntp_callback) {
+
+                    if (print_messages) {
+                        Log.rawf(".");
+                    }
+
+                    delay(500);
+                }
 
                 if (got_ntp_sync) {
                     break;
                 } else {
-                    Log.info("NTP synchronization timed out, retrying...");
+                    if (print_messages) {
+                        Log.rawf("\r\n");
+                        Log.info("NTP synchronization timed out, retrying...");
+                    }
                     got_ntp_callback = false;
                 }
             }
 
-            Log.info("Got NTP synchronization");
+            if (print_messages) {
+                Log.rawf(" OK!\r\n");
+            }
 
             SequansController.unregisterCallback(NTP_CALLBACK);
         }

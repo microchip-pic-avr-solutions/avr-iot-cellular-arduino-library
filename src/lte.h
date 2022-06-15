@@ -26,12 +26,15 @@ class LteClass {
     }
 
     /**
-     * @brief Initializes the LTE module and its controller interface. Starts
-     * searching for operator.
+     * @brief Initializes the LTE module and its controller interface. Connects
+     * to the network.
      *
-     * @return True if initialization was successful.
+     * @param print_messages If set to true, the messages related to connection
+     * will be logged.
+     *
+     * @return True if initialization was successful and connection was made.
      */
-    bool begin(void);
+    bool begin(const bool print_messages = true);
 
     /**
      * @brief Disables the interface with the LTE module. Disconnects from
