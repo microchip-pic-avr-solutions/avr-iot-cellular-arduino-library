@@ -48,11 +48,10 @@ class LteClass {
     String getOperator(void);
 
     /**
-     * @brief Registers callback functions for when the module is connected to
-     * the operator and disconnected from the operator.
+     * @brief Registers callback function for when the modem disconnected from
+     * the operator.
      */
-    void onConnectionStatusChange(void (*connect_callback)(void),
-                                  void (*disconnect_callback)(void));
+    void onDisconnect(void (*disconnect_callback)(void));
 
     bool isConnected(void);
 };

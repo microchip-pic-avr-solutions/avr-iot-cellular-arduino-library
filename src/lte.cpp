@@ -46,7 +46,6 @@ const char *OPERATOR_NOT_AVAILABLE = "NOT_AVAILABLE";
 // Singleton. Defined for use of the rest of the library.
 LteClass Lte = LteClass::instance();
 
-static void (*connected_callback)(void) = NULL;
 static void (*disconnected_callback)(void) = NULL;
 static volatile bool is_connected = false;
 static volatile bool got_timezone = false;
@@ -70,10 +69,6 @@ static void connectionStatus(char *buffer) {
         }
 
         LedCtrl.on(Led::CELL, true);
-
-        if (connected_callback != NULL) {
-            connected_callback();
-        }
     } else {
 
         if (is_connected) {
@@ -264,14 +259,6 @@ bool LteClass::begin(const bool print_messages) {
         }
     }
 
-    // This is convenient when the MCU has been issued a reset, but the LTE
-    // modem is already connected, which will be the case during development
-    // for example. In that way, the user gets the callback upon start and
-    // doesn't have to check themselves
-    if (isConnected() && connected_callback != NULL) {
-        connected_callback();
-    }
-
     return true;
 }
 
@@ -318,9 +305,7 @@ String LteClass::getOperator(void) {
     return String(buffer);
 }
 
-void LteClass::onConnectionStatusChange(void (*connect_callback)(void),
-                                        void (*disconnect_callback)(void)) {
-    connected_callback = connect_callback;
+void LteClass::onDisconnect(void (*disconnect_callback)(void)) {
     disconnected_callback = disconnect_callback;
 }
 
