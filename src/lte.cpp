@@ -61,14 +61,8 @@ static void connectionStatus(char *buffer) {
 
         is_connected = true;
 
-        // Guard for the first time the LTE modem is connected and we check the
-        // time synchronization. We don't want to fire the callback to the user
-        // before we have made sure that the time is synchronized
-        if (!got_ntp_sync) {
-            return;
-        }
-
         LedCtrl.on(Led::CELL, true);
+
     } else {
 
         if (is_connected) {
@@ -281,7 +275,9 @@ String LteClass::getOperator(void) {
 
     SequansController.clearReceiveBuffer();
     SequansController.retryCommand(AT_COMMAND_QUERY_OPERATOR_SET_FORMAT);
-    SequansController.retryCommand(AT_COMMAND_QUERY_OPERATOR);
+
+    SequansController.clearReceiveBuffer();
+    SequansController.writeCommand(AT_COMMAND_QUERY_OPERATOR);
 
     ResponseResult response_result =
         SequansController.readResponse(response, sizeof(response));
