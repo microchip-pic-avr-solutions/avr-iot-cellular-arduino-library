@@ -11,18 +11,16 @@ void testHttp();
 void setup() {
 
     Log.begin(115200);
+
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
-    // Start LTE modem and wait until we are connected to the operator
-    Lte.begin();
-    Log.infof("Connecting to operator");
-    while (!Lte.isConnected()) {
-        Log.raw(".");
-        delay(1000);
+    // Start LTE modem and connect to the operator
+    if (!Lte.begin()) {
+        Log.error("Failed to connect to the operator");
+        return;
     }
 
-    Log.raw("\r\n");
     Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
 
     testHttp();

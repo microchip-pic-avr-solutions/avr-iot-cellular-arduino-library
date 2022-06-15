@@ -25,7 +25,7 @@ void setup() {
 
     // Start LTE modem and connect to the operator
     if (!Lte.begin()) {
-        Log.info("Failed to connect to operator");
+        Log.error("Failed to connect to operator");
         return;
     }
 

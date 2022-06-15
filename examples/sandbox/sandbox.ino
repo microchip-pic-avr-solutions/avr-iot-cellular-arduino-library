@@ -86,7 +86,6 @@ ISR(PORTF_PORT_vect) {
     }
 }
 
-void connectedToNetwork(void) { event_flags |= NETWORK_CONN_FLAG; }
 void disconnectedFromNetwork(void) { event_flags |= NETWORK_DISCONN_FLAG; }
 void connectedToBroker(void) { event_flags |= BROKER_CONN_FLAG; }
 void disconnectedFromBroker(void) { event_flags |= BROKER_DISCONN_FLAG; }
@@ -108,11 +107,14 @@ void connectMqtt() {
 
 void connectLTE() {
 
-    Lte.onConnectionStatusChange(connectedToNetwork, disconnectedFromNetwork);
+    Lte.onDisconnect(disconnectedFromNetwork);
 
     // Start LTE modem and wait until we are connected to the operator.
     // If initialization fails, we just retry in the loop
     while (!Lte.begin()) {}
+
+    // Signal that we are connected
+    event_flags |= NETWORK_CONN_FLAG;
 }
 
 void startStreamTimer() {

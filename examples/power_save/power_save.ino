@@ -65,15 +65,13 @@ void setup() {
     Veml3328.shutdown();
     Mcp9808.shutdown();
 
-    Lte.begin();
-    Log.infof("Connecting to operator");
+    if (!Lte.begin()) {
+        Log.error("Failed to connect to operator");
 
-    while (!Lte.isConnected()) {
-        Log.raw(".");
-        delay(1000);
+        // Halt here
+        while (1) {}
     }
 
-    Log.raw("\r\n");
     Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
 }
 
