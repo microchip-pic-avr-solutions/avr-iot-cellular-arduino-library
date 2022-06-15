@@ -516,8 +516,6 @@ void LowPowerClass::powerSave(void) {
     powerDownPeripherals();
     SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
 
-    const unsigned long start_time_ms = millis();
-
     if (!retrieved_period) {
         // Retrieve the proper sleep time set by the operator, which may
         // deviate from what we requested
@@ -542,19 +540,22 @@ void LowPowerClass::powerSave(void) {
         LedCtrl.off(Led::CELL, true);
     }
 
-    // The timeout here is arbitrary as we attempt to put the modem in sleep in
-    // a loop, so we just choose 30 seconds = 30000 ms
-    while (!attemptToEnterPowerSaveModeForModem(30000) &&
-           millis() - start_time_ms < period * 1000) {}
-
-    enableLDO();
-    sleep_cpu();
-    disableLDO();
+    if (!attemptToEnterPowerSaveModeForModem(30000)) {
+        Log.error("Failed to put LTE modem in sleep. Power save functionality "
+                  "might not be available for your operator.");
+    }
 
     if (modem_is_in_power_save) {
+        enableLDO();
+        sleep_cpu();
+
+        // Will sleep here until we get the RING line activity and wake up
+        disableLDO();
+
         modem_is_in_power_save = false;
-        SequansController.setPowerSaveMode(0, NULL);
     }
+
+    SequansController.setPowerSaveMode(0, NULL);
 
     SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
     powerUpPeripherals();
