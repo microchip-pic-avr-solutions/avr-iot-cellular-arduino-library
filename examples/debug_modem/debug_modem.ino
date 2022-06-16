@@ -3,10 +3,7 @@
 #include <sequans_controller.h>
 
 void setup() {
-
     Log.begin(115200);
-    Log.setLogLevel(LogLevel::DEBUG);
-
     SequansController.begin();
 }
 

@@ -22,3 +22,13 @@
 
 * Fixes a bug where LTE connectivity in sandbox was not reconnecting
 * Added temporarily work around for TLS certificate verification in certain regions
+
+# 1.1.2
+
+## Features
+* Add NTP synchronization in Lte.begin() if modem clock is not set
+
+## Bugfixes
+* Fixes a bug for TLS certificate verification in certain regions
+* Fixes a bug where the power save functionality would not terminate
+

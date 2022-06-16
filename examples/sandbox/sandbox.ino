@@ -3,7 +3,7 @@
  * experience
  */
 
-#define SANDBOX_VERSION "1.1.1"
+#define SANDBOX_VERSION "1.2.0"
 
 #include <ArduinoJson.h>
 #include <ecc608.h>
@@ -319,7 +319,6 @@ void setup() {
         "AT+SQNSPCFG=1,2,\"0xC02B\",1,19,0,0,\"\",\"\",1,0,0")) {}
     // - Patch end -
 
-    Log.info("Connecting to LTE network...");
     connectLTE();
 }
 
