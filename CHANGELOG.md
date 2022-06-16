@@ -31,4 +31,5 @@
 ## Bugfixes
 * Fixes a bug for TLS certificate verification in certain regions
 * Fixes a bug where the power save functionality would not terminate
+* Reduce time used for querying for operator
 
