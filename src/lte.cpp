@@ -16,8 +16,8 @@
 #define AT_COMMAND_ENABLE_AUTOMATIC_TIME_UPDATE               "AT+CTZU=1"
 #define AT_COMMAND_ENABLE_AUTOMATIC_TIME_UPDATE_NOTIFICATIONS "AT+CTZR=1"
 #define AT_COMMAND_GET_CLOCK                                  "AT+CCLK?"
-#define AT_COMMAND_SYNC_NTP_ON_DEMAND                         "AT+SQNNTP=0"
-#define AT_COMMAND_SYNC_NTP                                   "AT+SQNNTP=2"
+#define AT_COMMAND_SYNC_NTP                                                    \
+    "AT+SQNNTP=2,\"time.google.com,time.windows.com,pool.ntp.org\",1"
 
 #define CEREG_CALLBACK    "CEREG"
 #define TIMEZONE_CALLBACK "CTZV"
