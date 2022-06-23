@@ -33,3 +33,9 @@
 * Fixes a bug where the power save functionality would not terminate
 * Reduce time used for querying for operator
 
+# 1.1.3
+
+## Bugfixes
+
+* Fixes a bug where the CELL LED wouldn't blink while the device was connecting to the network
+* Fixes a bug in the sandbox where some event flags could be cleared before being processed
