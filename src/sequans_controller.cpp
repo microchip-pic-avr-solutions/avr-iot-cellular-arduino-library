@@ -458,6 +458,9 @@ bool SequansControllerClass::retryCommand(const char *command,
 
     do {
         writeCommand(command);
+
+        // Allow some time for the response
+        _delay_ms(100);
         response = SequansController.readResponse();
 
     } while (response != ResponseResult::OK && retry_count++ < retries);

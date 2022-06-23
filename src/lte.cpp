@@ -98,8 +98,8 @@ bool LteClass::begin(const bool print_messages) {
     if (!SequansController.isInitialized()) {
         SequansController.begin();
 
-        // Allow 500ms for boot
-        delay(500);
+        // Allow 50ms for boot
+        delay(50);
     }
 
     SequansController.clearReceiveBuffer();
@@ -159,6 +159,7 @@ bool LteClass::begin(const bool print_messages) {
     }
 
     while (!isConnected()) {
+        LedCtrl.toggle(Led::CELL, true);
         delay(500);
 
         if (print_messages) {
@@ -171,7 +172,7 @@ bool LteClass::begin(const bool print_messages) {
     }
 
     SequansController.clearReceiveBuffer();
-    SequansController.writeCommand(AT_COMMAND_GET_CLOCK);
+    SequansController.retryCommand(AT_COMMAND_GET_CLOCK);
 
     char clock_response[48] = "";
     result =
@@ -210,20 +211,15 @@ bool LteClass::begin(const bool print_messages) {
             // Do manual sync with NTP server
 
             if (print_messages) {
-                Log.info("Did not get time synchronization from operator, "
-                         "doing NTP synchronization. This can take some time.");
+                Log.infof("Did not get time synchronization from operator, "
+                          "doing NTP synchronization.");
             }
 
-            SequansController.clearReceiveBuffer();
             SequansController.registerCallback(NTP_CALLBACK, ntpCallback);
 
             while (!got_ntp_sync) {
                 SequansController.clearReceiveBuffer();
                 SequansController.retryCommand(AT_COMMAND_SYNC_NTP);
-
-                if (print_messages) {
-                    Log.infof("Waiting for NTP sync");
-                }
 
                 while (!got_ntp_callback) {
 
@@ -237,10 +233,6 @@ bool LteClass::begin(const bool print_messages) {
                 if (got_ntp_sync) {
                     break;
                 } else {
-                    if (print_messages) {
-                        Log.rawf("\r\n");
-                        Log.info("NTP synchronization timed out, retrying...");
-                    }
                     got_ntp_callback = false;
                 }
             }

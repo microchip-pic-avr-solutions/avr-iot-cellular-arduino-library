@@ -25,14 +25,14 @@
 #define MQTT_SUB_TOPIC_FMT "$aws/things/%s/shadow/update/delta"
 #define MQTT_PUB_TOPIC_FMT "%s/sensors"
 
-#define NETWORK_CONN_FLAG                 1 << 0
-#define NETWORK_DISCONN_FLAG              1 << 1
-#define BROKER_CONN_FLAG                  1 << 2
-#define BROKER_DISCONN_FLAG               1 << 3
-#define SEND_HEARTBEAT_FLAG               1 << 4
-#define STOP_PUBLISHING_SENSOR_DATA_FLAG  1 << 5
-#define START_PUBLISHING_SENSOR_DATA_FLAG 1 << 6
-#define SEND_SENSOR_DATA_FLAG             1 << 7
+#define NETWORK_CONN_FLAG                 (1 << 0)
+#define NETWORK_DISCONN_FLAG              (1 << 1)
+#define BROKER_CONN_FLAG                  (1 << 2)
+#define BROKER_DISCONN_FLAG               (1 << 3)
+#define SEND_HEARTBEAT_FLAG               (1 << 4)
+#define STOP_PUBLISHING_SENSOR_DATA_FLAG  (1 << 5)
+#define START_PUBLISHING_SENSOR_DATA_FLAG (1 << 6)
+#define SEND_SENSOR_DATA_FLAG             (1 << 7)
 
 typedef enum {
     NOT_CONNECTED,
@@ -322,8 +322,6 @@ void setup() {
     connectLTE();
 }
 
-unsigned long timeLastCellToggle = millis() + 500;
-
 void loop() {
     // See if there are any messages for the command handler
     if (Serial3.available()) {
@@ -332,13 +330,6 @@ void loop() {
     }
 
     // ----------------------------------------------------------
-    if (state == NOT_CONNECTED) {
-        if ((millis() - timeLastCellToggle) > 500) {
-            LedCtrl.toggle(Led::CELL);
-            timeLastCellToggle = millis();
-        }
-    }
-
     if (event_flags & NETWORK_CONN_FLAG) {
         switch (state) {
         case NOT_CONNECTED:
@@ -372,6 +363,7 @@ void loop() {
         }
 
         event_flags &= ~NETWORK_DISCONN_FLAG;
+
     } else if (event_flags & BROKER_CONN_FLAG) {
 
         switch (state) {
