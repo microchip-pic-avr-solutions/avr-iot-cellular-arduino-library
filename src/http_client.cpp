@@ -2,6 +2,7 @@
 #include "log.h"
 #include "sequans_controller.h"
 
+#include <Arduino.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,7 +47,7 @@
 #define HTTP_BODY_BUFFER_MIN_SIZE 64
 #define HTTP_BODY_BUFFER_MAX_SIZE 1500
 
-#define DEFAULT_RETRIES 5
+#define HTTP_TIMEOUT 10000
 
 HttpClientClass HttpClient = HttpClientClass::instance();
 
@@ -104,19 +105,38 @@ static HttpResponse sendData(const char *endpoint,
 
     // We receive one start bytes of the character '>', so we wait for
     // it
-    while (SequansController.readByte() != HTTP_SEND_START_CHARACTER) {}
+
+    uint64_t start = millis();
+    int16_t start_character = 0;
+
+    do {
+        start_character = SequansController.readByte();
+    } while (millis() - start < HTTP_TIMEOUT &&
+             start_character != HTTP_SEND_START_CHARACTER);
+
+    if (start_character != HTTP_SEND_START_CHARACTER) {
+        Log.error("Timed out waiting for modem to be ready for HTTP payload");
+        return httpResponse;
+    }
+
+    delay(100);
 
     // Now we deliver the payload
     SequansController.writeBytes(buffer, buffer_size);
 
     // Wait until we get some valid response and we don't reach the timeout for
     // the interface
+
+    start = millis();
     ResponseResult response_result;
+
     do {
         response_result = SequansController.readResponse();
-    } while (response_result == ResponseResult::TIMEOUT);
+    } while (millis() - start < HTTP_TIMEOUT &&
+             response_result != ResponseResult::OK);
 
     if (response_result != ResponseResult::OK) {
+        Log.error("Modem timed out whilst delivering HTTP payload");
         return httpResponse;
     }
 
@@ -218,7 +238,7 @@ bool HttpClientClass::configure(const char *host,
     char command[HTTP_CONFIGURE_SIZE] = "";
     sprintf(command, HTTP_CONFIGURE, host, port, enable_tls ? 1 : 0);
 
-    return SequansController.retryCommand(command, DEFAULT_RETRIES);
+    return SequansController.retryCommand(command);
 }
 
 HttpResponse HttpClientClass::post(const char *endpoint,
@@ -293,12 +313,7 @@ int16_t HttpClientClass::readBody(char *buffer, const uint32_t buffer_size) {
         return 0;
     }
 
-    size_t response_length = strlen(buffer);
-
-    // Remove extra <CR> from command response
-    buffer[response_length - 1] = '\0';
-
-    return response_length - 1;
+    return strlen(buffer);
 }
 
 String HttpClientClass::readBody(const uint32_t size) {

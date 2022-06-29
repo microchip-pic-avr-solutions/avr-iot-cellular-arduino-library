@@ -171,6 +171,9 @@ bool LteClass::begin(const bool print_messages) {
         Log.rawf(" OK!\r\n");
     }
 
+    // CCLK might fail if issued to quickly after CPIN
+    delay(500);
+
     SequansController.clearReceiveBuffer();
     SequansController.retryCommand(AT_COMMAND_GET_CLOCK);
 
