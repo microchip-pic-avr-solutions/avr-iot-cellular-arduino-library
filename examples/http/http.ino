@@ -69,8 +69,7 @@ void testHttp() {
     String body = HttpClient.readBody(512);
 
     if (body != "") {
-        Log.info("Body:\r\n");
-        Log.raw(body);
+        Log.infof("Body: %s\r\n", body.c_str());
     }
 }
 
