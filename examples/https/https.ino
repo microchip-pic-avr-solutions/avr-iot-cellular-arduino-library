@@ -23,15 +23,14 @@ void setup() {
 
     Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
 
-    // --- HTTP ---
+    // --- HTTPS ---
+    Log.info("---- Testing HTTPS ----");
 
-    Log.info("---- Testing HTTP ----");
-
-    if (!HttpClient.configure(DOMAIN, 80, false)) {
-        Log.info("Failed to configure http client\r\n");
+    if (!HttpClient.configure(DOMAIN, 443, true)) {
+        Log.info("Failed to configure https client\r\n");
     }
 
-    Log.info("Configured to HTTP");
+    Log.info("Configured to HTTPS");
 
     HttpResponse response = HttpClient.post("/post", "{\"hello\": \"world\"}");
     Log.infof("POST - status code: %u, data size: %u\r\n",
