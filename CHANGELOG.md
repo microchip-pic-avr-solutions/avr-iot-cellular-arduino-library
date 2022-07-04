@@ -39,3 +39,15 @@
 
 * Fixes a bug where the CELL LED wouldn't blink while the device was connecting to the network
 * Fixes a bug in the sandbox where some event flags could be cleared before being processed
+
+# 1.1.4
+
+## Features
+
+* Split HTTP example into a HTTP and HTTPS example 
+* Add a log message when HTTPS security profile is not set up
+
+## Bugfixes
+
+* Fix a bug where HTTP requests would make the modem hang
+* Fix a bug where retrieving the modem clock would fail

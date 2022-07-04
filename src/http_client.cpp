@@ -20,6 +20,11 @@
 // This results in 36 + 127 + 5 + 1 + 1 = 170
 #define HTTP_CONFIGURE_SIZE 170
 
+#define QUERY_SECURITY_PROFILE "AT+SQNSPCFG"
+
+#define SECURITY_PROFILE_PREFIX_LENGTH 11
+#define HTTPS_SECURITY_PROFILE_NUMBER  '3'
+
 #define HTTP_SEND    "AT+SQNHTTPSND=0,%u,\"%s\",%lu"
 #define HTTP_RECEIVE "AT+SQNHTTPRCV=0,%lu"
 #define HTTP_QUERY   "AT+SQNHTTPQRY=0,%u,\"%s\""
@@ -234,6 +239,49 @@ bool HttpClientClass::configure(const char *host,
                                 const bool enable_tls) {
 
     SequansController.clearReceiveBuffer();
+
+    if (enable_tls) {
+
+        SequansController.writeCommand(QUERY_SECURITY_PROFILE);
+
+        char response[128] = "";
+
+        ResponseResult result =
+            SequansController.readResponse(response, sizeof(response));
+
+        if (result != ResponseResult::OK) {
+            Log.error("Failed to query HTTPS security profile");
+            return false;
+        }
+
+        // Split by line feed and carriage return to retrieve each entry
+        char *ptr = strtok(response, "\r\n");
+        bool security_profile_found = false;
+
+        while (ptr != NULL) {
+
+            // Skip the prefix of '+SQNSPCFG: '
+            ptr += SECURITY_PROFILE_PREFIX_LENGTH;
+
+            // Now we check if the entry has the third security profile
+            if (*ptr == HTTPS_SECURITY_PROFILE_NUMBER) {
+                security_profile_found = true;
+                break;
+            }
+
+            ptr = strtok(NULL, "\r\n");
+        }
+
+        if (!security_profile_found) {
+            Log.error(
+                "Security profile not set up for HTTPS. Run the "
+                "'https_configure_ca' Arduino sketch example to set this up so "
+                "that HTTPS can be used. More information here: "
+                "https://iot.microchip.com/docs/arduino/userguide/http");
+
+            return false;
+        }
+    }
 
     char command[HTTP_CONFIGURE_SIZE] = "";
     sprintf(command, HTTP_CONFIGURE, host, port, enable_tls ? 1 : 0);

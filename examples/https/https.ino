@@ -28,6 +28,7 @@ void setup() {
 
     if (!HttpClient.configure(DOMAIN, 443, true)) {
         Log.info("Failed to configure https client\r\n");
+        return;
     }
 
     Log.info("Configured to HTTPS");
