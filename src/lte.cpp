@@ -71,7 +71,7 @@ static void connectionStatus(char *buffer) {
 
             // The modem does not give any notification of a MQTT disconnect.
             // This must be called directly following a connection loss
-            MqttClient.disconnect(true);
+            MqttClient.end();
 
             if (disconnected_callback != NULL) {
                 disconnected_callback();
@@ -119,16 +119,12 @@ bool LteClass::begin(const bool print_messages) {
     // Clear receive buffer before querying the SIM card
     SequansController.clearReceiveBuffer();
 
-    // We check that the SIM card is inserted and ready. Note that we can only
-    // do this and get a meaningful response in CFUN=1 or CFUN=4.
-    SequansController.retryCommand(AT_COMMAND_CHECK_SIM);
-
     char response[32] = "";
 
-    ResponseResult result =
-        SequansController.readResponse(response, sizeof(response));
-
-    if (result != ResponseResult::OK) {
+    // We check that the SIM card is inserted and ready. Note that we can only
+    // do this and get a meaningful response in CFUN=1 or CFUN=4.
+    if (!SequansController.retryCommand(
+            AT_COMMAND_CHECK_SIM, response, sizeof(response))) {
         Log.error("Checking SIM status failed, is the SIM card inserted?");
         SequansController.retryCommand(AT_COMMAND_DISCONNECT);
         return false;
@@ -175,13 +171,10 @@ bool LteClass::begin(const bool print_messages) {
     delay(500);
 
     SequansController.clearReceiveBuffer();
-    SequansController.retryCommand(AT_COMMAND_GET_CLOCK);
-
     char clock_response[48] = "";
-    result =
-        SequansController.readResponse(clock_response, sizeof(clock_response));
 
-    if (result != ResponseResult::OK) {
+    if (!SequansController.retryCommand(
+            AT_COMMAND_GET_CLOCK, clock_response, sizeof(clock_response))) {
         Log.errorf("Retrieving LTE modem time failed");
         SequansController.retryCommand(AT_COMMAND_DISCONNECT);
         return false;

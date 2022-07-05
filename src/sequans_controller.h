@@ -98,9 +98,14 @@ class SequansControllerClass {
     /**
      * @brief Issues a write of the given command n times.
      *
+     * @param out_buffer Result will be placed in this buffer if not NULL.
+     *
      * @return true if an OK response was returned for the written command.
      */
-    bool retryCommand(const char *command, const uint8_t retries = 5);
+    bool retryCommand(const char *command,
+                      char *out_buffer = NULL,
+                      const size_t size = 0,
+                      const uint8_t retries = 5);
 
     /**
      * @return -1 if failed to read or read value if else.
@@ -128,7 +133,7 @@ class SequansControllerClass {
      *         - OVERFLOW if read resulted in buffer overflow.
      *         - SERIAL_READ_ERROR if an error occured in the serial interface
      */
-    ResponseResult readResponse(char *out_buffer, uint16_t buffer_size);
+    ResponseResult readResponse(char *out_buffer, const size_t buffer_size);
 
     /**
      * @brief Reads the response without placing the content of the read

@@ -157,12 +157,10 @@ static void flowControlUpdate(void) {
     }
 }
 
-// For CTS and RING interrupt
-ISR(PORTC_PORT_vect) {
+void CTSInterrupt(void) {
+    if (PORTC.INTFLAGS & CTS_INT_bm) {
 
-    if (VPORTC.INTFLAGS & CTS_INT_bm) {
-
-        if (VPORTC.IN & CTS_PIN_bm) {
+        if (PORTC.IN & CTS_PIN_bm) {
             // CTS is not asserted (active low) so disable USART Data Register
             // Empty Interrupt where the logic is to send more data
             HWSERIALAT.CTRLA &= ~USART_DREIE_bm;
@@ -172,15 +170,19 @@ ISR(PORTC_PORT_vect) {
             HWSERIALAT.CTRLA |= USART_DREIE_bm;
         }
 
-        VPORTC.INTFLAGS = CTS_INT_bm;
-    } else if (VPORTC.INTFLAGS & RING_INT_bm) {
-        if (VPORTC.IN & RING_PIN) {
+        PORTC.INTFLAGS = CTS_INT_bm;
+    }
+}
+
+void RingInterrupt(void) {
+    if (PORTC.INTFLAGS & RING_INT_bm) {
+        if (PORTC.IN & RING_PIN) {
             if (ring_line_callback != NULL) {
                 ring_line_callback();
             }
         }
 
-        VPORTC.INTFLAGS = RING_INT_bm;
+        PORTC.INTFLAGS = RING_INT_bm;
     }
 }
 
@@ -332,11 +334,11 @@ ISR(USART1_DRE_vect) {
 
         // Fill the transmit buffer since our ring buffer isn't empty
         // yet
-        USART1.TXDATAL = tx_buffer[tx_tail_index];
+        HWSERIALAT.TXDATAL = tx_buffer[tx_tail_index];
         tx_num_elements--;
     } else {
         // Disable TX interrupt until we want to send more data
-        USART1.CTRLA &= ~(1 << USART_DREIE_bp);
+        HWSERIALAT.CTRLA &= ~USART_DREIE_bm;
     }
 }
 
@@ -360,6 +362,11 @@ void SequansControllerClass::begin(void) {
     // Clear to send is input and we want interrupts on both edges to know
     // when the LTE modem has changed the state of the line.
     pinConfigure(CTS_PIN, PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INT_CHANGE);
+
+    // We use attach interrupt here instead of the ISR directly as other
+    // libraries might use the same ISR and we don't want to override it to
+    // create a linker issue
+    attachInterrupt(CTS_PIN, CTSInterrupt, CHANGE);
 
     // Set reset low to reset the LTE modem
     pinConfigure(RESET_PIN, PIN_DIR_OUTPUT);
@@ -400,6 +407,9 @@ void SequansControllerClass::end(void) {
     // Set RTS high to halt the modem
     pinConfigure(RTS_PIN, PIN_DIR_OUTPUT);
     digitalWrite(RTS_PIN, HIGH);
+
+    detachInterrupt(RING_PIN);
+    detachInterrupt(CTS_PIN);
 
     initialized = false;
 }
@@ -452,6 +462,8 @@ bool SequansControllerClass::writeCommand(const char *command) {
 }
 
 bool SequansControllerClass::retryCommand(const char *command,
+                                          char *out_buffer,
+                                          const size_t size,
                                           uint8_t retries) {
     uint8_t retry_count = 0;
     ResponseResult response;
@@ -461,8 +473,12 @@ bool SequansControllerClass::retryCommand(const char *command,
 
         // Allow some time for the response
         _delay_ms(100);
-        response = SequansController.readResponse();
 
+        if (out_buffer != NULL && size != 0) {
+            response = SequansController.readResponse(out_buffer, size);
+        } else {
+            response = SequansController.readResponse();
+        }
     } while (response != ResponseResult::OK && retry_count++ < retries);
 
     char response_string[18];
@@ -504,7 +520,7 @@ int16_t SequansControllerClass::readByte(void) {
 }
 
 ResponseResult SequansControllerClass::readResponse(char *out_buffer,
-                                                    uint16_t buffer_size) {
+                                                    const size_t buffer_size) {
 
     memset(out_buffer, '\0', buffer_size);
 
@@ -707,6 +723,8 @@ bool SequansControllerClass::registerCallback(const char *urc_identifier,
         }
     }
 
+    Log.error("Max amount of URC callbacks for Sequans controller reached");
+
     return false;
 }
 
@@ -738,6 +756,7 @@ void SequansControllerClass::setPowerSaveMode(const uint8_t mode,
 
         // Clear interrupt
         pinConfigure(RING_PIN, PIN_DIR_INPUT);
+        detachInterrupt(RING_PIN);
 
         RTS_PORT.OUTCLR |= RTS_PIN_bm;
     } else if (mode == 1) {
@@ -750,6 +769,7 @@ void SequansControllerClass::setPowerSaveMode(const uint8_t mode,
             // This is fine as any change will yield that we are out of
             // power save mode.
             pinConfigure(RING_PIN, PIN_DIR_INPUT | PIN_INT_CHANGE);
+            attachInterrupt(RING_PIN, RingInterrupt, CHANGE);
         }
 
         power_save_mode = 1;
