@@ -19,7 +19,7 @@
 
 #define SW0 PIN_PD2
 
-ISR(PORTD_PORT_vect) {
+void buttonPressedInterrupt(void) {
     if (PORTD.INTFLAGS & PIN2_bm) {
         PORTD.INTFLAGS = PIN2_bm;
     }
@@ -34,6 +34,7 @@ void setup() {
     // Configure SW0 for interrupt so we can wake the device up from sleep by
     // pressing the button
     pinConfigure(SW0, PIN_DIR_INPUT | PIN_INT_FALL);
+    attachInterrupt(SW0, buttonPressedInterrupt, FALLING);
 
     // Now we configure the power save configuration. Note that this has to be
     // done before calling Lte.begin().
