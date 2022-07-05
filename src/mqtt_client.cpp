@@ -731,9 +731,18 @@ bool MqttClientClass::readMessage(const char *topic,
 
     // First two bytes are <LF><CR>, so we flush that
     uint8_t start_bytes = 2;
+
+    start = millis();
+
     while (start_bytes > 0) {
         if (SequansController.readByte() != -1) {
             start_bytes--;
+        }
+
+        if (start_bytes > 0 && millis() - start > MQTT_TIMEOUT_MS) {
+            Log.error("Timed out waiting for the modem to deliver the start "
+                      "characters for the MQTT message");
+            return false;
         }
     }
 
