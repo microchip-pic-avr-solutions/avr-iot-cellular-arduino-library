@@ -98,8 +98,8 @@ bool LteClass::begin(const bool print_messages) {
     if (!SequansController.isInitialized()) {
         SequansController.begin();
 
-        // Allow 50ms for boot
-        delay(50);
+        // Allow 2s for boot, we have to wait until the SYSSTART URC arrives
+        delay(2000);
     }
 
     SequansController.clearReceiveBuffer();
