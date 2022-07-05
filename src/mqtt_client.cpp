@@ -463,18 +463,11 @@ bool MqttClientClass::begin(const char *client_id,
             sprintf(command, MQTT_CONFIGURE_TLS, client_id);
         }
 
-        if (!SequansController.writeCommand(command)) {
-            Log.error("Failed to configure MQTT");
-            return false;
-        }
+        SequansController.writeCommand(command);
     } else {
         char command[MQTT_CONFIGURE_LENGTH] = "";
         sprintf(command, MQTT_CONFIGURE, client_id);
-
-        if (!SequansController.writeCommand(command)) {
-            Log.error("Failed to configure MQTT");
-            return false;
-        }
+        SequansController.writeCommand(command);
     }
 
     char conf_resp[MQTT_DEFAULT_RESPONSE_LENGTH * 4];
@@ -483,8 +476,7 @@ bool MqttClientClass::begin(const char *client_id,
         SequansController.readResponse(conf_resp, sizeof(conf_resp));
 
     if (result != ResponseResult::OK) {
-        Log.errorf("Non-OK Response when configuring MQTT. Err = %d\r\n",
-                   result);
+        Log.error("Failed to configure MQTT");
         return false;
     }
 
@@ -606,7 +598,7 @@ bool MqttClientClass::publish(const char *topic,
     // Wait for start character for delivering payload
     if (SequansController.waitForByte('>', MQTT_TIMEOUT_MS) ==
         SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT) {
-        Log.error("Timed out waiting for signal to deliver MQTT payload.");
+        Log.warn("Timed out waiting for signal to deliver MQTT payload.");
 
         LedCtrl.off(Led::DATA, true);
         SequansController.unregisterCallback(MQTT_ON_PUBLISH_URC);
@@ -723,8 +715,8 @@ bool MqttClientClass::readMessage(const char *topic,
     uint32_t start = millis();
     while (!SequansController.isRxReady()) {
         if (millis() - start > MQTT_TIMEOUT_MS) {
-            Log.error("Timed out whilst waiting on the modem to deliver the "
-                      "MQTT message");
+            Log.warn("Timed out whilst waiting on the modem to deliver the "
+                     "MQTT message");
             return false;
         }
     }
@@ -740,8 +732,8 @@ bool MqttClientClass::readMessage(const char *topic,
         }
 
         if (start_bytes > 0 && millis() - start > MQTT_TIMEOUT_MS) {
-            Log.error("Timed out waiting for the modem to deliver the start "
-                      "characters for the MQTT message");
+            Log.warn("Timed out waiting for the modem to deliver the start "
+                     "characters for the MQTT message");
             return false;
         }
     }
@@ -751,7 +743,7 @@ bool MqttClientClass::readMessage(const char *topic,
         SequansController.readResponse((char *)buffer, buffer_size);
 
     if (result != ResponseResult::OK) {
-        Log.error("Error whilst retrieving the MQTT message payload");
+        Log.warn("Failed whilst retrieving the MQTT message payload");
     }
 
     return (result == ResponseResult::OK);
