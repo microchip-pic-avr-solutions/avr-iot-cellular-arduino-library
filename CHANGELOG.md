@@ -47,6 +47,13 @@
 * Split HTTP example into a HTTP and HTTPS example 
 * Add a log message when HTTPS security profile is not set up
 * Update library.properties to pass lint checks for PR with library-registry 
+* Improve error messages for MQTT
+
+## Changes 
+
+* Use Arduino interrupt system so that the library doesn't hijack interrupt service routines used by other libraries 
+* Change sandbox application to use increased MQTT Quality of Service in order to not lose received messages
+* Remove MqttClient.disconnect() (full functionality given in MqttClient.end())
 
 ## Bugfixes
 

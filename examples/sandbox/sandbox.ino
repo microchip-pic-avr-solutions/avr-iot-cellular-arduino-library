@@ -34,6 +34,10 @@
 #define START_PUBLISHING_SENSOR_DATA_FLAG (1 << 6)
 #define SEND_SENSOR_DATA_FLAG             (1 << 7)
 
+// Allow 32 messsages in flight
+#define RECEIVE_MESSAGE_ID_BUFFER_SIZE 32
+#define RECEIVE_MESSAGE_ID_BUFFER_MASK (RECEIVE_MESSAGE_ID_BUFFER_SIZE - 1)
+
 typedef enum {
     NOT_CONNECTED,
     CONNECTED_TO_NETWORK,
@@ -55,7 +59,12 @@ static volatile uint16_t target_seconds = 0;
 static volatile uint16_t data_frequency = 0;
 static unsigned long last_data_time = 0;
 
-static volatile uint16_t awaiting_messages = 0;
+/**
+ * @brief Circular buffer for the message identifiers of the received messages.
+ */
+static uint32_t received_message_identifiers[RECEIVE_MESSAGE_ID_BUFFER_SIZE];
+static volatile uint8_t received_message_identifiers_head = 0;
+static volatile uint8_t received_message_identifiers_tail = 0;
 
 static const char heartbeat_message[] = "{\"type\": \"heartbeat\"}";
 
@@ -71,15 +80,14 @@ ISR(TCA0_OVF_vect) {
     TCA0.SINGLE.INTFLAGS = TCA_SINGLE_OVF_bm;
 }
 
-ISR(PORTD_PORT_vect) {
+void sendHeartbeatInterrupt(void) {
     if (PORTD.INTFLAGS & PIN2_bm) {
-
         event_flags |= SEND_HEARTBEAT_FLAG;
         PORTD.INTFLAGS = PIN2_bm;
     }
 }
 
-ISR(PORTF_PORT_vect) {
+void resetInterrupt(void) {
     if (PORTF.INTFLAGS & PIN6_bm) {
         asm("jmp 0");
         PORTF.INTFLAGS = PIN6_bm;
@@ -93,7 +101,12 @@ void disconnectedFromBroker(void) { event_flags |= BROKER_DISCONN_FLAG; }
 void receivedMessage(const char *topic,
                      const uint16_t msg_length,
                      const int32_t msg_id) {
-    awaiting_messages++;
+
+    received_message_identifiers_head =
+        (received_message_identifiers_head + 1) &
+        RECEIVE_MESSAGE_ID_BUFFER_MASK;
+
+    received_message_identifiers[received_message_identifiers_head] = msg_id;
 }
 
 void connectMqtt() {
@@ -272,9 +285,11 @@ void setup() {
 
     // Set PD2 as input (button)
     pinConfigure(PIN_PD2, PIN_DIR_INPUT | PIN_INT_FALL);
+    attachInterrupt(PIN_PD2, sendHeartbeatInterrupt, FALLING);
 
     // Set PF6 as input (reset button)
     pinConfigure(PIN_PF6, PIN_DIR_INPUT | PIN_INT_FALL);
+    attachInterrupt(PIN_PF6, resetInterrupt, FALLING);
 
     sei();
 
@@ -317,6 +332,7 @@ void setup() {
     delay(500);
     while (!SequansController.retryCommand(
         "AT+SQNSPCFG=1,2,\"0xC02B\",1,19,0,0,\"\",\"\",1,0,0")) {}
+
     // - Patch end -
 
     connectLTE();
@@ -372,7 +388,7 @@ void loop() {
 
             Log.info("Connected to MQTT broker, subscribing to topics!\r\n");
 
-            MqttClient.subscribe(mqtt_sub_topic);
+            MqttClient.subscribe(mqtt_sub_topic, AT_LEAST_ONCE);
 
             break;
         default:
@@ -409,7 +425,8 @@ void loop() {
         }
 
         event_flags &= ~BROKER_DISCONN_FLAG;
-    } else if (awaiting_messages > 0) {
+    } else if (received_message_identifiers_head !=
+               received_message_identifiers_tail) {
 
         switch (state) {
         case CONNECTED_TO_BROKER:
@@ -417,26 +434,25 @@ void loop() {
 
             char message[400] = "";
 
-            const bool message_read_successfully = MqttClient.readMessage(
-                mqtt_sub_topic, (uint8_t *)message, sizeof(message));
+            cli();
+            received_message_identifiers_tail =
+                (received_message_identifiers_tail + 1) &
+                RECEIVE_MESSAGE_ID_BUFFER_MASK;
 
-            awaiting_messages--;
+            const uint32_t message_id =
+                received_message_identifiers[received_message_identifiers_tail];
+            sei();
+
+            const bool message_read_successfully =
+                MqttClient.readMessage(mqtt_sub_topic,
+                                       (uint8_t *)message,
+                                       sizeof(message),
+                                       message_id);
 
             if (message_read_successfully) {
                 decodeMessage(message);
             } else {
                 Log.error("Failed to read message\r\n");
-
-                // In case we lost some messages, we clear them out from the
-                // Sequans Modem such that the memory is freed
-                if (awaiting_messages > 0) {
-                    Log.errorf("Lost %d message(s) due to messages coming in "
-                               "too quickly to process\r\n",
-                               awaiting_messages);
-
-                    MqttClient.clearMessages(mqtt_sub_topic, awaiting_messages);
-                    awaiting_messages = 0;
-                }
             }
 
         } break;
@@ -513,7 +529,7 @@ void loop() {
                     Veml3328.getRed());
 
             if (!MqttClient.publish(mqtt_pub_topic, transmit_buffer)) {
-                Log.errorf("Could not publish message: %s\r\n",
+                Log.errorf("Failed to publish message: %s\r\n",
                            transmit_buffer);
             }
 

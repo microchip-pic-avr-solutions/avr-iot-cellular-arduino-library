@@ -64,7 +64,8 @@ class MqttClientClass {
     bool beginAWS();
 
     /**
-     * @brief Disconnects from the broker.
+     * @brief Disconnects from the broker and resets the state in the MQTT
+     * client.
      */
     bool end(void);
 
@@ -169,14 +170,6 @@ class MqttClientClass {
      * @param num_messages Number of messages to discard.
      */
     void clearMessages(const char *topic, const uint16_t num_messages);
-
-    /**
-     * @brief Disconnects from the MQTT broker.
-     *
-     * @param lte_event If true, signifies that the disconnect came from the LTE
-     * module due to network disconnect.
-     */
-    bool disconnect(bool lte_event = false);
 };
 
 extern MqttClientClass MqttClient;

@@ -1,6 +1,7 @@
 #include "ecc608.h"
 #include "led_ctrl.h"
 #include "log.h"
+#include "lte.h"
 #include "mqtt_client.h"
 #include "sequans_controller.h"
 
@@ -21,8 +22,9 @@
 #define MQTT_RECEIVE_WITH_MSG_ID "AT+SQNSMQTTRCVMESSAGE=0,\"%s\",%u"
 #define MQTT_ON_MESSAGE_URC      "SQNSMQTTONMESSAGE"
 #define MQTT_ON_CONNECT_URC      "SQNSMQTTONCONNECT"
-
-#define MQTT_ON_DISCONNECT_URC "SQNSMQTTONDISCONNECT"
+#define MQTT_ON_DISCONNECT_URC   "SQNSMQTTONDISCONNECT"
+#define MQTT_ON_PUBLISH_URC      "SQNSMQTTONPUBLISH"
+#define MQTT_ON_SUBSCRIBE_URC    "SQNSMQTTONSUBSCRIBE"
 
 // Command without any data in it (with parantheses): 19 bytes
 // Client ID: 64 bytes (this is imposed by this implementation)
@@ -107,8 +109,11 @@
 #define HCESIGN_CTX_ID_LENGTH  5
 
 #define SIGN_TIMEOUT_MS       20000
-#define MQTT_TIMEOUT_MS       200
+#define MQTT_TIMEOUT_MS       2000
 #define DISCONNECT_TIMEOUT_MS 20000
+
+#define NUM_STATUS_CODES    18
+#define STATUS_CODE_PENDING (-1)
 
 // Singleton instance
 MqttClientClass MqttClient = MqttClientClass::instance();
@@ -117,7 +122,7 @@ static bool connected_to_broker = false;
 static void (*connected_callback)(void) = NULL;
 static void (*disconnected_callback)(void) = NULL;
 
-volatile static bool signing_request_flag = false;
+static volatile bool signing_request_flag = false;
 static char signing_request_buffer[MQTT_SIGNING_BUFFER + 1];
 static char signing_urc[URC_DATA_BUFFER_SIZE + 1];
 
@@ -132,6 +137,37 @@ static void (*receive_callback)(const char *topic,
                                 const int32_t message_id) = NULL;
 
 static bool using_ecc = false;
+
+static volatile bool got_publish_urc = false;
+static volatile int8_t publish_status_code = 0;
+
+static volatile bool got_subscribe_urc = false;
+static volatile int8_t subscribe_status_code = 0;
+
+/**
+ * @brief Status codes from publish and subscribe MQTT commands.
+ *
+ * @note Both status code 2 and 3 are protocol invalid according to the AT
+ * command reference.
+ */
+static char status_code_table[NUM_STATUS_CODES][24] = {"Success",
+                                                       "No memory",
+                                                       "Protocol invalid",
+                                                       "Protocol invalid",
+                                                       "No connection",
+                                                       "Connection refused",
+                                                       "Not found",
+                                                       "Connection lost",
+                                                       "TLS error",
+                                                       "Payload size invalid",
+                                                       "Not supported",
+                                                       "Authentication error",
+                                                       "ACL denied",
+                                                       "Unknown",
+                                                       "ERRNO",
+                                                       "EAI",
+                                                       "Proxy error",
+                                                       "Pending"};
 
 /**
  * @brief Called on MQTT broker connection URC. Will check the URC to see if the
@@ -215,6 +251,61 @@ static void internalOnReceiveCallback(char *urc_data) {
 }
 
 /**
+ * @brief Called on SQNSMQTTONPUBLISH URC.
+ */
+static void internalPublishCallback(char *urc_data) {
+
+    uint8_t num_deliminators = 0;
+
+    // The URC will have the payload on the form x,y,status_code where we are
+    // interrested in the status code, so jump towards the last value
+    while (num_deliminators < 2) {
+        if (*urc_data == ',') {
+            num_deliminators++;
+        }
+
+        urc_data++;
+    }
+
+    publish_status_code = atoi(urc_data);
+
+    // One of the status codes is -1, so in order to not overflow the status
+    // code table, we swap the place with the last one
+    if (publish_status_code == STATUS_CODE_PENDING) {
+        publish_status_code = NUM_STATUS_CODES - 1;
+    }
+
+    got_publish_urc = true;
+}
+
+/**
+ * @brief Called on SQNSMQTTONSUBSCRIBE URC.
+ */
+static void internalSubscribeCallback(char *urc_data) {
+    uint8_t num_deliminators = 0;
+
+    // The URC will have the payload on the form x,y,status_code where we are
+    // interrested in the status code, so jump towards the last value
+    while (num_deliminators < 2) {
+        if (*urc_data == ',') {
+            num_deliminators++;
+        }
+
+        urc_data++;
+    }
+
+    subscribe_status_code = atoi(urc_data);
+
+    // One of the status codes is -1, so in order to not overflow the status
+    // code table, we swap the place with the last one
+    if (subscribe_status_code == STATUS_CODE_PENDING) {
+        subscribe_status_code = NUM_STATUS_CODES - 1;
+    }
+
+    got_subscribe_urc = true;
+}
+
+/**
  * @brief Takes in URC signing @p data, signs it and constructs a command
  * with the signature which is passed to the modem.
  *
@@ -234,7 +325,7 @@ static bool generateSigningCommand(char *data, char *command_buffer) {
         sign_request, 0, ctx_id_buffer, HCESIGN_CTX_ID_LENGTH + 1);
 
     if (!got_ctx_id) {
-        Log.error("no ctx_id\r\r");
+        Log.error("No context ID!");
         return false;
     }
 
@@ -246,7 +337,7 @@ static bool generateSigningCommand(char *data, char *command_buffer) {
         sign_request, 3, digest, HCESIGN_DIGEST_LENGTH + 1);
 
     if (!got_digest) {
-        Log.error("No Digest\r\n");
+        Log.error("No digest for signing request!");
         return false;
     }
 
@@ -263,7 +354,7 @@ static bool generateSigningCommand(char *data, char *command_buffer) {
     ATCA_STATUS result = atcab_sign(0, message_to_sign, (uint8_t *)digest);
 
     if (result != ATCA_SUCCESS) {
-        Log.error("ECC Signing Failed\r\n");
+        Log.error("ECC signing failed");
         return false;
     }
 
@@ -317,7 +408,7 @@ bool MqttClientClass::beginAWS() {
     // -- Initialize the ECC
     uint8_t err = ECC608.begin();
     if (err != ATCA_SUCCESS) {
-        Log.error("Could not initialize ECC HW");
+        Log.error("Could not initialize ECC hardware");
         return false;
     }
 
@@ -330,7 +421,7 @@ bool MqttClientClass::beginAWS() {
     // -- Get the thingname
     err = ECC608.getThingName(thingName, &thingNameLen);
     if (err != ECC608.ERR_OK) {
-        Log.error("Could not retrieve thingname from the ECC");
+        Log.error("Could not retrieve thing name from the ECC");
         return false;
     }
 
@@ -372,18 +463,11 @@ bool MqttClientClass::begin(const char *client_id,
             sprintf(command, MQTT_CONFIGURE_TLS, client_id);
         }
 
-        if (!SequansController.writeCommand(command)) {
-            Log.error("Failed to configure MQTT");
-            return false;
-        }
+        SequansController.writeCommand(command);
     } else {
         char command[MQTT_CONFIGURE_LENGTH] = "";
         sprintf(command, MQTT_CONFIGURE, client_id);
-
-        if (!SequansController.writeCommand(command)) {
-            Log.error("Failed to configure MQTT");
-            return false;
-        }
+        SequansController.writeCommand(command);
     }
 
     char conf_resp[MQTT_DEFAULT_RESPONSE_LENGTH * 4];
@@ -392,8 +476,7 @@ bool MqttClientClass::begin(const char *client_id,
         SequansController.readResponse(conf_resp, sizeof(conf_resp));
 
     if (result != ResponseResult::OK) {
-        Log.errorf("Non-OK Response when configuring MQTT. Err = %d\r\n",
-                   result);
+        Log.error("Failed to configure MQTT");
         return false;
     }
 
@@ -415,7 +498,6 @@ bool MqttClientClass::begin(const char *client_id,
     }
 
     if (use_tls) {
-
         if (use_ecc) {
             using_ecc = true;
 
@@ -439,9 +521,31 @@ bool MqttClientClass::end(void) {
     SequansController.unregisterCallback(MQTT_ON_MESSAGE_URC);
     SequansController.unregisterCallback(MQTT_ON_CONNECT_URC);
     SequansController.unregisterCallback(MQTT_ON_DISCONNECT_URC);
+    SequansController.unregisterCallback(MQTT_ON_PUBLISH_URC);
+    SequansController.unregisterCallback(MQTT_ON_SUBSCRIBE_URC);
 
     connected_callback = NULL;
     disconnected_callback = NULL;
+
+    // Reset variables used for publish and subscribe URC
+    got_publish_urc = false;
+    publish_status_code = 0;
+
+    got_subscribe_urc = false;
+    subscribe_status_code = 0;
+
+    LedCtrl.off(Led::CON, true);
+
+    if (!isConnected()) {
+        return true;
+    }
+
+    // If LTE is not connected, the MQTT client will be disconnected
+    // automatically
+    if (!Lte.isConnected()) {
+        return true;
+    }
+
     return SequansController.retryCommand(MQTT_DISCONNECT);
 }
 
@@ -463,19 +567,23 @@ bool MqttClientClass::publish(const char *topic,
                               const uint32_t buffer_size,
                               const MqttQoS quality_of_service) {
 
-    LedCtrl.on(Led::DATA, true);
-    Log.debugf("Starting publishing on topic %s\r\n", topic);
-
     if (!isConnected()) {
         Log.error("Attempted MQTT Publish without being connected to a broker");
         LedCtrl.off(Led::DATA, false);
         return false;
     }
 
-    while (SequansController.isRxReady()) { SequansController.readResponse(); }
+    if (!SequansController.registerCallback(MQTT_ON_PUBLISH_URC,
+                                            internalPublishCallback)) {
+        Log.error("Failed to register publish URC");
+        return false;
+    }
 
+    LedCtrl.on(Led::DATA, true);
+    Log.debugf("Starting publishing on topic %s\r\n", topic);
+
+    SequansController.clearReceiveBuffer();
     const size_t digits_in_buffer_size = trunc(log10(buffer_size)) + 1;
-
     char command[MQTT_PUBLISH_LENGTH_PRE_DATA + digits_in_buffer_size];
 
     // Fill everything besides the data
@@ -484,78 +592,34 @@ bool MqttClientClass::publish(const char *topic,
             topic,
             quality_of_service,
             (unsigned long)buffer_size);
+
     SequansController.writeCommand(command);
 
     // Wait for start character for delivering payload
     if (SequansController.waitForByte('>', MQTT_TIMEOUT_MS) ==
         SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT) {
-        Log.error("Timed out waiting for signal to deliver MQTT payload.");
+        Log.warn("Timed out waiting for signal to deliver MQTT payload.");
+
+        LedCtrl.off(Led::DATA, true);
+        SequansController.unregisterCallback(MQTT_ON_PUBLISH_URC);
         return false;
     }
+
+    delay(100);
     SequansController.writeBytes(buffer, buffer_size);
 
-    // Wait until we receive the first URC which we discard
-    uint8_t wait_result = SequansController.waitForByte(
-        URC_IDENTIFIER_START_CHARACTER, MQTT_TIMEOUT_MS);
+    const uint64_t start = millis();
+    while (millis() - start < MQTT_TIMEOUT_MS && !got_publish_urc) {}
 
-    if (wait_result != SEQUANS_CONTROLLER_READ_BYTE_OK) {
-        Log.errorf("Error when waiting for the first URC start character. "
-                   "Error was %d\r\n",
-                   wait_result);
+    got_publish_urc = false;
+    LedCtrl.off(Led::DATA, true);
+    SequansController.unregisterCallback(MQTT_ON_PUBLISH_URC);
 
-        LedCtrl.off(Led::DATA, false);
+    if (publish_status_code != 0) {
+        Log.errorf("Error happened while publishing: %s\r\n",
+                   status_code_table[publish_status_code]);
         return false;
     }
-
-    // Wait until we receive the second URC which includes the status code
-    wait_result = SequansController.waitForByte(URC_IDENTIFIER_START_CHARACTER,
-                                                MQTT_TIMEOUT_MS);
-    if (wait_result != SEQUANS_CONTROLLER_READ_BYTE_OK) {
-        Log.errorf("Error when waiting for the second URC start character. "
-                   "Error was %d\r\n",
-                   wait_result);
-
-        LedCtrl.off(Led::DATA, false);
-        return false;
-    }
-
-    // We do this as a trick to get an termination sequence after the URC
-    SequansController.writeCommand("AT");
-
-    char publish_response[MQTT_DEFAULT_RESPONSE_LENGTH];
-    ResponseResult result = SequansController.readResponse(
-        publish_response, sizeof(publish_response));
-
-    if (result != ResponseResult::OK) {
-        Log.errorf("Failed to get publish result, result was %d \r\n", result);
-
-        LedCtrl.off(Led::DATA, false);
-        return false;
-    }
-
-    // +1 for null termination
-    char rc_buffer[MQTT_CONNECTION_RC_LENGTH + 1];
-
-    bool got_rc = SequansController.extractValueFromCommandResponse(
-        publish_response, 2, rc_buffer, sizeof(rc_buffer));
-
-    if (!got_rc) {
-        Log.errorf("Failed to get status code: %s \r\n", rc_buffer);
-
-        LedCtrl.off(Led::DATA, false);
-        return false;
-    }
-
-    if (atoi(rc_buffer) != 0) {
-        Log.errorf("Status code (rc) != 0: %d\r\n", atoi(rc_buffer));
-
-        LedCtrl.off(Led::DATA, false);
-        return false;
-    }
-
-    Log.debug("Published message\r\n");
-
-    LedCtrl.off(Led::DATA, false);
 
     return true;
 }
@@ -576,49 +640,32 @@ bool MqttClientClass::subscribe(const char *topic,
         return false;
     }
 
+    if (!SequansController.registerCallback(MQTT_ON_SUBSCRIBE_URC,
+                                            internalSubscribeCallback)) {
+        Log.error("Failed to register subscribe URC");
+        return false;
+    }
+
     SequansController.clearReceiveBuffer();
 
     char command[MQTT_SUBSCRIBE_LENGTH] = "";
     sprintf(command, MQTT_SUSBCRIBE, topic, quality_of_service);
-    SequansController.writeCommand(command);
 
-    ResponseResult response = SequansController.readResponse();
-
-    if (response != ResponseResult::OK) {
-        Log.errorf("Failed to write subscribe command. Error code: %d\r\n",
-                   response);
+    if (!SequansController.retryCommand(command)) {
+        Log.error("Failed to send subscribe command.");
+        SequansController.unregisterCallback(MQTT_ON_SUBSCRIBE_URC);
         return false;
     }
 
-    // Now we wait for the URC
-    if (SequansController.waitForByte(URC_IDENTIFIER_START_CHARACTER,
-                                      MQTT_TIMEOUT_MS) ==
-        SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT) {
-        Log.error("Timed out waiting for start byte in MQTT subscribe");
-        return false;
-    }
+    const uint64_t start = millis();
+    while (millis() - start < MQTT_TIMEOUT_MS && !got_subscribe_urc) {}
 
-    // We do this as a trick to get an termination sequence after the URC
-    SequansController.writeCommand("AT");
+    got_subscribe_urc = false;
+    SequansController.unregisterCallback(MQTT_ON_SUBSCRIBE_URC);
 
-    char subscribe_response[MQTT_DEFAULT_RESPONSE_LENGTH];
-    if (SequansController.readResponse(subscribe_response,
-                                       sizeof(subscribe_response)) !=
-        ResponseResult::OK) {
-        return false;
-    }
-
-    // +1 for null termination
-    char rc_buffer[MQTT_CONNECTION_RC_LENGTH + 1];
-
-    bool got_rc = SequansController.extractValueFromCommandResponse(
-        subscribe_response, 2, rc_buffer, sizeof(rc_buffer));
-
-    if (!got_rc) {
-        return false;
-    }
-
-    if (atoi(rc_buffer) != 0) {
+    if (subscribe_status_code != 0) {
+        Log.errorf("Error happened while subscribing: %s\r\n",
+                   status_code_table[subscribe_status_code]);
         return false;
     }
 
@@ -642,6 +689,9 @@ bool MqttClientClass::readMessage(const char *topic,
                                   const uint16_t buffer_size,
                                   const int32_t message_id) {
     if (buffer_size > MQTT_MAX_BUFFER_SIZE) {
+
+        Log.errorf("Buffer size is greater than the max buffer size of %d!\r\n",
+                   MQTT_MAX_BUFFER_SIZE);
         return false;
     }
 
@@ -665,22 +715,36 @@ bool MqttClientClass::readMessage(const char *topic,
     uint32_t start = millis();
     while (!SequansController.isRxReady()) {
         if (millis() - start > MQTT_TIMEOUT_MS) {
-            Log.error("Timed out waiting for reading MQTT message");
-            return SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT;
+            Log.warn("Timed out whilst waiting on the modem to deliver the "
+                     "MQTT message");
+            return false;
         }
     }
 
     // First two bytes are <LF><CR>, so we flush that
     uint8_t start_bytes = 2;
+
+    start = millis();
+
     while (start_bytes > 0) {
         if (SequansController.readByte() != -1) {
             start_bytes--;
+        }
+
+        if (start_bytes > 0 && millis() - start > MQTT_TIMEOUT_MS) {
+            Log.warn("Timed out waiting for the modem to deliver the start "
+                     "characters for the MQTT message");
+            return false;
         }
     }
 
     // Then we retrieve the payload
     ResponseResult result =
         SequansController.readResponse((char *)buffer, buffer_size);
+
+    if (result != ResponseResult::OK) {
+        Log.warn("Failed whilst retrieving the MQTT message payload");
+    }
 
     return (result == ResponseResult::OK);
 }
@@ -706,42 +770,4 @@ void MqttClientClass::clearMessages(const char *topic,
     for (uint16_t i = 0; i < num_messages; i++) {
         SequansController.writeCommand(command);
     }
-}
-
-bool MqttClientClass::disconnect(bool lte_event) {
-
-    LedCtrl.off(Led::CON, true);
-
-    // If we're already disconnected, nothing to do
-    if (!isConnected()) {
-        return false;
-    }
-
-    // If the disconnect event comes from the LTE modem, the
-    // AT+SQNSMQTTDISCONNECT command won't work. Override the handler.
-    if (lte_event) {
-        internalDisconnectCallback(NULL);
-        return true;
-    }
-
-    // Send the MQTTDISCONNECT command
-    SequansController.clearReceiveBuffer();
-
-    char command[MQTT_DISCONNECT_LENGTH] = MQTT_DISCONNECT;
-    SequansController.writeCommand(command);
-
-    if (SequansController.readResponse() != ResponseResult::OK) {
-        return false;
-    }
-
-    // Wait for the broker to disconnect
-    uint32_t start = millis();
-    while (connected_to_broker) {
-        if (millis() - start > DISCONNECT_TIMEOUT_MS) {
-            Log.error("Timed out waiting for broker disconnect URC");
-            return false;
-        }
-    }
-
-    return true;
 }
