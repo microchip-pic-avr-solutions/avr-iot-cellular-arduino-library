@@ -52,21 +52,3 @@ The [AVR-IoT Celluar Mini](https://www.microchip.com/en-us/development-tool/EV70
   * [Documentation](https://iot.microchip.com/docs/arduino/userguide/sensor-drivers/VEML3328)
 
 Some examples featured in this library use these sensor drivers. Specifically the sandbox and low power examples. To compile said examples, both sensor driver libraries must be installed.
-
-## Build Instructions
-
-**A pre-built library can be downloaded from the releases tab. This section explains how to build the library locally for Linux. The process for Windows is similar. Most users do not need to build from source.**
-
-The library depends on [MicrochipTech/cryptoauthlib](https://github.com/MicrochipTech/cryptoauthlib) to communicate with the ECC608B (Secure Element). It is added to this repository as a submodule. A CMake build configuration exists in [lib/cryptoauth](./lib/cryptoauth/), which builds `libcryptoauth.a`. Said file must be added to [./src/avr128db48](./src/avr128db48). The cryptoauth header files must be added to [./src](./src).
-
-A script, [inject_cryptoauthlib.sh](./scripts/inject_cryptoauthlib.sh), builds the library and inserts the .a file together with the header files into the correct location.
-
-### TLDR; How to build
-
-1. Download and install all dependencies
-	- CMake
-		* `apt install cmake`
-	- AVR Toolchain
-		* `apt install gcc-avr avr-libc`
-2. Clone this repository with the `--recursive` flag
-3. Run [./scripts/inject_cryptoauthlib.sh](./scripts/inject_cryptoauthlib.sh)
