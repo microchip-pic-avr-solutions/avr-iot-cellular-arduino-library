@@ -284,11 +284,11 @@ void setup() {
     LedCtrl.startupCycle();
 
     // Set PD2 as input (button)
-    pinConfigure(PIN_PD2, PIN_DIR_INPUT | PIN_INT_FALL);
+    pinConfigure(PIN_PD2, PIN_DIR_INPUT);
     attachInterrupt(PIN_PD2, sendHeartbeatInterrupt, FALLING);
 
     // Set PF6 as input (reset button)
-    pinConfigure(PIN_PF6, PIN_DIR_INPUT | PIN_INT_FALL);
+    pinConfigure(PIN_PF6, PIN_DIR_INPUT);
     attachInterrupt(PIN_PF6, resetInterrupt, FALLING);
 
     sei();
