@@ -1,12 +1,5 @@
 .ccls
-lib/cryptoauth/build48/
-lib/cryptoauth/build64/
 build/
-src/crypto*
-src/calib
-src/cert*
-atca*
-libcryptoauth.a
 .ccls-cache
 .vscode/c_cpp_properties.json
 .vscode/arduino.json
