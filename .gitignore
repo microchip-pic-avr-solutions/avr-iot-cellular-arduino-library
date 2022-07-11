@@ -5,3 +5,6 @@ build/
 .vscode/arduino.json
 deploy_sandbox
 builds
+lib/cryptoauth/cryptoauthlib
+lib/cryptoauth/build48
+lib/cryptoauth/build64

@@ -70,9 +70,6 @@ ATCA_STATUS hal_i2c_receive(ATCAIface iface,
                             uint8_t *rxdata,
                             uint16_t *rxlength) {
 
-    // Need some delay here for the Wire driver to keep up
-    atca_delay_ms(100);
-
     *rxlength = WIRE.requestFrom(word_address, (size_t)(*rxlength));
 
     int value;

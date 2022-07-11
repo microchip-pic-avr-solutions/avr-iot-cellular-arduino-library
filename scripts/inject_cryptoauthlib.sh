@@ -6,6 +6,9 @@ SRC_PATH=$SCRIPTPATH/../src
 MCU64=avr128db64
 MCU48=avr128db48
 
+# Clone cryptoauthlib
+git clone https://github.com/MicrochipTech/cryptoauthlib.git $CRYPTOAUTH_PATH/cryptoauthlib
+
 # Build cryptoauthlib for AVR128DB64
 pushd $CRYPTOAUTH_PATH
     mkdir build64
