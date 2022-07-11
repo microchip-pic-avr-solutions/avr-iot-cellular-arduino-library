@@ -40,12 +40,13 @@
 * Fixes a bug where the CELL LED wouldn't blink while the device was connecting to the network
 * Fixes a bug in the sandbox where some event flags could be cleared before being processed
 
-# 1.1.4
+# 1.2.0
 
 ## Features
 
 * Split HTTP example into a HTTP and HTTPS example 
 * Add a log message when HTTPS security profile is not set up
+* Update library.properties to pass lint checks for PR with library-registry 
 * Improve error messages for MQTT
 
 ## Changes 
