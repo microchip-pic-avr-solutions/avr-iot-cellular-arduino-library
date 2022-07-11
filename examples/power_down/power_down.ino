@@ -34,7 +34,7 @@ void setup() {
 
     // Configure SW0 for interrupt so we can wake the device up from sleep by
     // pressing the button
-    pinConfigure(SW0, PIN_DIR_INPUT | PIN_INT_FALL);
+    pinConfigure(SW0, PIN_DIR_INPUT);
     attachInterrupt(SW0, buttonPressedInterrupt, FALLING);
 
     // Now we configure the low power module for power down configuration, where
