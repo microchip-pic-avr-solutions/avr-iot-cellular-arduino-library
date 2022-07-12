@@ -7,9 +7,7 @@
 
 ## Installation Instructions
 
-Open the [releases tab](https://github.com/microchip-pic-avr-solutions/avr-iot-cellular-arduino-library/releases/latest) and download the latest version as a zip folder. It is found under the Assets tab. The file to download has the following naming scheme *avr-iot-cellular-a.b.c-\*.zip*.
-
-**It is important to download the library from the releases and not clone it as a git repository.** This has to do with a library dependency to *cryptoauthlib*, which is bundled as a pre-compiled static library with the .zip file from the [releases tab](https://github.com/microchip-pic-avr-solutions/avr-iot-cellular-arduino-library/releases/latest). This is not the case if directly cloning the repository. If it is necessary to clone the repository (for the development of the library itself), see [Build Instructions](#build-instructions) further down on the page.
+The recommended way to install the library is within the Arduino IDE. Simply go Tools -> Manage Libraries and search for "avr-iot". The library can also be cloned from this repository. More information can be found [here](https://iot.microchip.com/docs/arduino/introduction/devenv).
 
 ## Board Description
 
