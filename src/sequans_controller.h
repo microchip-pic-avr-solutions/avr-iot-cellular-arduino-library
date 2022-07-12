@@ -212,7 +212,7 @@ class SequansControllerClass {
      * @return #SEQUANS_CONTROLLER_READ_BYTE_OK if ok
      *         #SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT if timeout happened
      */
-    uint8_t waitForByte(uint8_t byte, uint32_t timeout_ms);
+    uint8_t waitForByte(const uint8_t byte, const uint32_t timeout_ms);
 
     void startCriticalSection(void);
 

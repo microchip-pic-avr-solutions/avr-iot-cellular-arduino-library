@@ -803,12 +803,13 @@ void SequansControllerClass::responseResultToString(
     }
 }
 
-uint8_t SequansControllerClass::waitForByte(uint8_t byte, uint32_t timeout) {
-    uint8_t readByte = SequansController.readByte();
+uint8_t SequansControllerClass::waitForByte(const uint8_t byte,
+                                            const uint32_t timeout) {
+    int16_t read_byte = SequansController.readByte();
     uint32_t start = millis();
 
-    while (readByte != byte) {
-        readByte = SequansController.readByte();
+    while (read_byte != byte) {
+        read_byte = SequansController.readByte();
 
         if (millis() - start > timeout) {
             return SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT;
