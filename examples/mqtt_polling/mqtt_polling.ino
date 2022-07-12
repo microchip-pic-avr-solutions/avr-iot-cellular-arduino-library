@@ -65,16 +65,6 @@ void setup() {
 }
 
 void loop() {
-
-    String message = MqttClient.readMessage(MQTT_SUB_TOPIC);
-
-    // Read message will return an empty string if there were no new
-    // messages, so anything other than that means that there was a new
-    // message
-    if (message != "") {
-        Log.infof("Got new message: %s\r\n", message.c_str());
-    }
-
     String message_to_publish = String("Hello world: " + String(counter));
 
     bool publishedSuccessfully =
@@ -87,5 +77,16 @@ void loop() {
         Log.error("Failed to publish");
     }
 
-    delay(5000);
+    delay(2000);
+
+    String message = MqttClient.readMessage(MQTT_SUB_TOPIC);
+
+    // Read message will return an empty string if there were no new
+    // messages, so anything other than that means that there was a new
+    // message
+    if (message != "") {
+        Log.infof("Got new message: %s\r\n", message.c_str());
+    }
+
+    delay(2000);
 }

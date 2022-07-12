@@ -101,6 +101,10 @@ static HttpResponse sendData(const char *endpoint,
 
     SequansController.clearReceiveBuffer();
 
+    // Fix for bringing the modem out of idling and prevent timeout whilst
+    // waiting for modem response during the next AT command
+    SequansController.retryCommand("AT");
+
     // Setup and transmit SEND command before sending the data
     const uint32_t digits_in_data_length = trunc(log10(buffer_size)) + 1;
 
@@ -110,7 +114,6 @@ static HttpResponse sendData(const char *endpoint,
 
     // We receive one start bytes of the character '>', so we wait for
     // it
-
     uint64_t start = millis();
     int16_t start_character = 0;
 
@@ -190,6 +193,10 @@ static HttpResponse queryData(const char *endpoint, const uint8_t method) {
     HttpResponse httpResponse = {0, 0};
 
     SequansController.clearReceiveBuffer();
+
+    // Fix for bringing the modem out of idling and prevent timeout whilst
+    // waiting for modem response during the next AT command
+    SequansController.retryCommand("AT");
 
     // Set up and send the query
     char command[strlen(HTTP_QUERY) + strlen(endpoint)];
@@ -331,6 +338,10 @@ int16_t HttpClientClass::readBody(char *buffer, const uint32_t buffer_size) {
     }
 
     SequansController.clearReceiveBuffer();
+
+    // Fix for bringing the modem out of idling and prevent timeout whilst
+    // waiting for modem response during the next AT command
+    SequansController.retryCommand("AT");
 
     // We send the buffer size with the receive command so that we only
     // receive that. The rest will be flushed from the modem.

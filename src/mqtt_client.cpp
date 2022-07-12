@@ -583,6 +583,11 @@ bool MqttClientClass::publish(const char *topic,
     Log.debugf("Starting publishing on topic %s\r\n", topic);
 
     SequansController.clearReceiveBuffer();
+
+    // Fix for bringing the modem out of idling and prevent timeout whilst
+    // waiting for modem response during the next AT command
+    SequansController.retryCommand("AT");
+
     const size_t digits_in_buffer_size = trunc(log10(buffer_size)) + 1;
     char command[MQTT_PUBLISH_LENGTH_PRE_DATA + digits_in_buffer_size];
 
@@ -697,6 +702,10 @@ bool MqttClientClass::readMessage(const char *topic,
 
     SequansController.clearReceiveBuffer();
 
+    // Fix for bringing the modem out of idling and prevent timeout whilst
+    // waiting for modem response during the next AT command
+    SequansController.retryCommand("AT");
+
     // We determine all message IDs lower than 0 as just no message ID passed
     if (message_id < 0) {
         char command[MQTT_RECEIVE_LENGTH] = "";
@@ -738,13 +747,9 @@ bool MqttClientClass::readMessage(const char *topic,
         }
     }
 
-    // Then we retrieve the payload
-    ResponseResult result =
+    // Then we retrieve the payload (if any)
+    const ResponseResult result =
         SequansController.readResponse((char *)buffer, buffer_size);
-
-    if (result != ResponseResult::OK) {
-        Log.warn("Failed whilst retrieving the MQTT message payload");
-    }
 
     return (result == ResponseResult::OK);
 }

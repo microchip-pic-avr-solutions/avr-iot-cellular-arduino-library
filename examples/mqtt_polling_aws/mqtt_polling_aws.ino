@@ -44,7 +44,6 @@ bool initMQTTTopics() {
 
 void setup() {
     Log.begin(115200);
-
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
@@ -86,15 +85,6 @@ void setup() {
 
 void loop() {
 
-    String message = MqttClient.readMessage(mqtt_sub_topic);
-
-    // Read message will return an empty string if there were no new
-    // messages, so anything other than that means that there were a
-    // new message
-    if (message != "") {
-        Log.infof("Got new message: %s\r\n", message.c_str());
-    }
-
     bool published_successfully =
         MqttClient.publish(mqtt_pub_topic, "{\"light\": 9, \"temp\": 9}");
 
@@ -104,5 +94,16 @@ void loop() {
         Log.error("Failed to publish\r\n");
     }
 
-    delay(1000);
+    delay(2000);
+
+    String message = MqttClient.readMessage(mqtt_sub_topic);
+
+    // Read message will return an empty string if there were no new
+    // messages, so anything other than that means that there were a
+    // new message
+    if (message != "") {
+        Log.infof("Got new message: %s\r\n", message.c_str());
+    }
+
+    delay(2000);
 }
