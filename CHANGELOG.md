@@ -58,4 +58,5 @@
 ## Bugfixes
 
 * Fix a bug where HTTP requests would make the modem hang
+* Add a temporary fix for a bug where the modem would not respond during MQTT publish and receive
 * Fix a bug where retrieving the modem clock would fail
