@@ -70,3 +70,7 @@
 ## Bugfixes
 
 * Fix dependency error in library.properties file
+
+# 1.2.2
+
+No changes
