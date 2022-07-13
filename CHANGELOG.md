@@ -60,3 +60,13 @@
 * Fix a bug where HTTP requests would make the modem hang
 * Add a temporary fix for a bug where the modem would not respond during MQTT publish and receive
 * Fix a bug where retrieving the modem clock would fail
+
+# 1.2.1
+
+## Changes
+
+* Update library name in library.properties file
+
+## Bugfixes
+
+* Fix dependency error in library.properties file
