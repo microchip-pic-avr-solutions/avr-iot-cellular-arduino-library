@@ -74,3 +74,9 @@
 # 1.2.2
 
 No changes
+
+# 1.2.3
+
+# Fixes
+
+* Update MCP9808 library name in library.properties dependency field
