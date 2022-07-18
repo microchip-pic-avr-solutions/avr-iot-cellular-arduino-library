@@ -11,8 +11,6 @@
 #include <low_power.h>
 #include <lte.h>
 #include <mcp9808.h>
-#include <mqtt_client.h>
-#include <sequans_controller.h>
 #include <veml3328.h>
 
 #define GPSSerial Serial2
@@ -34,9 +32,9 @@ Adafruit_GPS GPS(&GPSSerial);
  * such that the float values for latitude and longitude are properly
  * converted before being sent to the server.
  */
-char latitude[16] = "0";
-char longitude[16] = "0";
-char time[24] = "0";
+static char latitude[16] = "0";
+static char longitude[16] = "0";
+static char time[24] = "0";
 
 /**
  * @brief Keeps track of the state.
