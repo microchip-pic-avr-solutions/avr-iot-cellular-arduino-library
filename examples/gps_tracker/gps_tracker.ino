@@ -1,6 +1,6 @@
 /**
- * This demo utilizes the Adafruit GPS Featherwing to send the GPS position of
- * the device to a server with HTTP.
+ * This demo utilizes the Adafruit Ultimate GPS Featherwing to send the GPS
+ * position of the device to a server with HTTP.
  */
 
 #include <Adafruit_GPS.h>
