@@ -123,7 +123,8 @@ static HttpResponse sendData(const char *endpoint,
              start_character != HTTP_SEND_START_CHARACTER);
 
     if (start_character != HTTP_SEND_START_CHARACTER) {
-        Log.error("Timed out waiting for modem to be ready for HTTP payload");
+        Log.error("Timed out waiting for modem to be ready for HTTP payload. "
+                  "Is the server active?");
         return httpResponse;
     }
 
