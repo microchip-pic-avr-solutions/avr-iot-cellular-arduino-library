@@ -53,7 +53,13 @@
 
             stage('linter') {
                 steps {
-                    sh 'arduino-lint --library-manager submit --compliance strict'
+                    sh 'arduino-lint --compliance strict'
+                    script {
+                        env.DEP_ERROR = getDependencyError()
+                        if (env.DEP_ERROR != '') {
+                            error("LP048 error: depends field item(s) not found")
+                        }
+                    }
                 }
             }
 
@@ -139,3 +145,8 @@
         execute("git config --global user.email 'microchip@microchip.com'")
         execute("git config --global user.name 'Microchip Technology'")
     }
+	
+	String getDependencyError() {
+		return sh(script: "! arduino-lint --compliance strict --format json | grep LP048", returnStdout: true)?.trim()
+		// return sh(script: "! arduino-lint --compliance strict --format json | grep LP048", returnStdout: true)?.trim()
+	}
