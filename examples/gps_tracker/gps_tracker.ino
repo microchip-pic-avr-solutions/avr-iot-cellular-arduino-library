@@ -1,6 +1,8 @@
 /**
  * This demo utilizes the Adafruit Ultimate GPS Featherwing to send the GPS
  * position of the device to a server with HTTP.
+ *
+ * Remember to change HTTP_DOMAIN to your server IP!
  */
 
 #include <Adafruit_GPS.h>
@@ -15,7 +17,7 @@
 
 #define GPSSerial Serial2
 
-#define HTTP_DOMAIN "161.35.147.136"
+#define HTTP_DOMAIN "<your server IP here>"
 
 /**
  * @brief Connected refers to the LTE network.
