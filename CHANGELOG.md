@@ -74,3 +74,11 @@
 # 1.2.2
 
 No changes
+
+# 1.3.0
+
+# Fixes
+
+* Update MCP9808 library name in library.properties dependency field
+* Update VEML3328 library name in library.properties dependency field
+* Update Jenkins pipeline with new arduino-lint configurations
