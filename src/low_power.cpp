@@ -594,8 +594,9 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
 
     disableLDO();
     disablePIT();
-    Lte.begin();
 
     SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
     powerUpPeripherals();
+
+    Lte.begin();
 }
