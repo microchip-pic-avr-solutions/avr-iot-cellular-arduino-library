@@ -53,7 +53,7 @@
 
             stage('linter') {
                 steps {
-                    sh 'arduino-lint --compliance strict'
+                    sh 'arduino-lint --library-manager update --compliance strict'
                     script {
                         env.DEP_ERROR = getDependencyError()
                         if (env.DEP_ERROR != '') {
@@ -147,6 +147,5 @@
     }
 	
 	String getDependencyError() {
-		return sh(script: "! arduino-lint --compliance strict --format json | grep LP048", returnStdout: true)?.trim()
-		// return sh(script: "! arduino-lint --compliance strict --format json | grep LP048", returnStdout: true)?.trim()
+		return sh(script: "! arduino-lint --library-manager update --compliance strict --format json | grep LP048", returnStdout: true)?.trim()
 	}
