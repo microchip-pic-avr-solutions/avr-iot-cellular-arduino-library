@@ -75,10 +75,18 @@
 
 No changes
 
-# 1.3.0
+# 1.2.3
 
-# Fixes
+## Features
+
+* Add GPS tracker example
+
+## Changes 
 
 * Update MCP9808 library name in library.properties dependency field
 * Update VEML3328 library name in library.properties dependency field
 * Update Jenkins pipeline with new arduino-lint configurations
+
+## Bugfixes
+
+* Fix a bug where the peripherals weren't powered up before the LTE module in power down mode
