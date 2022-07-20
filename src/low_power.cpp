@@ -368,20 +368,30 @@ static void powerDownPeripherals(void) {
                  PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
 }
 
-static void powerUpPeripherals(void) {
+static void powerUpPeripherals(const bool return_leds_to_previous_state) {
 
-    pinConfigure(LedCtrl.getLedPin(Led::CELL), PIN_DIR_OUTPUT);
-    pinConfigure(LedCtrl.getLedPin(Led::CON), PIN_DIR_OUTPUT);
-    pinConfigure(LedCtrl.getLedPin(Led::DATA), PIN_DIR_OUTPUT);
-    pinConfigure(LedCtrl.getLedPin(Led::ERROR), PIN_DIR_OUTPUT);
-    pinConfigure(LedCtrl.getLedPin(Led::USER), PIN_DIR_OUTPUT);
+    pinConfigure(LedCtrl.getLedPin(Led::CELL),
+                 PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
+    pinConfigure(LedCtrl.getLedPin(Led::CON),
+                 PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
+    pinConfigure(LedCtrl.getLedPin(Led::DATA),
+                 PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
+    pinConfigure(LedCtrl.getLedPin(Led::ERROR),
+                 PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
+    pinConfigure(LedCtrl.getLedPin(Led::USER),
+                 PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
 
-    if (cell_led_state) {
-        LedCtrl.on(Led::CELL, true);
-    }
+    if (return_leds_to_previous_state) {
+        if (cell_led_state) {
+            LedCtrl.on(Led::CELL, true);
+        }
 
-    if (con_led_state) {
-        LedCtrl.on(Led::CON, true);
+        if (con_led_state) {
+            LedCtrl.on(Led::CON, true);
+        }
+    } else {
+        LedCtrl.off(Led::CELL, true);
+        LedCtrl.off(Led::CON, true);
     }
 
     // Make sure that I2C pins are pulled up and there won't be a voltage drop
@@ -553,7 +563,7 @@ void LowPowerClass::powerSave(void) {
         disableLDO();
 
         SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
-        powerUpPeripherals();
+        powerUpPeripherals(true);
 
         modem_is_in_power_save = false;
     }
@@ -594,9 +604,9 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
 
     disableLDO();
     disablePIT();
-
     SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
-    powerUpPeripherals();
+
+    powerUpPeripherals(false);
 
     Lte.begin();
 }
