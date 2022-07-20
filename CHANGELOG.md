@@ -90,3 +90,4 @@ No changes
 ## Bugfixes
 
 * Fix a bug where the peripherals weren't powered up before the LTE module in power down mode
+* Fix a bug where the LEDs wouldn't blink after using power down mode
