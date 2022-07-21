@@ -125,7 +125,7 @@ bool LteClass::begin(const bool print_messages) {
     // do this and get a meaningful response in CFUN=1 or CFUN=4.
     if (!SequansController.retryCommand(
             AT_COMMAND_CHECK_SIM, response, sizeof(response))) {
-        Log.error("Checking SIM status failed, is the SIM card inserted?");
+        Log.error("Checking SIM card failed, is it inserted?");
         SequansController.retryCommand(AT_COMMAND_DISCONNECT);
         return false;
     }
@@ -134,8 +134,7 @@ bool LteClass::begin(const bool print_messages) {
 
     if (!SequansController.extractValueFromCommandResponse(
             response, 0, sim_status, sizeof(sim_status))) {
-        Log.error("Failed to extract value from command response during SIM "
-                  "status check");
+        Log.error("Failed to retrieve SIM status");
         SequansController.retryCommand(AT_COMMAND_DISCONNECT);
         return false;
     }
@@ -175,7 +174,7 @@ bool LteClass::begin(const bool print_messages) {
 
     if (!SequansController.retryCommand(
             AT_COMMAND_GET_CLOCK, clock_response, sizeof(clock_response))) {
-        Log.errorf("Retrieving LTE modem time failed");
+        Log.errorf("Command for retrieving modem time failed");
         SequansController.retryCommand(AT_COMMAND_DISCONNECT);
         return false;
     }
@@ -184,7 +183,7 @@ bool LteClass::begin(const bool print_messages) {
 
     if (!SequansController.extractValueFromCommandResponse(
             clock_response, 0, time, sizeof(time))) {
-        Log.error("Failed to extract current time from LTE modem");
+        Log.error("Failed to retrieve time from modem");
         SequansController.retryCommand(AT_COMMAND_DISCONNECT);
         return false;
     }
@@ -207,15 +206,19 @@ bool LteClass::begin(const bool print_messages) {
             // Do manual sync with NTP server
 
             if (print_messages) {
-                Log.infof("Did not get time synchronization from operator, "
-                          "doing NTP synchronization.");
+                Log.infof("Did not get time from operator, doing NTP sync");
             }
 
             SequansController.registerCallback(NTP_CALLBACK, ntpCallback);
 
             while (!got_ntp_sync) {
                 SequansController.clearReceiveBuffer();
-                SequansController.retryCommand(AT_COMMAND_SYNC_NTP);
+
+                while (!SequansController.retryCommand(
+                    AT_COMMAND_SYNC_NTP, NULL, 0, 1)) {
+                    SequansController.clearReceiveBuffer();
+                    delay(500);
+                }
 
                 while (!got_ntp_callback) {
 
@@ -271,14 +274,13 @@ String LteClass::getOperator(void) {
         SequansController.readResponse(response, sizeof(response));
 
     if (response_result != ResponseResult::OK) {
-        Log.errorf("Failed to query the operator, error code: %d\r\n",
-                   response);
+        Log.error("Failed to query the operator name");
         return OPERATOR_NOT_AVAILABLE;
     }
 
     if (!SequansController.extractValueFromCommandResponse(
             response, 2, id, sizeof(id))) {
-        Log.error("Failed to extract value during operator query");
+        Log.error("Failed to retrieve the operator name");
         return OPERATOR_NOT_AVAILABLE;
     }
 
