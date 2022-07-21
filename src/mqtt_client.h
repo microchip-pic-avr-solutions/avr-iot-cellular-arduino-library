@@ -36,21 +36,21 @@ class MqttClientClass {
     }
 
     /**
-     * @brief Will configure and connect to the host/broker
-     * specified. Will disconnect from the current broker (if any) before
-     * configuring the new client.
+     * @brief Will configure and connect to the host/broker specified.
      *
      * @param client_id The identifier for this unit.
      * @param host Host/broker to attempt to connect to.
      * @param port Port for communication.
      * @param use_tls Whether to use TLS in the communication.
-     * @param keep_alive How often the broker is pinged. If low power is
-     * utilised, the modem will wake up every @p keep_alive to ping the broker
-     * regardless of the sleeping time.
-     * @param use_ecc Whether to use the ECC for signing messages. If not used,
-     * the private key has to be stored on the LTE modem and the security
-     * profile has to be be set up to not use external hardware cryptographic
-     * engine.
+     * @param keep_alive Optional: How often the broker is pinged. If low power
+     * is utilised, the modem will wake up every @p keep_alive to ping the
+     * broker regardless of the sleeping time.
+     * @param use_ecc Optional: Whether to use the ECC for signing messages. If
+     * not used, the private key has to be stored on the LTE modem and the
+     * security profile has to be be set up to not use external hardware
+     * cryptographic engine.
+     * @param username Optional: Username for authentication.
+     * @param password Optional: Password for authentication.
      *
      * @return true if configuration and connection was succesful.
      */
@@ -59,8 +59,13 @@ class MqttClientClass {
                const uint16_t port,
                const bool use_tls,
                const size_t keep_alive = 60,
-               const bool use_ecc = true);
+               const bool use_ecc = true,
+               const char *username = "",
+               const char *password = "");
 
+    /**
+     * @brief Will configure and connect to the device specific AWS broker.
+     */
     bool beginAWS();
 
     /**

@@ -11,9 +11,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MQTT_CONFIGURE           "AT+SQNSMQTTCFG=0,\"%s\""
-#define MQTT_CONFIGURE_TLS       "AT+SQNSMQTTCFG=0,\"%s\",,,2"
-#define MQTT_CONFIGURE_TLS_ECC   "AT+SQNSMQTTCFG=0,\"%s\",,,1"
+#define MQTT_CONFIGURE           "AT+SQNSMQTTCFG=0,\"%s\",\"%s\",\"%s\""
+#define MQTT_CONFIGURE_TLS       "AT+SQNSMQTTCFG=0,\"%s\",\"%s\",\"%s\",%u"
 #define MQTT_CONNECT             "AT+SQNSMQTTCONNECT=0,\"%s\",%u,%u"
 #define MQTT_DISCONNECT          "AT+SQNSMQTTDISCONNECT=0"
 #define MQTT_PUBLISH             "AT+SQNSMQTTPUBLISH=0,\"%s\",%u,%lu"
@@ -26,28 +25,26 @@
 #define MQTT_ON_PUBLISH_URC      "SQNSMQTTONPUBLISH"
 #define MQTT_ON_SUBSCRIBE_URC    "SQNSMQTTONSUBSCRIBE"
 
-// Command without any data in it (with parantheses): 19 bytes
-// Client ID: 64 bytes (this is imposed by this implementation)
+// Command without any data in it (with quotation marks): 25 bytes
 // Termination: 1 byte
-// Total: 84 bytes
-#define MQTT_CONFIGURE_LENGTH 84
+// Total: 26 bytes
+#define MQTT_CONFIGURE_LENGTH 26
 
-#define MQTT_DISCONNECT_LENGTH 24
-
-// Command without any data in it (with parantheses): 22 bytes
-// Client ID: 64 bytes (this is imposed by this implementation)
+// Command with security profile ID (with quotation marks): 27 bytes
 // Termination: 1 byte
-// Total: 87 bytes
-#define MQTT_CONFIGURE_TLS_LENGTH 87
+// Total: 28 bytes
+#define MQTT_CONFIGURE_TLS_LENGTH 28
 
-// Command without any data in it (with parantheses): 25 bytes
+// Command without any data in it (with quotation marks): 25 bytes
 // Hostname: 127 bytes
 // Port: 5 bytes
 // Termination: 1 byte
 // Total: 157 bytes
 #define MQTT_CONNECT_LENGTH_PRE_KEEP_ALIVE 158
 
-// Command without any data in it (with parantheses): 25 bytes
+#define MQTT_DISCONNECT_LENGTH 24
+
+// Command without any data in it (with quotation marks): 25 bytes
 // Topic: 128 bytes (this is imposed by this implementation)
 // QoS: 1 byte
 // Termination: 1 byte
@@ -56,28 +53,25 @@
 // Note that we don't add the length of the data here as it is not fixed
 #define MQTT_PUBLISH_LENGTH_PRE_DATA 155
 
-// Command without any data in it (with parantheses): 26 bytes
+// Command without any data in it (with quotation marks): 26 bytes
 // Topic: 128 bytes (this is imposed by this implementation)
 // QoS: 1 byte
 // Termination: 1 byte
 // Total: 156 bytes
 #define MQTT_SUBSCRIBE_LENGTH 157
 
-// Command without any data in it (with parantheses): 26 bytes
+// Command without any data in it (with quotation marks): 26 bytes
 // Topic: 128 bytes (this is imposed by this implementation)
 // Termination: 1 byte
 // Total: 155 bytes
 #define MQTT_RECEIVE_LENGTH 155
 
-// Command without any data in it (with parantheses): 27 bytes
+// Command without any data in it (with quotation marks): 27 bytes
 // Topic: 128 bytes (this is imposed by this implementation)
 // Message ID: N bytes (runtime determined)
 // Termination: 1 byte
 // Total: 156 bytes
 #define MQTT_RECEIVE_WITH_MSG_ID_LENGTH 156
-
-// Just arbitrary, but will fit 'ordinary' responses and their termination
-#define MQTT_DEFAULT_RESPONSE_LENGTH 256
 
 // This is the index in characters, including delimiter in the connection URC.
 #define MQTT_CONNECTION_RC_INDEX  2
@@ -90,6 +84,10 @@
 
 // Max length is 1024, so 4 characters
 #define MQTT_MSG_LENGTH_BUFFER_SIZE 4
+
+// Identifiers passed to the configure command
+#define MQTT_TLS_SECURITY_PROFILE_ID     2
+#define MQTT_TLS_ECC_SECURITY_PROFILE_ID 1
 
 #define MQTT_SIGNING_BUFFER 256
 
@@ -440,7 +438,7 @@ bool MqttClientClass::beginAWS() {
     using_ecc = true;
 
     return this->begin(
-        (char *)(thingName), (char *)(endpoint), 8883, true, 60, true);
+        (char *)(thingName), (char *)(endpoint), 8883, true, 60, true, "", "");
 }
 
 bool MqttClientClass::begin(const char *client_id,
@@ -448,34 +446,48 @@ bool MqttClientClass::begin(const char *client_id,
                             const uint16_t port,
                             const bool use_tls,
                             const size_t keep_alive,
-                            const bool use_ecc) {
+                            const bool use_ecc,
+                            const char *username,
+                            const char *password) {
 
     // -- Configuration --
+
+    const size_t client_id_length = strlen(client_id);
+    const size_t username_length = strlen(username);
+    const size_t password_length = strlen(password);
 
     // The sequans modem fails if we specify 0 as TLS, so we just have to have
     // two commands for this
     if (use_tls) {
 
-        char command[MQTT_CONFIGURE_TLS_LENGTH] = "";
+        char command[MQTT_CONFIGURE_TLS_LENGTH + client_id_length +
+                     username_length + password_length] = "";
+
         if (use_ecc) {
-            sprintf(command, MQTT_CONFIGURE_TLS_ECC, client_id);
+            sprintf(command,
+                    MQTT_CONFIGURE_TLS,
+                    client_id,
+                    username,
+                    password,
+                    MQTT_TLS_ECC_SECURITY_PROFILE_ID);
         } else {
-            sprintf(command, MQTT_CONFIGURE_TLS, client_id);
+            sprintf(command,
+                    MQTT_CONFIGURE_TLS,
+                    client_id,
+                    username,
+                    password,
+                    MQTT_TLS_SECURITY_PROFILE_ID);
         }
 
         SequansController.writeCommand(command);
     } else {
-        char command[MQTT_CONFIGURE_LENGTH] = "";
-        sprintf(command, MQTT_CONFIGURE, client_id);
+        char command[MQTT_CONFIGURE_LENGTH + client_id_length +
+                     username_length + password_length] = "";
+        sprintf(command, MQTT_CONFIGURE, client_id, username, password);
         SequansController.writeCommand(command);
     }
 
-    char conf_resp[MQTT_DEFAULT_RESPONSE_LENGTH * 4];
-
-    ResponseResult result =
-        SequansController.readResponse(conf_resp, sizeof(conf_resp));
-
-    if (result != ResponseResult::OK) {
+    if (SequansController.readResponse() != ResponseResult::OK) {
         Log.error("Failed to configure MQTT");
         return false;
     }
@@ -568,7 +580,7 @@ bool MqttClientClass::publish(const char *topic,
                               const MqttQoS quality_of_service) {
 
     if (!isConnected()) {
-        Log.error("Attempted MQTT Publish without being connected to a broker");
+        Log.error("Attempted publish without being connected to a broker");
         LedCtrl.off(Led::DATA, false);
         return false;
     }
@@ -603,7 +615,7 @@ bool MqttClientClass::publish(const char *topic,
     // Wait for start character for delivering payload
     if (SequansController.waitForByte('>', MQTT_TIMEOUT_MS) ==
         SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT) {
-        Log.warn("Timed out waiting for signal to deliver MQTT payload.");
+        Log.warn("Timed out waiting to deliver MQTT payload.");
 
         LedCtrl.off(Led::DATA, true);
         SequansController.unregisterCallback(MQTT_ON_PUBLISH_URC);
@@ -657,7 +669,7 @@ bool MqttClientClass::subscribe(const char *topic,
     sprintf(command, MQTT_SUSBCRIBE, topic, quality_of_service);
 
     if (!SequansController.retryCommand(command)) {
-        Log.error("Failed to send subscribe command.");
+        Log.error("Failed to send subscribe command");
         SequansController.unregisterCallback(MQTT_ON_SUBSCRIBE_URC);
         return false;
     }
@@ -695,7 +707,7 @@ bool MqttClientClass::readMessage(const char *topic,
                                   const int32_t message_id) {
     if (buffer_size > MQTT_MAX_BUFFER_SIZE) {
 
-        Log.errorf("Buffer size is greater than the max buffer size of %d!\r\n",
+        Log.errorf("MQTT message is longer than the max size of %d\r\n",
                    MQTT_MAX_BUFFER_SIZE);
         return false;
     }
@@ -724,8 +736,8 @@ bool MqttClientClass::readMessage(const char *topic,
     uint32_t start = millis();
     while (!SequansController.isRxReady()) {
         if (millis() - start > MQTT_TIMEOUT_MS) {
-            Log.warn("Timed out whilst waiting on the modem to deliver the "
-                     "MQTT message");
+            Log.warn(
+                "Timed out waiting on the modem to deliver the MQTT message");
             return false;
         }
     }
@@ -742,7 +754,7 @@ bool MqttClientClass::readMessage(const char *topic,
 
         if (start_bytes > 0 && millis() - start > MQTT_TIMEOUT_MS) {
             Log.warn("Timed out waiting for the modem to deliver the start "
-                     "characters for the MQTT message");
+                     "character for the MQTT message");
             return false;
         }
     }

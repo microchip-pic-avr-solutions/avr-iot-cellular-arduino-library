@@ -12,7 +12,7 @@
 // which we dedicate to HTTPS
 #define HTTP_CONFIGURE "AT+SQNHTTPCFG=0,\"%s\",%u,0,\"\",\"\",%u,120,1,3"
 
-// Command without any data in it (with parantheses): 36 bytes
+// Command without any data in it (with quotation marks): 36 bytes
 // Max length of doman name: 127 bytes
 // Max length of port number: 5 bytes (0-65535)
 // TLS enabled: 1 byte

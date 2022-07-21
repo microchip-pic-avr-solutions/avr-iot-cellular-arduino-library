@@ -91,3 +91,18 @@ No changes
 
 * Fix a bug where the peripherals weren't powered up before the LTE module in power down mode
 * Fix a bug where the LEDs wouldn't blink after using power down mode
+
+# 1.2.4 -- NOT RELEASED YET --
+
+## Features
+
+* Add username and password authentication for MQTT
+* Add example using username and password authentication for MQTT
+
+## Changes
+
+* Reduce some buffer sizes in the library to reduce total RAM usage
+
+## Bugfixes
+
+* Fix a bug where the NTP sync would not retry if it failed
