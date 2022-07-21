@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 // Is public here for users of the interface
-#define URC_DATA_BUFFER_SIZE 512
+#define URC_DATA_BUFFER_SIZE 384
 
 #define URC_IDENTIFIER_START_CHARACTER '+'
 #define URC_IDENTIFIER_END_CHARACTER   ':'

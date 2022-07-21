@@ -687,7 +687,7 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     // termination into consideration. So the buffer size has be
     // value_length + 1
     if (value_length >= buffer_size) {
-        Log.error("Buffer was too small for value when extracting value for "
+        Log.error("Buffer too small for value when extracting value for "
                   "command response, increase the buffer size");
         return false;
     }
@@ -723,8 +723,7 @@ bool SequansControllerClass::registerCallback(const char *urc_identifier,
         }
     }
 
-    Log.error("Max amount of URC callbacks for Sequans controller reached");
-
+    Log.error("Max amount of URC callbacks for SequansController reached");
     return false;
 }
 
