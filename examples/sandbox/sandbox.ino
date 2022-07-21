@@ -49,8 +49,8 @@ static State state = NOT_CONNECTED;
 
 static volatile uint16_t event_flags = 0;
 
-static char mqtt_sub_topic[128];
-static char mqtt_pub_topic[128];
+static char mqtt_sub_topic[96];
+static char mqtt_pub_topic[96];
 
 static unsigned long last_heartbeat_time = 0;
 
@@ -68,7 +68,7 @@ static volatile uint8_t received_message_identifiers_tail = 0;
 
 static const char heartbeat_message[] = "{\"type\": \"heartbeat\"}";
 
-char transmit_buffer[256];
+char transmit_buffer[128];
 
 ISR(TCA0_OVF_vect) {
     seconds_counted++;
@@ -115,7 +115,8 @@ void connectMqtt() {
     MqttClient.onReceive(receivedMessage);
 
     // Attempt to connect to broker
-    MqttClient.beginAWS();
+    // Do this in a loop so that we retry if it fails
+    while (!MqttClient.beginAWS()) {}
 }
 
 void connectLTE() {
@@ -146,7 +147,7 @@ void startStreamTimer() {
 
 void stopStreamTimer() { TCA0.SINGLE.CTRLA = 0; }
 
-static StaticJsonDocument<800> doc;
+static StaticJsonDocument<256> doc;
 
 void decodeMessage(const char *message) {
     DeserializationError error = deserializeJson(doc, message);
@@ -386,7 +387,8 @@ void loop() {
         case CONNECTED_TO_NETWORK:
             state = CONNECTED_TO_BROKER;
 
-            Log.info("Connected to MQTT broker, subscribing to topics!\r\n");
+            Log.infof("Connected to MQTT broker, subscribing to topic: %s!\r\n",
+                      mqtt_sub_topic);
 
             MqttClient.subscribe(mqtt_sub_topic, AT_LEAST_ONCE);
 
