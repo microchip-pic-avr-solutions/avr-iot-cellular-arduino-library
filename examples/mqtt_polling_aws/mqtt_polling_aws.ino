@@ -1,6 +1,6 @@
 /**
- * This example uses polling for the LTE module and the MQTT module when
- * checking for new messages.
+ * This example connects to the device specific endpoint in AWS in order to
+ * publish and retrieve MQTT messages.
  */
 
 #include <Arduino.h>
