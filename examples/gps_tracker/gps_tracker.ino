@@ -1,6 +1,8 @@
 /**
  * This demo utilizes the Adafruit Ultimate GPS Featherwing to send the GPS
- * position of the device to a server with HTTP.
+ * position of the device to a server with HTTP. More information about this
+ * example sketch at the documentation:
+ * https://iot.microchip.com/docs/arduino/startup under Examples -> GPS Tracker.
  *
  * Remember to change HTTP_DOMAIN to your server IP!
  */
