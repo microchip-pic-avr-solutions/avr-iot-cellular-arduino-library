@@ -29,6 +29,8 @@
 #define HTTP_RECEIVE "AT+SQNHTTPRCV=0,%lu"
 #define HTTP_QUERY   "AT+SQNHTTPQRY=0,%u,\"%s\""
 
+#define HTTP_RING_URC "SQNHTTPRING"
+
 #define HTTP_POST_METHOD   0
 #define HTTP_PUT_METHOD    1
 #define HTTP_GET_METHOD    0
@@ -52,36 +54,9 @@
 #define HTTP_BODY_BUFFER_MIN_SIZE 64
 #define HTTP_BODY_BUFFER_MAX_SIZE 1500
 
-#define HTTP_TIMEOUT 10000
+#define HTTP_TIMEOUT 20000
 
 HttpClientClass HttpClient = HttpClientClass::instance();
-
-/**
- * @brief Waits for the HTTP response (which can't be requested) puts it into a
- * buffer.
- *
- * Since we can't query the response, and it will arrive as a single line of
- * string, we do the trick of sending a single AT command after we first see
- * that the receive buffer is not empty. The AT command will only give "OK" in
- * response, but we can use that as a termination for the HTTP response.
- *
- * @param buffer Buffer to place the HTTP response in.
- * @param buffer_size Size of buffer to place HTTP response in.
- *
- * @return Relays the return code from SequansController.readResponse().
- *         ResponseResult::OK if ok.
- */
-static ResponseResult waitAndRetrieveHttpResponse(char *buffer,
-                                                  const size_t buffer_size) {
-    // Wait until the receive buffer is filled with the URC
-    while (SequansController.readByte() != URC_IDENTIFIER_START_CHARACTER) {}
-
-    // Send single AT command in order to receive an OK which will later will be
-    // searched for as the termination in the HTTP response
-    SequansController.writeCommand("AT");
-
-    return SequansController.readResponse(buffer, buffer_size);
-}
 
 /**
  * @brief Generic method for sending data via HTTP, either with POST or PUT.
@@ -99,35 +74,25 @@ static HttpResponse sendData(const char *endpoint,
 
     HttpResponse httpResponse = {0, 0};
 
-    SequansController.clearReceiveBuffer();
-
     // Fix for bringing the modem out of idling and prevent timeout whilst
     // waiting for modem response during the next AT command
-    SequansController.retryCommand("AT");
+    SequansController.writeCommand("AT");
 
     // Setup and transmit SEND command before sending the data
     const uint32_t digits_in_data_length = trunc(log10(buffer_size)) + 1;
 
     char command[strlen(HTTP_SEND) + strlen(endpoint) + digits_in_data_length];
     sprintf(command, HTTP_SEND, method, endpoint, (unsigned long)buffer_size);
-    SequansController.writeCommand(command);
+    SequansController.writeBytes((uint8_t *)command, strlen(command), true);
 
-    // We receive one start bytes of the character '>', so we wait for
-    // it
-    uint64_t start = millis();
-    int16_t start_character = 0;
-
-    do {
-        start_character = SequansController.readByte();
-    } while (millis() - start < HTTP_TIMEOUT &&
-             start_character != HTTP_SEND_START_CHARACTER);
-
-    if (start_character != HTTP_SEND_START_CHARACTER) {
+    if (!SequansController.waitForByte(HTTP_SEND_START_CHARACTER,
+                                       HTTP_TIMEOUT)) {
         Log.error("Timed out waiting for modem to be ready for HTTP payload. "
                   "Is the server active?");
         return httpResponse;
     }
 
+    // Wait some before delivering the payload
     delay(100);
 
     // Now we deliver the payload
@@ -135,8 +100,7 @@ static HttpResponse sendData(const char *endpoint,
 
     // Wait until we get some valid response and we don't reach the timeout for
     // the interface
-
-    start = millis();
+    uint64_t start = millis();
     ResponseResult response_result;
 
     do {
@@ -150,26 +114,26 @@ static HttpResponse sendData(const char *endpoint,
     }
 
     char http_response[HTTP_RESPONSE_MAX_LENGTH] = "";
-    if (waitAndRetrieveHttpResponse(http_response, HTTP_RESPONSE_MAX_LENGTH) !=
-        ResponseResult::OK) {
-        return httpResponse;
-    }
-
     char http_status_code_buffer[HTTP_RESPONSE_STATUS_CODE_LENGTH + 1] = "";
+    char data_size_buffer[HTTP_RESPONSE_DATA_SIZE_LENGTH] = "";
 
+    SequansController.waitForURC(HTTP_RING_URC, http_response);
+
+    // We pass in NULL as the start character here as the URC data will only
+    // contain the payload, not the URC identifier
     bool got_response_code = SequansController.extractValueFromCommandResponse(
         http_response,
         HTTP_RESPONSE_STATUS_CODE_INDEX,
         http_status_code_buffer,
-        HTTP_RESPONSE_STATUS_CODE_LENGTH + 1);
-
-    char data_size_buffer[HTTP_RESPONSE_DATA_SIZE_LENGTH] = "";
+        HTTP_RESPONSE_STATUS_CODE_LENGTH + 1,
+        (char)NULL);
 
     bool got_data_size = SequansController.extractValueFromCommandResponse(
         http_response,
         HTTP_RESPONSE_DATA_SIZE_INDEX,
         data_size_buffer,
-        HTTP_RESPONSE_DATA_SIZE_LENGTH);
+        HTTP_RESPONSE_DATA_SIZE_LENGTH,
+        (char)NULL);
 
     if (got_response_code) {
         httpResponse.status_code = atoi(http_status_code_buffer);
@@ -193,43 +157,34 @@ static HttpResponse queryData(const char *endpoint, const uint8_t method) {
 
     HttpResponse httpResponse = {0, 0};
 
-    SequansController.clearReceiveBuffer();
-
     // Fix for bringing the modem out of idling and prevent timeout whilst
     // waiting for modem response during the next AT command
-    SequansController.retryCommand("AT");
+    SequansController.writeCommand("AT");
 
     // Set up and send the query
     char command[strlen(HTTP_QUERY) + strlen(endpoint)];
     sprintf(command, HTTP_QUERY, method, endpoint);
-
-    if (!SequansController.retryCommand(command)) {
-        Log.error("HTTP setting domain endpoint failed\r\n");
-        return httpResponse;
-    }
+    SequansController.writeCommand(command);
 
     char http_response[HTTP_RESPONSE_MAX_LENGTH] = "";
-    if (waitAndRetrieveHttpResponse(http_response, HTTP_RESPONSE_MAX_LENGTH) !=
-        ResponseResult::OK) {
-        Log.error("HTTP response was not OK\r\n");
-        return httpResponse;
-    }
-
     char http_status_code_buffer[HTTP_RESPONSE_STATUS_CODE_LENGTH + 1] = "";
+    char data_size_buffer[HTTP_RESPONSE_DATA_SIZE_LENGTH] = "";
+
+    SequansController.waitForURC(HTTP_RING_URC, http_response);
 
     bool got_response_code = SequansController.extractValueFromCommandResponse(
         http_response,
         HTTP_RESPONSE_STATUS_CODE_INDEX,
         http_status_code_buffer,
-        HTTP_RESPONSE_STATUS_CODE_LENGTH + 1);
-
-    char data_size_buffer[HTTP_RESPONSE_DATA_SIZE_LENGTH] = "";
+        HTTP_RESPONSE_STATUS_CODE_LENGTH + 1,
+        (char)NULL);
 
     bool got_data_size = SequansController.extractValueFromCommandResponse(
         http_response,
         HTTP_RESPONSE_DATA_SIZE_INDEX,
         data_size_buffer,
-        HTTP_RESPONSE_DATA_SIZE_LENGTH);
+        HTTP_RESPONSE_DATA_SIZE_LENGTH,
+        (char)NULL);
 
     if (got_response_code) {
         httpResponse.status_code = atoi(http_status_code_buffer);
@@ -246,16 +201,11 @@ bool HttpClientClass::configure(const char *host,
                                 const uint16_t port,
                                 const bool enable_tls) {
 
-    SequansController.clearReceiveBuffer();
-
     if (enable_tls) {
 
-        SequansController.writeCommand(QUERY_SECURITY_PROFILE);
-
         char response[128] = "";
-
-        ResponseResult result =
-            SequansController.readResponse(response, sizeof(response));
+        ResponseResult result = SequansController.writeCommand(
+            QUERY_SECURITY_PROFILE, response, sizeof(response));
 
         if (result != ResponseResult::OK) {
             Log.error("Failed to query HTTPS security profile");
@@ -293,8 +243,7 @@ bool HttpClientClass::configure(const char *host,
 
     char command[HTTP_CONFIGURE_SIZE] = "";
     sprintf(command, HTTP_CONFIGURE, host, port, enable_tls ? 1 : 0);
-
-    return SequansController.retryCommand(command);
+    return SequansController.writeCommand(command) == ResponseResult::OK;
 }
 
 HttpResponse HttpClientClass::post(const char *endpoint,
@@ -338,28 +287,21 @@ int16_t HttpClientClass::readBody(char *buffer, const uint32_t buffer_size) {
         return -1;
     }
 
-    SequansController.clearReceiveBuffer();
-
     // Fix for bringing the modem out of idling and prevent timeout whilst
     // waiting for modem response during the next AT command
-    SequansController.retryCommand("AT");
+    SequansController.writeCommand("AT");
 
     // We send the buffer size with the receive command so that we only
     // receive that. The rest will be flushed from the modem.
     char command[HTTP_RECEIVE_LENGTH] = "";
-
     sprintf(command, HTTP_RECEIVE, buffer_size);
-    SequansController.writeCommand(command);
+    SequansController.writeBytes((uint8_t *)command, strlen(command), true);
 
     // We receive three start bytes of the character '<', so we wait for
     // them
     uint8_t start_bytes = 3;
 
-    // Wait for first byte in receive buffer
-    while (!SequansController.isRxReady()) {}
-
     while (start_bytes > 0) {
-
         if (SequansController.readByte() == HTTP_RECEIVE_START_CHARACTER) {
             start_bytes--;
         }
@@ -368,8 +310,8 @@ int16_t HttpClientClass::readBody(char *buffer, const uint32_t buffer_size) {
     // Now we are ready to receive the payload. We only check for error and
     // not overflow in the receive buffer in comparison to our buffer as we
     // know the size of what we want to receive
-    if (SequansController.readResponse(buffer, buffer_size) ==
-        ResponseResult::ERROR) {
+    if (SequansController.readResponse(buffer, buffer_size) !=
+        ResponseResult::OK) {
         return 0;
     }
 

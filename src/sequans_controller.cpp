@@ -50,6 +50,11 @@
 
 #define SEQUANS_MODULE_BAUD_RATE 115200
 
+// Defines for the amount of retries before we timeout and the interval between
+// them
+#define COMMAND_RETRY_SLEEP_MS 500
+#define COMMAND_NUM_RETRIES    5
+
 // Sizes for the circular buffers
 #define RX_BUFFER_SIZE        512
 #define TX_BUFFER_SIZE        512
@@ -64,6 +69,7 @@
 
 #define RX_ELEMENTS_MASK (RX_BUFFER_SIZE * 2 - 1)
 
+// TODO: should we use PORTC here?
 // CTS, control line for the MCU sending the LTE module data
 #define sequansModuleIsReadyForData() (!(VPORTC.IN & CTS_PIN_bm))
 
@@ -71,6 +77,8 @@
 #define CARRIAGE_RETURN    '\r'
 #define SPACE_CHARACTER    ' '
 #define RESPONSE_DELIMITER ','
+
+#define SYSSTART_URC "SYSSTART"
 
 static bool initialized = false;
 
@@ -114,10 +122,6 @@ void (*urc_callbacks[MAX_URC_CALLBACKS])(char *);
 // Used to keep a pointer to the URC we are processing and found to be matching,
 // which will fire after we are finished processing the URC.
 void (*urc_current_callback)(char *);
-
-// Default values
-static uint8_t number_of_retries = 5;
-static double sleep_between_retries_ms = 200;
 
 // Power save modes
 static volatile uint8_t power_save_mode = 0;
@@ -223,12 +227,11 @@ ISR(USART1_RXC_vect) {
             urc_identifier_buffer[urc_identifier_buffer_length++] = data;
             urc_parse_state = URC_PARSING_IDENTIFIER;
         }
-
         break;
 
     case URC_PARSING_IDENTIFIER:
 
-        if (data == URC_IDENTIFIER_END_CHARACTER) {
+        if (data == URC_IDENTIFIER_END_CHARACTER || data == CARRIAGE_RETURN) {
 
             // We set this as the initial condition and if we find a match
             // for the URC we go on parsing the data
@@ -238,7 +241,6 @@ ISR(USART1_RXC_vect) {
 
                 if (urc_lookup_table_length[i] ==
                     urc_identifier_buffer_length) {
-
                     if (memcmp((const void *)urc_identifier_buffer,
                                (const void *)urc_lookup_table[i],
                                urc_lookup_table_length[i]) == 0) {
@@ -269,7 +271,6 @@ ISR(USART1_RXC_vect) {
                     }
                 }
             }
-
             urc_identifier_buffer_length = 0;
 
         } else if (urc_identifier_buffer_length == URC_IDENTIFIER_BUFFER_SIZE) {
@@ -282,7 +283,7 @@ ISR(USART1_RXC_vect) {
 
     case URC_PARSING_DATA:
 
-        if (data == CARRIAGE_RETURN) {
+        if (data == CARRIAGE_RETURN || data == LINE_FEED) {
 
             // Add termination since we're done
             urc_data_buffer[urc_data_buffer_length] = 0;
@@ -391,6 +392,11 @@ void SequansControllerClass::begin(void) {
 
     flowControlUpdate();
 
+    // Wait for SYSSTART before we continue
+    waitForURC(SYSSTART_URC);
+
+    clearReceiveBuffer();
+
     initialized = true;
 }
 
@@ -414,91 +420,36 @@ void SequansControllerClass::end(void) {
     initialized = false;
 }
 
-void SequansControllerClass::setRetryConfiguration(const uint8_t num_retries,
-                                                   const double sleep_ms) {
-
-    number_of_retries = num_retries;
-    sleep_between_retries_ms = sleep_ms;
-}
-
 bool SequansControllerClass::isTxReady(void) {
     return tx_num_elements != TX_BUFFER_SIZE;
 }
 
 bool SequansControllerClass::isRxReady(void) { return rx_num_elements > 0; }
 
-bool SequansControllerClass::writeByte(const uint8_t data) {
+void SequansControllerClass::writeBytes(const uint8_t *data,
+                                        const size_t buffer_size,
+                                        const bool append_carriage_return) {
 
-    uint8_t retry_count = 0;
-    while (!isTxReady()) {
-        retry_count++;
+    for (size_t i = 0; i < buffer_size; i++) {
+        cli();
+        tx_head_index = (tx_head_index + 1) & TX_BUFFER_MASK;
+        tx_buffer[tx_head_index] = data[i];
+        tx_num_elements++;
 
-        if (retry_count == number_of_retries) {
-            return false;
+        if (i == buffer_size - 1 && append_carriage_return) {
+            tx_head_index = (tx_head_index + 1) & TX_BUFFER_MASK;
+            tx_buffer[tx_head_index] = '\r';
+            tx_num_elements++;
         }
 
-        _delay_ms(sleep_between_retries_ms);
+        sei();
     }
-
-    cli();
-    tx_head_index = (tx_head_index + 1) & TX_BUFFER_MASK;
-    tx_buffer[tx_head_index] = data;
-    tx_num_elements++;
-    sei();
 
     // Enable TX interrupt if CTS (active low) is asserted
     // (i.e. device is ready for data)
     if (sequansModuleIsReadyForData()) {
         USART1.CTRLA |= (1 << USART_DREIE_bp);
     }
-
-    return true;
-}
-
-bool SequansControllerClass::writeCommand(const char *command) {
-
-    Log.debugf("Sending AT command: %s\r\n", command);
-    return writeBytes((uint8_t *)command, strlen(command));
-}
-
-bool SequansControllerClass::retryCommand(const char *command,
-                                          char *out_buffer,
-                                          const size_t size,
-                                          uint8_t retries) {
-    uint8_t retry_count = 0;
-    ResponseResult response;
-
-    do {
-        writeCommand(command);
-
-        // Allow some time for the response
-        _delay_ms(100);
-
-        if (out_buffer != NULL && size != 0) {
-            response = SequansController.readResponse(out_buffer, size);
-        } else {
-            response = SequansController.readResponse();
-        }
-    } while (response != ResponseResult::OK && retry_count++ < retries);
-
-    char response_string[18];
-    responseResultToString(response, response_string);
-
-    Log.debugf("Command response: %s\r\n", response_string);
-
-    return retry_count < retries;
-}
-
-bool SequansControllerClass::writeBytes(const uint8_t *data,
-                                        const size_t buffer_size) {
-
-    for (size_t i = 0; i < buffer_size; i++) {
-        if (!writeByte(data[i])) {
-            return false;
-        }
-    }
-
-    return writeByte('\r');
 }
 
 int16_t SequansControllerClass::readByte(void) {
@@ -519,30 +470,59 @@ int16_t SequansControllerClass::readByte(void) {
     return rx_buffer[next_tail_index];
 }
 
-ResponseResult SequansControllerClass::readResponse(char *out_buffer,
-                                                    const size_t buffer_size) {
+ResponseResult
+SequansControllerClass::writeCommand(const char *command,
+                                     char *result_buffer,
+                                     const size_t result_buffer_size) {
 
-    memset(out_buffer, '\0', buffer_size);
+    clearReceiveBuffer();
+    Log.debugf("Sending AT command: %s", command);
+    ResponseResult response;
 
     uint8_t retry_count = 0;
 
-    for (size_t i = 0; i < buffer_size; i++) {
-        if (!isRxReady()) {
-            retry_count++;
-            _delay_ms(sleep_between_retries_ms);
+    do {
+        writeBytes((const uint8_t *)command, strlen(command), true);
+        response = readResponse(result_buffer, result_buffer_size);
 
-            i--;
-
-            if (retry_count == number_of_retries) {
-                return ResponseResult::TIMEOUT;
-            }
-
-            continue;
+        if (response != ResponseResult::OK) {
+            delay(COMMAND_RETRY_SLEEP_MS);
         }
+    } while (response != ResponseResult::OK &&
+             retry_count++ < COMMAND_NUM_RETRIES);
 
-        // Reset since we get a valid value
-        retry_count = 0;
-        out_buffer[i] = (uint8_t)readByte();
+    char response_string[18];
+    responseResultToString(response, response_string);
+
+    Log.rawf(" -> %s\r\n", response_string);
+
+    return response;
+}
+
+ResponseResult
+SequansControllerClass::readResponse(char *out_buffer,
+                                     const size_t out_buffer_size) {
+
+    // Enough to hold the OK and ERROR termination if the out_buffer is NULL and
+    // the result is not needed
+    char placeholder_buffer[10] = "";
+
+    char *buffer = placeholder_buffer;
+    size_t buffer_size = sizeof(placeholder_buffer);
+
+    if (out_buffer != NULL && buffer_size != 0) {
+        buffer = out_buffer;
+        buffer_size = out_buffer_size;
+    }
+
+    // Safe guard and place null termination at end of buffer
+    buffer[buffer_size - 1] = '\0';
+
+    size_t i = 0;
+
+    while (i < buffer_size) {
+        while (!isRxReady()) {}
+        buffer[i++] = (uint8_t)readByte();
 
         // We won't check for the buffer having a termination until at least
         // 2 bytes are in it
@@ -553,22 +533,23 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
         // For AT command responses from the LTE module, "\r\nOK\r\n" or
         // "\r\nERROR\r\n" signifies the end of a response, so we look
         // "\r\n".
-        if (out_buffer[i - 1] == CARRIAGE_RETURN &&
-            out_buffer[i] == LINE_FEED) {
+        //
+        // Since we post increment the i variable, we have to take that into
+        // consideration and look for the last 2 elements after the variable is
+        // incremented
+        if (buffer[i - 2] == CARRIAGE_RETURN && buffer[i - 1] == LINE_FEED) {
 
-            char *ok_index = strstr(out_buffer, OK_TERMINATION);
-
+            char *ok_index = strstr(buffer, OK_TERMINATION);
             if (ok_index != NULL) {
                 // Terminate and omit the rest from the OK index.
-                memset(ok_index, '\0', 1);
+                *ok_index = '\0';
                 return ResponseResult::OK;
             }
 
-            char *error_index = strstr(out_buffer, ERROR_TERMINATION);
-
+            char *error_index = strstr(buffer, ERROR_TERMINATION);
             if (error_index != NULL) {
                 // Terminate and omit the rest from the ERROR index
-                memset(error_index, 0, 1);
+                *error_index = '\0';
                 return ResponseResult::ERROR;
             }
         }
@@ -577,23 +558,6 @@ ResponseResult SequansControllerClass::readResponse(char *out_buffer,
     // Didn't find the end marker within the number of bytes given for the
     // response. Caller should increase the buffer size.
     return ResponseResult::BUFFER_OVERFLOW;
-}
-
-ResponseResult SequansControllerClass::readResponse(void) {
-
-    // Just an arbitrary value, enough to hold the default terminations
-    char termination_buffer[16];
-    uint8_t retry_count = 0;
-    ResponseResult response = ResponseResult::NONE;
-
-    do {
-        response = readResponse(termination_buffer, sizeof(termination_buffer));
-
-        // Keep looping until response is OK or ERROR or no retries left
-    } while (response == ResponseResult::TIMEOUT &&
-             retry_count++ < number_of_retries);
-
-    return response;
 }
 
 void SequansControllerClass::clearReceiveBuffer(void) {
@@ -744,6 +708,34 @@ void SequansControllerClass::unregisterCallback(const char *urc_identifier) {
     }
 }
 
+// TODO: clean up
+static volatile bool got_callback = false;
+static char wait_for_urc_buffer[URC_DATA_BUFFER_SIZE];
+
+static void wait_for_urc_callback(char *urc_data) {
+    memcpy(wait_for_urc_buffer, urc_data, URC_DATA_BUFFER_SIZE);
+    got_callback = true;
+}
+
+void SequansControllerClass::waitForURC(const char *urc_identifier,
+                                        char *out_buffer) {
+    got_callback = false;
+
+    // We might hit the maximum amount of URC callbacks allowed, so return
+    // if that is the case
+    if (!registerCallback(urc_identifier, wait_for_urc_callback)) {
+        return;
+    }
+
+    while (!got_callback) {}
+
+    if (out_buffer != NULL) {
+        memcpy(out_buffer, wait_for_urc_buffer, URC_DATA_BUFFER_SIZE);
+    }
+
+    unregisterCallback(urc_identifier);
+}
+
 void SequansControllerClass::setPowerSaveMode(const uint8_t mode,
                                               void (*ring_callback)(void)) {
 
@@ -802,8 +794,8 @@ void SequansControllerClass::responseResultToString(
     }
 }
 
-uint8_t SequansControllerClass::waitForByte(const uint8_t byte,
-                                            const uint32_t timeout) {
+bool SequansControllerClass::waitForByte(const uint8_t byte,
+                                         const uint32_t timeout) {
     int16_t read_byte = SequansController.readByte();
     uint32_t start = millis();
 
@@ -811,11 +803,11 @@ uint8_t SequansControllerClass::waitForByte(const uint8_t byte,
         read_byte = SequansController.readByte();
 
         if (millis() - start > timeout) {
-            return SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT;
+            return false;
         }
     }
 
-    return SEQUANS_CONTROLLER_READ_BYTE_OK;
+    return true;
 }
 
 void SequansControllerClass::startCriticalSection(void) {

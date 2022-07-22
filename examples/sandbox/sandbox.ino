@@ -49,8 +49,8 @@ static State state = NOT_CONNECTED;
 
 static volatile uint16_t event_flags = 0;
 
-static char mqtt_sub_topic[96];
-static char mqtt_pub_topic[96];
+static char mqtt_sub_topic[128];
+static char mqtt_pub_topic[128];
 
 static unsigned long last_heartbeat_time = 0;
 
@@ -68,7 +68,7 @@ static volatile uint8_t received_message_identifiers_tail = 0;
 
 static const char heartbeat_message[] = "{\"type\": \"heartbeat\"}";
 
-char transmit_buffer[128];
+char transmit_buffer[256];
 
 ISR(TCA0_OVF_vect) {
     seconds_counted++;
@@ -116,7 +116,7 @@ void connectMqtt() {
 
     // Attempt to connect to broker
     // Do this in a loop so that we retry if it fails
-    while (!MqttClient.beginAWS()) {}
+    while (!MqttClient.beginAWS()) { delay(1000); }
 }
 
 void connectLTE() {
@@ -280,6 +280,7 @@ void handleSerialCommand(const char *instruction, uint16_t instructionLen) {
 
 void setup() {
     Log.begin(115200);
+    Log.setLogLevel(LogLevel::DEBUG);
 
     LedCtrl.begin();
     LedCtrl.startupCycle();
@@ -330,7 +331,6 @@ void setup() {
     SequansController.begin();
 
     // Allow time for boot
-    delay(500);
     while (!SequansController.retryCommand(
         "AT+SQNSPCFG=1,2,\"0xC02B\",1,19,0,0,\"\",\"\",1,0,0")) {}
 
@@ -340,6 +340,7 @@ void setup() {
 }
 
 void loop() {
+
     // See if there are any messages for the command handler
     if (Serial3.available()) {
         String extractedString = Serial3.readStringUntil('\n');
@@ -392,6 +393,9 @@ void loop() {
 
             MqttClient.subscribe(mqtt_sub_topic, AT_LEAST_ONCE);
 
+            // TODO: temp halt
+            while (1) {}
+
             break;
         default:
             break;
@@ -434,7 +438,7 @@ void loop() {
         case CONNECTED_TO_BROKER:
         case STREAMING_DATA: {
 
-            char message[400] = "";
+            char message[384] = "";
 
             cli();
             received_message_identifiers_tail =
@@ -452,6 +456,7 @@ void loop() {
                                        message_id);
 
             if (message_read_successfully) {
+                Log.infof("Msg: %s\r\n", message);
                 decodeMessage(message);
             } else {
                 Log.error("Failed to read message\r\n");
@@ -470,11 +475,9 @@ void loop() {
         case CONNECTED_TO_BROKER:
         case STREAMING_DATA:
 
-            Log.info("Sending hearbeat");
+            Log.info("Sending heartbeat");
             MqttClient.publish(mqtt_pub_topic, heartbeat_message);
-
             last_heartbeat_time = millis();
-
             break;
 
         default:
@@ -482,6 +485,7 @@ void loop() {
         }
 
         event_flags &= ~SEND_HEARTBEAT_FLAG;
+
     } else if (event_flags & START_PUBLISHING_SENSOR_DATA_FLAG) {
         switch (state) {
         case CONNECTED_TO_BROKER:

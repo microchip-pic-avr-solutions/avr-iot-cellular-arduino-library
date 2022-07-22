@@ -391,11 +391,13 @@ static bool signIncomingRequests(void) {
             return false;
         }
 
-        bool retVal = SequansController.writeCommand(signing_request_buffer);
+        ResponseResult result =
+            SequansController.writeCommand(signing_request_buffer);
+
         signing_request_flag = false;
         SequansController.stopCriticalSection();
 
-        return retVal;
+        return result == ResponseResult::OK;
     }
 
     return false;
@@ -411,9 +413,9 @@ bool MqttClientClass::beginAWS() {
     }
 
     // -- Allocate the buffers
-    uint8_t thingName[128];
+    uint8_t thingName[64];
     uint8_t thingNameLen = sizeof(thingName);
-    uint8_t endpoint[128];
+    uint8_t endpoint[96];
     uint8_t endpointLen = sizeof(endpoint);
 
     // -- Get the thingname
@@ -450,6 +452,11 @@ bool MqttClientClass::begin(const char *client_id,
                             const char *username,
                             const char *password) {
 
+    // Disconnect if connected
+    if (isConnected()) {
+        SequansController.writeCommand(MQTT_DISCONNECT);
+    }
+
     // -- Configuration --
 
     const size_t client_id_length = strlen(client_id);
@@ -479,17 +486,18 @@ bool MqttClientClass::begin(const char *client_id,
                     MQTT_TLS_SECURITY_PROFILE_ID);
         }
 
-        SequansController.writeCommand(command);
+        if (SequansController.writeCommand(command) != ResponseResult::OK) {
+            Log.error("Failed to configure MQTT");
+            return false;
+        }
     } else {
         char command[MQTT_CONFIGURE_LENGTH + client_id_length +
                      username_length + password_length] = "";
         sprintf(command, MQTT_CONFIGURE, client_id, username, password);
-        SequansController.writeCommand(command);
-    }
-
-    if (SequansController.readResponse() != ResponseResult::OK) {
-        Log.error("Failed to configure MQTT");
-        return false;
+        if (SequansController.writeCommand(command) != ResponseResult::OK) {
+            Log.error("Failed to configure MQTT");
+            return false;
+        }
     }
 
     SequansController.registerCallback(MQTT_ON_CONNECT_URC,
@@ -504,7 +512,7 @@ bool MqttClientClass::begin(const char *client_id,
     char command[MQTT_CONNECT_LENGTH_PRE_KEEP_ALIVE + keep_alive_length] = "";
 
     sprintf(command, MQTT_CONNECT, host, port, keep_alive);
-    if (!SequansController.retryCommand(command)) {
+    if (SequansController.writeCommand(command) != ResponseResult::OK) {
         Log.error("Failed to request connection to MQTT broker\r\n");
         return false;
     }
@@ -558,7 +566,8 @@ bool MqttClientClass::end(void) {
         return true;
     }
 
-    return SequansController.retryCommand(MQTT_DISCONNECT);
+    return (SequansController.writeCommand(MQTT_DISCONNECT) ==
+            ResponseResult::OK);
 }
 
 void MqttClientClass::onConnectionStatusChange(void (*connected)(void),
@@ -598,7 +607,7 @@ bool MqttClientClass::publish(const char *topic,
 
     // Fix for bringing the modem out of idling and prevent timeout whilst
     // waiting for modem response during the next AT command
-    SequansController.retryCommand("AT");
+    SequansController.writeCommand("AT");
 
     const size_t digits_in_buffer_size = trunc(log10(buffer_size)) + 1;
     char command[MQTT_PUBLISH_LENGTH_PRE_DATA + digits_in_buffer_size];
@@ -610,11 +619,10 @@ bool MqttClientClass::publish(const char *topic,
             quality_of_service,
             (unsigned long)buffer_size);
 
-    SequansController.writeCommand(command);
+    SequansController.writeBytes((uint8_t *)command, strlen(command));
 
     // Wait for start character for delivering payload
-    if (SequansController.waitForByte('>', MQTT_TIMEOUT_MS) ==
-        SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT) {
+    if (!SequansController.waitForByte('>', MQTT_TIMEOUT_MS)) {
         Log.warn("Timed out waiting to deliver MQTT payload.");
 
         LedCtrl.off(Led::DATA, true);
@@ -668,7 +676,7 @@ bool MqttClientClass::subscribe(const char *topic,
     char command[MQTT_SUBSCRIBE_LENGTH] = "";
     sprintf(command, MQTT_SUSBCRIBE, topic, quality_of_service);
 
-    if (!SequansController.retryCommand(command)) {
+    if (SequansController.writeCommand(command) != ResponseResult::OK) {
         Log.error("Failed to send subscribe command");
         SequansController.unregisterCallback(MQTT_ON_SUBSCRIBE_URC);
         return false;
@@ -716,20 +724,20 @@ bool MqttClientClass::readMessage(const char *topic,
 
     // Fix for bringing the modem out of idling and prevent timeout whilst
     // waiting for modem response during the next AT command
-    SequansController.retryCommand("AT");
+    SequansController.writeCommand("AT");
 
     // We determine all message IDs lower than 0 as just no message ID passed
     if (message_id < 0) {
         char command[MQTT_RECEIVE_LENGTH] = "";
         sprintf(command, MQTT_RECEIVE, topic);
-        SequansController.writeCommand(command);
+        SequansController.writeBytes((uint8_t *)command, strlen(command));
     } else {
         const uint32_t digits_in_message_id = trunc(log10(message_id)) + 1;
         char command[MQTT_RECEIVE_WITH_MSG_ID_LENGTH + digits_in_message_id] =
             "";
         sprintf(
             command, MQTT_RECEIVE_WITH_MSG_ID, topic, (unsigned int)message_id);
-        SequansController.writeCommand(command);
+        SequansController.writeBytes((uint8_t *)command, strlen(command));
     }
 
     // Wait for first byte in receive buffer

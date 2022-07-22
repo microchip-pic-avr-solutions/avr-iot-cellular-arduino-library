@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 // Is public here for users of the interface
-#define URC_DATA_BUFFER_SIZE 384
+#define URC_DATA_BUFFER_SIZE 512
 
 #define URC_IDENTIFIER_START_CHARACTER '+'
 #define URC_IDENTIFIER_END_CHARACTER   ':'
@@ -64,53 +64,52 @@ class SequansControllerClass {
     void end(void);
 
     /**
-     * @brief Specify for the methods which may fail how many times we ought to
-     * retry and sleep between the retries.
+     * @return True if transmit buffer is not full.
      */
-    void setRetryConfiguration(const uint8_t num_retries,
-                               const double sleep_ms);
-
     bool isTxReady(void);
 
+    /**
+     * @return True if receive buffer is not empty.
+     */
     bool isRxReady(void);
 
     /**
-     * @return true if write was successful.
+     * @brief Writes a data buffer to the modem.
      */
-    bool writeByte(const uint8_t data);
-
-    /**
-     * @brief Writes a data buffer to the LTE modem.
-     *
-     * @return true if write was successful.
-     */
-    bool writeBytes(const uint8_t *data, const size_t buffer_size);
-
-    /**
-     * @brief Writes an AT command in the form of a string to the LTE module.
-     *
-     * @note A carrige return is not needed for the command as it is appended.
-     *
-     * @return true if write was successful.
-     */
-    bool writeCommand(const char *command);
-
-    /**
-     * @brief Issues a write of the given command n times.
-     *
-     * @param out_buffer Result will be placed in this buffer if not NULL.
-     *
-     * @return true if an OK response was returned for the written command.
-     */
-    bool retryCommand(const char *command,
-                      char *out_buffer = NULL,
-                      const size_t size = 0,
-                      const uint8_t retries = 5);
+    void writeBytes(const uint8_t *data,
+                    const size_t buffer_size,
+                    const bool append_carriage_return = false);
 
     /**
      * @return -1 if failed to read or read value if else.
      */
     int16_t readByte(void);
+
+    /**
+     * @brief Will clear the receive buffer, will just set the ring buffer tail
+     * and head indices to the same position, not issue any further reads.
+     */
+    void clearReceiveBuffer(void);
+
+    /**
+     * @brief Writes an AT command in the form of a string to the LTE module. If
+     * a timeout occurs, the command will be sent again until timeout doesn't
+     * occur.
+     *
+     * @note A carrige return is not needed for the command as it is appended.
+     *
+     * @param result_buffer Result will be placed in this buffer if not NULL.
+     * @param result_buffer_size Size of the result buffer.
+     *
+     * @return The following status codes:
+     * - OK if read was successfull and resultw as terminated by OK.
+     * - ERROR if read was successfull but result was terminated by ERROR.
+     * - OVERFLOW if read resulted in buffer overflow.
+     * - SERIAL_READ_ERROR if an error occured in the serial interface.
+     */
+    ResponseResult writeCommand(const char *command,
+                                char *result_buffer = NULL,
+                                const size_t result_buffer_size = 0);
 
     /**
      * @brief Reads a response after e.g. an AT command, will try to read until
@@ -124,29 +123,18 @@ class SequansControllerClass {
      * in the top of this file and the out_buffer will be filled up to
      * buffer_size.
      *
-     * @param out_buffer Buffer to place the response.
-     * @param buffer_size Max size of response bytes to read.
+     * @param out_buffer Buffer to place the response (if needed).
+     * @param out_buffer_size Max size of response bytes to read (if needed).
      *
-     * @return - OK if read was successfull and resultw as terminated by OK.
-     *         - ERROR if read was successfull but result was terminated by
-     * ERROR.
-     *         - OVERFLOW if read resulted in buffer overflow.
-     *         - SERIAL_READ_ERROR if an error occured in the serial interface
+     * @return The following status codes:
+     * - OK if read was successfull and resultw as terminated by OK.
+     * - ERROR if read was successfull but result was terminated by ERROR.
+     * - OVERFLOW if read resulted in buffer overflow.
+     * - TIMEOUT if no response was received before timing out.
+     * - SERIAL_READ_ERROR if an error occured in the serial interface.
      */
-    ResponseResult readResponse(char *out_buffer, const size_t buffer_size);
-
-    /**
-     * @brief Reads the response without placing the content of the read
-     * anywhere. Will return the same response as from readResponse(char
-     * *out_buffer, uint16_t buffer_size).
-     */
-    ResponseResult readResponse(void);
-
-    /**
-     * @brief Will clear the receive buffer, will just set the ring buffer tail
-     * and head indices to the same position, not issue any further reads.
-     */
-    void clearReceiveBuffer(void);
+    ResponseResult readResponse(char *out_buffer = NULL,
+                                const size_t out_buffer_size = 0);
 
     /**
      * @brief Searches for a value at one index in the response, which has a
@@ -191,6 +179,14 @@ class SequansControllerClass {
     void unregisterCallback(const char *urc_identifier);
 
     /**
+     * @brief Waits for a given URC.
+     *
+     * @param urc_identifier The identifier of the URC.
+     * @param out_buffer The data payload from the URC.
+     */
+    void waitForURC(const char *urc_identifier, char *out_buffer = NULL);
+
+    /**
      * @brief Sets the power saving mode for the Sequans modem.
      *
      * @param mode 1 if ought to enter power save mode, 0 if not.
@@ -200,8 +196,9 @@ class SequansControllerClass {
     void setPowerSaveMode(const uint8_t mode, void (*ring_callback)(void));
 
     /**
-     * @brief Formats a string based on the @p response_result value and places
-     * it in @p response_string. @p response_string has to be pre-allocated.
+     * @brief Formats a string based on the @p response_result value and
+     * places it in @p response_string. @p response_string has to be
+     * pre-allocated.
      */
     void responseResultToString(const ResponseResult response_result,
                                 char *response_string);
@@ -209,10 +206,9 @@ class SequansControllerClass {
     /**
      * @brief Waits until @p timeout for the character specified by @p byte.
      *
-     * @return #SEQUANS_CONTROLLER_READ_BYTE_OK if ok
-     *         #SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT if timeout happened
+     * @return True if character received within timeout, false if not.
      */
-    uint8_t waitForByte(const uint8_t byte, const uint32_t timeout_ms);
+    bool waitForByte(const uint8_t byte, const uint32_t timeout_ms);
 
     void startCriticalSection(void);
 

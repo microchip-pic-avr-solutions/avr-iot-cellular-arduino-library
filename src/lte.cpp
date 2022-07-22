@@ -6,17 +6,17 @@
 
 #include <Arduino.h>
 
-#define AT_COMMAND_CONNECT                                    "AT+CFUN=1"
-#define AT_COMMAND_DISCONNECT                                 "AT+CFUN=0"
-#define AT_COMMAND_CONNECTION_STATUS                          "AT+CEREG?"
-#define AT_COMMAND_ENABLE_CEREG_URC                           "AT+CEREG=5"
-#define AT_COMMAND_CHECK_SIM                                  "AT+CPIN?"
-#define AT_COMMAND_QUERY_OPERATOR_SET_FORMAT                  "AT+COPS=3,0"
-#define AT_COMMAND_QUERY_OPERATOR                             "AT+COPS?"
-#define AT_COMMAND_ENABLE_AUTOMATIC_TIME_UPDATE               "AT+CTZU=1"
-#define AT_COMMAND_ENABLE_AUTOMATIC_TIME_UPDATE_NOTIFICATIONS "AT+CTZR=1"
-#define AT_COMMAND_GET_CLOCK                                  "AT+CCLK?"
-#define AT_COMMAND_SYNC_NTP                                                    \
+#define AT_CONNECT                    "AT+CFUN=1"
+#define AT_DISCONNECT                 "AT+CFUN=0"
+#define AT_CONNECTION_STATUS          "AT+CEREG?"
+#define AT_ENABLE_CEREG_URC           "AT+CEREG=5"
+#define AT_CHECK_SIM                  "AT+CPIN?"
+#define AT_QUERY_OPERATOR_SET_FORMAT  "AT+COPS=3,0"
+#define AT_QUERY_OPERATOR             "AT+COPS?"
+#define AT_ENABLE_TIME_ZONE_UPDATE    "AT+CTZU=1"
+#define AT_ENABLE_TIME_ZONE_REPORTING "AT+CTZR=1"
+#define AT_GET_CLOCK                  "AT+CCLK?"
+#define AT_SYNC_NTP                                                            \
     "AT+SQNNTP=2,\"time.google.com,time.windows.com,pool.ntp.org\",1"
 
 #define CEREG_CALLBACK    "CEREG"
@@ -97,52 +97,39 @@ bool LteClass::begin(const bool print_messages) {
     // initialized, so don't reset it by calling begin again
     if (!SequansController.isInitialized()) {
         SequansController.begin();
-
-        // Allow 2s for boot, we have to wait until the SYSSTART URC arrives
-        delay(2000);
     }
-
-    SequansController.clearReceiveBuffer();
-
-    SequansController.retryCommand(AT_COMMAND_ENABLE_AUTOMATIC_TIME_UPDATE);
-    SequansController.retryCommand(
-        AT_COMMAND_ENABLE_AUTOMATIC_TIME_UPDATE_NOTIFICATIONS);
 
     SequansController.registerCallback(TIMEZONE_CALLBACK, timezoneCallback);
 
-    SequansController.retryCommand(AT_COMMAND_ENABLE_CEREG_URC);
-    SequansController.retryCommand(AT_COMMAND_CONNECT);
+    SequansController.writeCommand(AT_ENABLE_TIME_ZONE_UPDATE);
+    SequansController.writeCommand(AT_ENABLE_TIME_ZONE_REPORTING);
+    SequansController.writeCommand(AT_ENABLE_CEREG_URC);
+    SequansController.writeCommand(AT_CONNECT);
 
-    // CPIN might fail if issued to quickly after CFUN, so delay some
-    delay(500);
-
-    // Clear receive buffer before querying the SIM card
-    SequansController.clearReceiveBuffer();
-
-    char response[32] = "";
+    char response_buffer[48] = "";
+    char value_buffer[32] = "";
 
     // We check that the SIM card is inserted and ready. Note that we can only
     // do this and get a meaningful response in CFUN=1 or CFUN=4.
-    if (!SequansController.retryCommand(
-            AT_COMMAND_CHECK_SIM, response, sizeof(response))) {
+    if (SequansController.writeCommand(
+            AT_CHECK_SIM, response_buffer, sizeof(response_buffer)) !=
+        ResponseResult::OK) {
         Log.error("Checking SIM card failed, is it inserted?");
-        SequansController.retryCommand(AT_COMMAND_DISCONNECT);
+        SequansController.writeCommand(AT_DISCONNECT);
         return false;
     }
 
-    char sim_status[16] = "";
-
     if (!SequansController.extractValueFromCommandResponse(
-            response, 0, sim_status, sizeof(sim_status))) {
+            response_buffer, 0, value_buffer, sizeof(value_buffer))) {
         Log.error("Failed to retrieve SIM status");
-        SequansController.retryCommand(AT_COMMAND_DISCONNECT);
+        SequansController.writeCommand(AT_DISCONNECT);
         return false;
     }
 
     // strncmp returns 0 if the strings are equal
-    if (strncmp(sim_status, "READY", 5)) {
-        Log.errorf("SIM card is not ready, error: %s\r\n", sim_status);
-        SequansController.retryCommand(AT_COMMAND_DISCONNECT);
+    if (strncmp(value_buffer, "READY", 5)) {
+        Log.errorf("SIM card is not ready, error: %s\r\n", value_buffer);
+        SequansController.writeCommand(AT_DISCONNECT);
         return false;
     }
 
@@ -166,34 +153,27 @@ bool LteClass::begin(const bool print_messages) {
         Log.rawf(" OK!\r\n");
     }
 
-    // CCLK might fail if issued to quickly after CPIN
-    delay(500);
-
-    SequansController.clearReceiveBuffer();
-    char clock_response[48] = "";
-
-    if (!SequansController.retryCommand(
-            AT_COMMAND_GET_CLOCK, clock_response, sizeof(clock_response))) {
+    if (SequansController.writeCommand(
+            AT_GET_CLOCK, response_buffer, sizeof(response_buffer)) !=
+        ResponseResult::OK) {
         Log.errorf("Command for retrieving modem time failed");
-        SequansController.retryCommand(AT_COMMAND_DISCONNECT);
+        SequansController.writeCommand(AT_DISCONNECT);
         return false;
     }
 
-    char time[32] = "";
-
     if (!SequansController.extractValueFromCommandResponse(
-            clock_response, 0, time, sizeof(time))) {
+            response_buffer, 0, value_buffer, sizeof(value_buffer))) {
         Log.error("Failed to retrieve time from modem");
-        SequansController.retryCommand(AT_COMMAND_DISCONNECT);
+        SequansController.writeCommand(AT_DISCONNECT);
         return false;
     }
 
     char year[3] = "";
     char month[3] = "";
     char day[3] = "";
-    memcpy(year, &time[0] + 1, 2);
-    memcpy(month, &time[0] + 4, 2);
-    memcpy(day, &time[0] + 7, 2);
+    memcpy(year, &value_buffer[0] + 1, 2);
+    memcpy(month, &value_buffer[0] + 4, 2);
+    memcpy(day, &value_buffer[0] + 7, 2);
 
     // We check the date and whether it is unix epoch start or not
     if (atoi(year) == 70 && atoi(month) == 1 && atoi(day) == 1) {
@@ -212,13 +192,8 @@ bool LteClass::begin(const bool print_messages) {
             SequansController.registerCallback(NTP_CALLBACK, ntpCallback);
 
             while (!got_ntp_sync) {
-                SequansController.clearReceiveBuffer();
-
-                while (!SequansController.retryCommand(
-                    AT_COMMAND_SYNC_NTP, NULL, 0, 1)) {
-                    SequansController.clearReceiveBuffer();
-                    delay(500);
-                }
+                while (SequansController.writeCommand(AT_SYNC_NTP) !=
+                       ResponseResult::OK) {}
 
                 while (!got_ntp_callback) {
 
@@ -255,7 +230,7 @@ void LteClass::end(void) {
 
     SequansController.unregisterCallback(CEREG_CALLBACK);
     SequansController.unregisterCallback(TIMEZONE_CALLBACK);
-    SequansController.retryCommand(AT_COMMAND_DISCONNECT);
+    SequansController.writeCommand(AT_DISCONNECT);
     SequansController.end();
 }
 
@@ -265,21 +240,21 @@ String LteClass::getOperator(void) {
     char id[48] = "";
 
     SequansController.clearReceiveBuffer();
-    SequansController.retryCommand(AT_COMMAND_QUERY_OPERATOR_SET_FORMAT);
+    SequansController.writeCommand(AT_QUERY_OPERATOR_SET_FORMAT);
 
     SequansController.clearReceiveBuffer();
-    SequansController.writeCommand(AT_COMMAND_QUERY_OPERATOR);
 
-    ResponseResult response_result =
-        SequansController.readResponse(response, sizeof(response));
+    if (SequansController.writeCommand(
+            AT_QUERY_OPERATOR, response, sizeof(response)) !=
+        ResponseResult::OK) {
 
-    if (response_result != ResponseResult::OK) {
         Log.error("Failed to query the operator name");
         return OPERATOR_NOT_AVAILABLE;
     }
 
     if (!SequansController.extractValueFromCommandResponse(
             response, 2, id, sizeof(id))) {
+
         Log.error("Failed to retrieve the operator name");
         return OPERATOR_NOT_AVAILABLE;
     }

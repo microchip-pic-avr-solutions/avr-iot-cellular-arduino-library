@@ -47,7 +47,10 @@ void debugBridgeUpdate(void) {
             break;
 
         case ENTER_CHARACTER:
-            SequansController.writeCommand(input_buffer);
+            input_buffer[input_buffer_index] = '\r';
+            input_buffer[input_buffer_index + 1] = '\0';
+            SequansController.writeBytes((const uint8_t *)input_buffer,
+                                         strlen(input_buffer));
 
             // Reset buffer
             memset(input_buffer, 0, sizeof(input_buffer));

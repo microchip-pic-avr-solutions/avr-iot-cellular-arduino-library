@@ -11,6 +11,7 @@ void testHttp();
 void setup() {
 
     Log.begin(115200);
+    Log.setLogLevel(LogLevel::DEBUG);
 
     LedCtrl.begin();
     LedCtrl.startupCycle();
@@ -33,7 +34,12 @@ void setup() {
 
     Log.info("Configured to HTTP");
 
-    HttpResponse response = HttpClient.post("/post", "{\"hello\": \"world\"}");
+    HttpResponse response = HttpClient.get("/get");
+    Log.infof("GET - status code: %u, data size: %u\r\n",
+              response.status_code,
+              response.data_size);
+
+    response = HttpClient.post("/post", "{\"hello\": \"world\"}");
     Log.infof("POST - status code: %u, data size: %u\r\n",
               response.status_code,
               response.data_size);
