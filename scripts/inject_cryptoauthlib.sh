@@ -3,60 +3,40 @@
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 CRYPTOAUTH_PATH=$SCRIPTPATH/../lib/cryptoauth
 SRC_PATH=$SCRIPTPATH/../src
-MCU64=avr128db64
-MCU48=avr128db48
 
-# Clone cryptoauthlib
-git clone https://github.com/MicrochipTech/cryptoauthlib.git $CRYPTOAUTH_PATH/cryptoauthlib
+# Update cryptoauthlib
+if [ -d "$CRYPTOAUTH_PATH/cryptoauthlib" ]; then
+    echo "Cryptoauthlib already cloned, doing pull"
 
-# Build cryptoauthlib for AVR128DB64
-pushd $CRYPTOAUTH_PATH
-    mkdir build64
-    pushd build64
-        cmake -Wno-dev ..
-        make
-    popd 
-popd
+    pushd $CRYPTOAUTH_PATH/cryptoauthlib 1> /dev/null
+        git pull 1> /dev/null
+    popd 1> /dev/null
+else
+    git clone https://github.com/MicrochipTech/cryptoauthlib.git $CRYPTOAUTH_PATH/cryptoauthlib
+fi
 
-# Build cryptoauthlib for AVR128DB48
-pushd $CRYPTOAUTH_PATH
-    mkdir build48
-    pushd build48
-        cmake -Wno-dev ..
-        make
-    popd 
-popd 
-
-
-# Copy static library in designated folder for AVR128DB64
-mkdir $SRC_PATH/$MCU64
-cp $CRYPTOAUTH_PATH/build64/cryptoauthlib/lib/libcryptoauth.a $SRC_PATH/$MCU64/
-
-# Copy static library in designated folder for AVR128DB48
-mkdir $SRC_PATH/$MCU48
-cp $CRYPTOAUTH_PATH/build48/cryptoauthlib/lib/libcryptoauth.a $SRC_PATH/$MCU48/
+echo -n "Injecting... "
 
 # Copy sources
 cp -r "$CRYPTOAUTH_PATH/cryptoauthlib/lib/" "$SRC_PATH/cryptoauthlib/"
 cp -r "$CRYPTOAUTH_PATH/atca_config.h" "$SRC_PATH/cryptoauthlib/"
 
 # Remove everything we don't need, so we are only left with .h files
-pushd "$SRC_PATH/cryptoauthlib"
-    find . ! -name "*.h" -type f -exec rm -f {} +
+pushd "$SRC_PATH/cryptoauthlib" 1> /dev/null 
+    rm -rf mbedtls pkcs11 openssl wolfssl jwt cmake CMakeLists.txt
 
-    rm -rf mbedtls pkcs11 openssl wolfssl jwt
-
-    pushd hal
+    pushd hal 1> /dev/null 
         find . ! -name "atca_hal.*" -type f -exec rm -f {} +
-    popd
-popd
+    popd 1> /dev/null
+popd 1> /dev/null
 
 # Copy over certificate definitions
 cp -r "$CRYPTOAUTH_PATH/cert_def"* "$SRC_PATH/cryptoauthlib/"
 
-# Move everything to src since arduino's include path is set to that and it's 
-# messy changing it without the user having to do things with their Arduino 
-# configuration
-mv "$SRC_PATH/cryptoauthlib/"* "$SRC_PATH"
+# Move everything to src since we can't add other include paths for 
+# Arduino, has to be top level in src
+mv "$SRC_PATH/cryptoauthlib/"* "$SRC_PATH" 1> /dev/null
 
 rm -r "$SRC_PATH/cryptoauthlib"
+
+echo "Done!"
