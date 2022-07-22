@@ -49,8 +49,8 @@ static State state = NOT_CONNECTED;
 
 static volatile uint16_t event_flags = 0;
 
-static char mqtt_sub_topic[96];
-static char mqtt_pub_topic[96];
+static char mqtt_sub_topic[128];
+static char mqtt_pub_topic[128];
 
 static unsigned long last_heartbeat_time = 0;
 
@@ -68,7 +68,7 @@ static volatile uint8_t received_message_identifiers_tail = 0;
 
 static const char heartbeat_message[] = "{\"type\": \"heartbeat\"}";
 
-char transmit_buffer[128];
+char transmit_buffer[256];
 
 ISR(TCA0_OVF_vect) {
     seconds_counted++;
