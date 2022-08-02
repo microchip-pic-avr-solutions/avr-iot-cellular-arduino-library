@@ -659,7 +659,7 @@ SequansControllerClass::readResponse(char* out_buffer,
             delay(1);
         }
 
-        if (millis() - start > READ_TIMEOUT_MS) {
+        if (millis() - start >= READ_TIMEOUT_MS) {
             return ResponseResult::TIMEOUT;
         }
 
@@ -965,7 +965,7 @@ bool SequansControllerClass::waitForByte(const uint8_t byte,
         // falling flank
         ctsUpdate();
 
-        if (millis() - start > timeout) {
+        if (millis() - start >= timeout) {
             return false;
         }
     }
