@@ -7,10 +7,10 @@ enum class LogLevel { NONE = 0, ERROR, WARN, INFO, DEBUG };
 
 class LogClass {
   private:
-    template <typename T> void print(const T str, const char level[]);
-
     UartClass *uart;
     LogLevel log_level;
+
+    void print(const char *str, const char level[]);
 
   public:
     LogClass(UartClass *uart);
@@ -19,8 +19,9 @@ class LogClass {
 
     void setLogLevel(const LogLevel log_level);
     bool setLogLevelStr(const char *log_level);
+    LogLevel getLogLevel();
 
-    void begin(const unsigned long baud_rate);
+    void begin(const uint32_t baud_rate);
     void end();
 
     void error(const char str[]);

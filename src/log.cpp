@@ -26,7 +26,7 @@ int16_t printf_putchar(char c, FILE *fp) {
     return 0;
 }
 
-template <typename T> void LogClass::print(const T str, const char level[]) {
+void LogClass::print(const char *str, const char level[]) {
     this->uart->printf("%s%s\r\n", level, str);
 }
 
@@ -40,6 +40,8 @@ void LogClass::setOutputUart(UartClass *uart) { this->uart = uart; }
 void LogClass::setLogLevel(const LogLevel log_level) {
     this->log_level = log_level;
 }
+
+LogLevel LogClass::getLogLevel(void) { return log_level; }
 
 bool LogClass::setLogLevelStr(const char *log_level) {
     LogLevel ll = LogLevel::NONE;
@@ -61,9 +63,7 @@ bool LogClass::setLogLevelStr(const char *log_level) {
     return true;
 }
 
-void LogClass::begin(const unsigned long baud_rate) {
-    this->uart->begin(baud_rate);
-}
+void LogClass::begin(const uint32_t baud_rate) { this->uart->begin(baud_rate); }
 
 void LogClass::end(void) { this->uart->end(); }
 
