@@ -16,12 +16,14 @@
 #define AT_ENABLE_TIME_ZONE_UPDATE    "AT+CTZU=1"
 #define AT_ENABLE_TIME_ZONE_REPORTING "AT+CTZR=1"
 #define AT_GET_CLOCK                  "AT+CCLK?"
-#define AT_SYNC_NTP                                                            \
+#define AT_SYNC_NTP \
     "AT+SQNNTP=2,\"time.google.com,time.windows.com,pool.ntp.org\",1"
 
 #define CEREG_CALLBACK    "CEREG"
 #define TIMEZONE_CALLBACK "CTZV"
 #define NTP_CALLBACK      "SQNNTP"
+
+#define TIMEZONE_WAIT_MS 10000
 
 // This includes null termination
 #define STAT_LENGTH                  2
@@ -41,18 +43,29 @@
 // index.
 #define CEREG_STAT_CHARACTER_INDEX 1
 
-const char *OPERATOR_NOT_AVAILABLE = "NOT_AVAILABLE";
+const char* OPERATOR_NOT_AVAILABLE = "NOT_AVAILABLE";
 
-// Singleton. Defined for use of the rest of the library.
+/**
+ * @brief Singleton. Defined for use of the rest of the library.
+ */
 LteClass Lte = LteClass::instance();
 
+/**
+ * @brief Function pointer to the user's disconnect callback (if registered).
+ */
 static void (*disconnected_callback)(void) = NULL;
-static volatile bool is_connected = false;
-static volatile bool got_timezone = false;
-static volatile bool got_ntp_callback = false;
-static volatile bool got_ntp_sync = false;
 
-static void connectionStatus(char *buffer) {
+/**
+ * @brief Keeps track of the connection status.
+ */
+static volatile bool is_connected = false;
+
+/**
+ * @brief Keeps track of whether we've received the timezone URC.
+ */
+static volatile bool got_timezone = false;
+
+static void connectionStatus(char* buffer) {
 
     const char stat = buffer[CEREG_STAT_CHARACTER_INDEX];
 
@@ -80,15 +93,8 @@ static void connectionStatus(char *buffer) {
     }
 }
 
-static void timezoneCallback(char *buffer) { got_timezone = true; }
-
-static void ntpCallback(char *buffer) {
-    got_ntp_callback = true;
-
-    // Check that the status is 0, which signifies that the NTP sync was OK.
-    if (buffer[NTP_STATUS_INDEX] == NTP_OK) {
-        got_ntp_sync = true;
-    }
+static void timezoneCallback(__attribute__((unused)) char* buffer) {
+    got_timezone = true;
 }
 
 bool LteClass::begin(const bool print_messages) {
@@ -107,33 +113,38 @@ bool LteClass::begin(const bool print_messages) {
     SequansController.writeCommand(AT_CONNECT);
 
     char response_buffer[48] = "";
-    char value_buffer[32] = "";
+    char value_buffer[32]    = "";
 
     // We check that the SIM card is inserted and ready. Note that we can only
     // do this and get a meaningful response in CFUN=1 or CFUN=4.
-    if (SequansController.writeCommand(
-            AT_CHECK_SIM, response_buffer, sizeof(response_buffer)) !=
+    if (SequansController.writeCommand(AT_CHECK_SIM,
+                                       response_buffer,
+                                       sizeof(response_buffer)) !=
         ResponseResult::OK) {
         Log.error("Checking SIM card failed, is it inserted?");
-        SequansController.writeCommand(AT_DISCONNECT);
+        Lte.end();
+
         return false;
     }
 
     if (!SequansController.extractValueFromCommandResponse(
-            response_buffer, 0, value_buffer, sizeof(value_buffer))) {
+            response_buffer,
+            0,
+            value_buffer,
+            sizeof(value_buffer))) {
         Log.error("Failed to retrieve SIM status");
-        SequansController.writeCommand(AT_DISCONNECT);
+        Lte.end();
+
         return false;
     }
 
-    // strncmp returns 0 if the strings are equal
-    if (strncmp(value_buffer, "READY", 5)) {
-        Log.errorf("SIM card is not ready, error: %s\r\n", value_buffer);
-        SequansController.writeCommand(AT_DISCONNECT);
+    if (strncmp(value_buffer, "READY", 5) != 0) {
+        Log.error("SIM card is not ready");
+        Lte.end();
+
         return false;
     }
 
-    // Wait for connection before we can check the time synchronization
     SequansController.registerCallback(CEREG_CALLBACK, connectionStatus, false);
 
     if (print_messages) {
@@ -153,24 +164,31 @@ bool LteClass::begin(const bool print_messages) {
         Log.rawf(" OK!\r\n");
     }
 
-    if (SequansController.writeCommand(
-            AT_GET_CLOCK, response_buffer, sizeof(response_buffer)) !=
+    if (SequansController.writeCommand(AT_GET_CLOCK,
+                                       response_buffer,
+                                       sizeof(response_buffer)) !=
         ResponseResult::OK) {
-        Log.errorf("Command for retrieving modem time failed");
-        SequansController.writeCommand(AT_DISCONNECT);
+
+        Log.error("Command for retrieving modem time failed");
+        Lte.end();
+
         return false;
     }
 
     if (!SequansController.extractValueFromCommandResponse(
-            response_buffer, 0, value_buffer, sizeof(value_buffer))) {
+            response_buffer,
+            0,
+            value_buffer,
+            sizeof(value_buffer))) {
         Log.error("Failed to retrieve time from modem");
-        SequansController.writeCommand(AT_DISCONNECT);
+        Lte.end();
+
         return false;
     }
 
-    char year[3] = "";
+    char year[3]  = "";
     char month[3] = "";
-    char day[3] = "";
+    char day[3]   = "";
     memcpy(year, &value_buffer[0] + 1, 2);
     memcpy(month, &value_buffer[0] + 4, 2);
     memcpy(day, &value_buffer[0] + 7, 2);
@@ -178,46 +196,52 @@ bool LteClass::begin(const bool print_messages) {
     // We check the date and whether it is unix epoch start or not
     if (atoi(year) == 70 && atoi(month) == 1 && atoi(day) == 1) {
 
-        // Not valid time, have to do sync
-        unsigned long start = millis();
-        while (start - millis() > 4000 && !got_timezone) {}
+        // Not valid time, have to do sync. First we wait some to see if we get
+        // the timezone URC
+        const unsigned long start = millis();
+        while (millis() - start < TIMEZONE_WAIT_MS && !got_timezone) {}
 
         if (!got_timezone) {
             // Do manual sync with NTP server
 
             if (print_messages) {
-                Log.infof("Did not get time from operator, doing NTP sync");
+                Log.info("Did not get time from operator, doing NTP sync. "
+                         "This can take some time...");
             }
 
-            SequansController.registerCallback(NTP_CALLBACK, ntpCallback);
+            // Will break from this when we get the NTP sync
+            while (true) {
 
-            while (!got_ntp_sync) {
-                while (SequansController.writeCommand(AT_SYNC_NTP) !=
-                       ResponseResult::OK) {}
-
-                while (!got_ntp_callback) {
-
-                    if (print_messages) {
-                        Log.rawf(".");
-                    }
-
-                    delay(500);
+                // We might be disconnected from the network whilst doing the
+                // NTP sync, so return if that is the case
+                if (!isConnected()) {
+                    Lte.end();
+                    return false;
                 }
 
-                if (got_ntp_sync) {
+                if (SequansController.writeCommand(AT_SYNC_NTP) !=
+                    ResponseResult::OK) {
+                    continue;
+                }
+
+                char buffer[64] = "";
+
+                if (!SequansController.waitForURC(NTP_CALLBACK,
+                                                  buffer,
+                                                  sizeof(buffer))) {
+                    // Time wait for the NTP URC timed out, retry
+                    continue;
+                }
+
+                if (buffer[NTP_STATUS_INDEX] == NTP_OK) {
+                    Log.info("Got NTP sync!");
                     break;
-                } else {
-                    got_ntp_callback = false;
                 }
             }
-
-            if (print_messages) {
-                Log.rawf(" OK!\r\n");
-            }
-
-            SequansController.unregisterCallback(NTP_CALLBACK);
         }
     }
+
+    SequansController.unregisterCallback(TIMEZONE_CALLBACK);
 
     return true;
 }
@@ -225,8 +249,6 @@ bool LteClass::begin(const bool print_messages) {
 void LteClass::end(void) {
     is_connected = false;
     got_timezone = false;
-    got_ntp_sync = false;
-    got_ntp_callback = false;
 
     SequansController.unregisterCallback(CEREG_CALLBACK);
     SequansController.unregisterCallback(TIMEZONE_CALLBACK);
@@ -237,30 +259,33 @@ void LteClass::end(void) {
 String LteClass::getOperator(void) {
 
     char response[64] = "";
-    char id[48] = "";
+    char id[48]       = "";
 
     SequansController.clearReceiveBuffer();
     SequansController.writeCommand(AT_QUERY_OPERATOR_SET_FORMAT);
 
     SequansController.clearReceiveBuffer();
 
-    if (SequansController.writeCommand(
-            AT_QUERY_OPERATOR, response, sizeof(response)) !=
+    if (SequansController.writeCommand(AT_QUERY_OPERATOR,
+                                       response,
+                                       sizeof(response)) !=
         ResponseResult::OK) {
 
         Log.error("Failed to query the operator name");
         return OPERATOR_NOT_AVAILABLE;
     }
 
-    if (!SequansController.extractValueFromCommandResponse(
-            response, 2, id, sizeof(id))) {
+    if (!SequansController.extractValueFromCommandResponse(response,
+                                                           2,
+                                                           id,
+                                                           sizeof(id))) {
 
         Log.error("Failed to retrieve the operator name");
         return OPERATOR_NOT_AVAILABLE;
     }
 
     // Remove the quotes
-    char *buffer = id + 1;
+    char* buffer            = id + 1;
     id[strnlen(buffer, 47)] = '\0';
 
     return String(buffer);
