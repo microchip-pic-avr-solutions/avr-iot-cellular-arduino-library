@@ -11,13 +11,15 @@
 #include <stdint.h>
 
 // Is public here for users of the interface
-#define URC_DATA_BUFFER_SIZE 512
+#define URC_DATA_BUFFER_SIZE 384
 
 #define URC_IDENTIFIER_START_CHARACTER '+'
 #define URC_IDENTIFIER_END_CHARACTER   ':'
 
 #define SEQUANS_CONTROLLER_READ_BYTE_OK      1
 #define SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT 2
+
+#define WAIT_FOR_URC_TIMEOUT_MS 20000
 
 enum class ResponseResult {
     NONE = 0,
@@ -41,7 +43,7 @@ class SequansControllerClass {
     /**
      * @brief Singleton instance.
      */
-    static SequansControllerClass &instance(void) {
+    static SequansControllerClass& instance(void) {
         static SequansControllerClass instance;
         return instance;
     }
@@ -76,7 +78,7 @@ class SequansControllerClass {
     /**
      * @brief Writes a data buffer to the modem.
      */
-    void writeBytes(const uint8_t *data,
+    void writeBytes(const uint8_t* data,
                     const size_t buffer_size,
                     const bool append_carriage_return = false);
 
@@ -107,8 +109,8 @@ class SequansControllerClass {
      * - OVERFLOW if read resulted in buffer overflow.
      * - SERIAL_READ_ERROR if an error occured in the serial interface.
      */
-    ResponseResult writeCommand(const char *command,
-                                char *result_buffer = NULL,
+    ResponseResult writeCommand(const char* command,
+                                char* result_buffer             = NULL,
                                 const size_t result_buffer_size = 0);
 
     /**
@@ -133,7 +135,7 @@ class SequansControllerClass {
      * - TIMEOUT if no response was received before timing out.
      * - SERIAL_READ_ERROR if an error occured in the serial interface.
      */
-    ResponseResult readResponse(char *out_buffer = NULL,
+    ResponseResult readResponse(char* out_buffer             = NULL,
                                 const size_t out_buffer_size = 0);
 
     /**
@@ -151,9 +153,9 @@ class SequansControllerClass {
      * @return true if extraction was successful.
      */
     bool extractValueFromCommandResponse(
-        char *response,
+        char* response,
         const uint8_t index,
-        char *buffer,
+        char* buffer,
         const size_t buffer_size,
         const char start_character = URC_IDENTIFIER_END_CHARACTER);
 
@@ -169,22 +171,29 @@ class SequansControllerClass {
      * @return true if we didn't surpass the fixed amount of URC callbacks
      * allowed for registration.
      */
-    bool registerCallback(const char *urc_identifier,
-                          void (*urc_callback)(char *),
+    bool registerCallback(const char* urc_identifier,
+                          void (*urc_callback)(char*),
                           const bool clear_data = true);
 
     /**
      * @brief Unregister callback for a given URC identifier.
      */
-    void unregisterCallback(const char *urc_identifier);
+    void unregisterCallback(const char* urc_identifier);
 
     /**
      * @brief Waits for a given URC.
      *
      * @param urc_identifier The identifier of the URC.
      * @param out_buffer The data payload from the URC.
+     * @param out_buffer_size Size of the output buffer for the URC.
+     * @param timeout_ms How long the waiting period is.
+     *
+     * @return true if URC was retrieved before the timeout.
      */
-    void waitForURC(const char *urc_identifier, char *out_buffer = NULL);
+    bool waitForURC(const char* urc_identifier,
+                    char* out_buffer               = NULL,
+                    const uint16_t out_buffer_size = URC_DATA_BUFFER_SIZE,
+                    const uint64_t timeout_ms      = WAIT_FOR_URC_TIMEOUT_MS);
 
     /**
      * @brief Sets the power saving mode for the Sequans modem.
@@ -201,7 +210,7 @@ class SequansControllerClass {
      * pre-allocated.
      */
     void responseResultToString(const ResponseResult response_result,
-                                char *response_string);
+                                char* response_string);
 
     /**
      * @brief Waits until @p timeout for the character specified by @p byte.
@@ -210,8 +219,16 @@ class SequansControllerClass {
      */
     bool waitForByte(const uint8_t byte, const uint32_t timeout_ms);
 
+    /**
+     * @brief Will assert the RTS line for the modem such that it will stop
+     * sending data.
+     */
     void startCriticalSection(void);
 
+    /**
+     * @brief Will de-assert the RTS line for the modem such that it can send
+     * data again.
+     */
     void stopCriticalSection(void);
 };
 
