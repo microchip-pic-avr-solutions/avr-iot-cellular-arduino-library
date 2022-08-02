@@ -1,3 +1,7 @@
+/**
+ * @brief This example demonstrates HTTP GET and POST request as well as reading
+ * out the the response of the POST message.
+ */
 #include <Arduino.h>
 #include <http_client.h>
 #include <led_ctrl.h>
@@ -6,15 +10,12 @@
 
 #define DOMAIN "httpbin.org"
 
-void testHttp();
-
 void setup() {
-
-    Log.begin(115200);
-    Log.setLogLevel(LogLevel::DEBUG);
-
     LedCtrl.begin();
     LedCtrl.startupCycle();
+
+    Log.begin(115200);
+    Log.info("Starting HTTP example");
 
     // Start LTE modem and connect to the operator
     if (!Lte.begin()) {
@@ -44,7 +45,8 @@ void setup() {
               response.status_code,
               response.data_size);
 
-    String body = HttpClient.readBody(512);
+    // Add some extra bytes for termination
+    String body = HttpClient.readBody(response.data_size + 16);
 
     if (body != "") {
         Log.infof("Body: %s\r\n", body.c_str());

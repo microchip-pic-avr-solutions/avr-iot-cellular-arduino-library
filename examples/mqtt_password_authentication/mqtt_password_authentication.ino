@@ -1,6 +1,6 @@
 /**
- * This example uses username and password authentication to connect to a MQTT
- * server.
+ * @brief This example uses username and password authentication to connect to a
+ * MQTT server.
  */
 
 #include <Arduino.h>
@@ -53,6 +53,7 @@ void setup() {
         Log.infof("Connecting to broker");
         while (!MqttClient.isConnected()) {
             Log.rawf(".");
+            LedCtrl.toggle(Led::CON);
             delay(500);
         }
 
@@ -76,6 +77,7 @@ void setup() {
 }
 
 void loop() {
+
     String message_to_publish = String("Hello world: " + String(counter));
 
     bool publishedSuccessfully =

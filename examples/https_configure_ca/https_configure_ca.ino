@@ -8,14 +8,15 @@ void setup() {
 
     SequansController.begin();
 
-    // Allow time for boot
-    delay(500);
-
     Log.info("Setting up security profile for HTTPS...");
-    if (!SequansController.retryCommand(AT_HTTPS_CONFIGURE_SECURITY_PROFILE)) {
+    char response[64];
+    if (SequansController.writeCommand(
+            AT_HTTPS_CONFIGURE_SECURITY_PROFILE, response, sizeof(response)) !=
+        ResponseResult::OK) {
         Log.info("Failed to set security profile");
         return;
     }
+
     Log.info("Done!");
 }
 

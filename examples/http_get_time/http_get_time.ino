@@ -1,3 +1,8 @@
+/**
+ * @brief This example demonstrates how to retrieve the unix time from a NTP
+ * server.
+ */
+
 #include <Arduino.h>
 #include <http_client.h>
 #include <led_ctrl.h>
@@ -7,12 +12,12 @@
 #define TIMEZONE_URL "worldtimeapi.org"
 #define TIMEZONE_URI "/api/timezone/Europe/Oslo.txt"
 
-long getTimeFromApiresp(String *resp) {
-    int unixTimeIndex = resp->indexOf(String("unixtime: "));
-    int utx_datetimeIndex = resp->indexOf(String("utc_datetime"));
+long getTimeFromResponse(String *resp) {
+    int unix_time_index = resp->indexOf(String("unixtime: "));
+    int utx_datetime_index = resp->indexOf(String("utc_datetime"));
 
-    String substr = resp->substring(unixTimeIndex + 10, utx_datetimeIndex - 1);
-    return substr.toInt();
+    return resp->substring(unix_time_index + 10, utx_datetime_index - 1)
+        .toInt();
 }
 
 void setup() {
@@ -32,7 +37,7 @@ void setup() {
     Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
 
     if (!HttpClient.configure(TIMEZONE_URL, 80, false)) {
-        Log.errorf("Failed to configure the http client for the domain %s\r\n",
+        Log.errorf("Failed to configure HTTP for the domain %s\r\n",
                    TIMEZONE_URL);
         return;
     }
@@ -63,7 +68,7 @@ void setup() {
         return;
     }
 
-    Log.infof("Got the time (unixtime) %lu\r\n", getTimeFromApiresp(&body));
+    Log.infof("Got the time (unixtime) %lu\r\n", getTimeFromResponse(&body));
 }
 
 void loop() {}

@@ -153,7 +153,7 @@ class MqttClientClass {
      * the LTE module.
      */
     bool readMessage(const char *topic,
-                     uint8_t *buffer,
+                     char *buffer,
                      const uint16_t buffer_size,
                      const int32_t message_id = -1);
 

@@ -55,9 +55,9 @@ static char mqtt_pub_topic[128];
 static unsigned long last_heartbeat_time = 0;
 
 static volatile uint16_t seconds_counted = 0;
-static volatile uint16_t target_seconds = 0;
-static volatile uint16_t data_frequency = 0;
-static unsigned long last_data_time = 0;
+static volatile uint16_t target_seconds  = 0;
+static volatile uint16_t data_frequency  = 0;
+static unsigned long last_data_time      = 0;
 
 /**
  * @brief Circular buffer for the message identifiers of the received messages.
@@ -98,13 +98,13 @@ void disconnectedFromNetwork(void) { event_flags |= NETWORK_DISCONN_FLAG; }
 void connectedToBroker(void) { event_flags |= BROKER_CONN_FLAG; }
 void disconnectedFromBroker(void) { event_flags |= BROKER_DISCONN_FLAG; }
 
-void receivedMessage(const char *topic,
+void receivedMessage(const char* topic,
                      const uint16_t msg_length,
                      const int32_t msg_id) {
 
-    received_message_identifiers_head =
-        (received_message_identifiers_head + 1) &
-        RECEIVE_MESSAGE_ID_BUFFER_MASK;
+    received_message_identifiers_head = (received_message_identifiers_head +
+                                         1) &
+                                        RECEIVE_MESSAGE_ID_BUFFER_MASK;
 
     received_message_identifiers[received_message_identifiers_head] = msg_id;
 }
@@ -149,7 +149,7 @@ void stopStreamTimer() { TCA0.SINGLE.CTRLA = 0; }
 
 static StaticJsonDocument<256> doc;
 
-void decodeMessage(const char *message) {
+void decodeMessage(const char* message) {
     DeserializationError error = deserializeJson(doc, message);
 
     if (error) {
@@ -159,7 +159,7 @@ void decodeMessage(const char *message) {
     }
 
     // Handle command frame
-    const char *cmd = doc["state"]["cmd"];
+    const char* cmd = doc["state"]["cmd"];
     if (cmd == 0) {
         Log.errorf("Unable to get command, pointer is zero, "
                    "message is %s\r\n",
@@ -170,7 +170,7 @@ void decodeMessage(const char *message) {
     // If it's a toggle_led command, handle it
     if (strcmp(cmd, "set_led") == 0) {
         // -- Read the led value
-        const char *target_led = doc["state"]["opts"]["led"];
+        const char* target_led = doc["state"]["opts"]["led"];
         const unsigned int target_state =
             doc["state"]["opts"]["state"].as<unsigned int>();
 
@@ -217,9 +217,9 @@ void decodeMessage(const char *message) {
             return;
         }
 
-        data_frequency = frequency;
+        data_frequency  = frequency;
         seconds_counted = 0;
-        target_seconds = duration;
+        target_seconds  = duration;
 
         event_flags |= START_PUBLISHING_SENSOR_DATA_FLAG;
     } else if (strcmp(cmd, "verbose_logs") == 0) {
@@ -236,13 +236,13 @@ void printHelp() {
              "-----------------------\r\n");
 }
 
-void handleSerialCommand(const char *instruction, uint16_t instructionLen) {
+void handleSerialCommand(const char* instruction, uint16_t instructionLen) {
     // Find the first occurrence of '='
-    char *equalIndex = strchr(instruction, '=');
+    char* equalIndex = strchr(instruction, '=');
 
     // If we did not find it, treat is at a non-value command
     if (equalIndex == NULL) {
-        equalIndex = (char *)(&instruction[instructionLen - 1]);
+        equalIndex = (char*)(&instruction[instructionLen - 1]);
         Log.debug("Given command is non-value");
     }
 
@@ -280,7 +280,6 @@ void handleSerialCommand(const char *instruction, uint16_t instructionLen) {
 
 void setup() {
     Log.begin(115200);
-    Log.setLogLevel(LogLevel::DEBUG);
 
     LedCtrl.begin();
     LedCtrl.startupCycle();
@@ -330,9 +329,11 @@ void setup() {
     // This now turns on TLS certificate verification
     SequansController.begin();
 
-    // Allow time for boot
-    while (!SequansController.retryCommand(
-        "AT+SQNSPCFG=1,2,\"0xC02B\",1,19,0,0,\"\",\"\",1,0,0")) {}
+    char buffer[64];
+    SequansController.writeCommand(
+        "AT+SQNSPCFG=1,2,\"0xC02B\",1,19,0,0,\"\",\"\",1,0,0",
+        buffer,
+        sizeof(buffer));
 
     // - Patch end -
 
@@ -393,9 +394,6 @@ void loop() {
 
             MqttClient.subscribe(mqtt_sub_topic, AT_LEAST_ONCE);
 
-            // TODO: temp halt
-            while (1) {}
-
             break;
         default:
             break;
@@ -449,14 +447,13 @@ void loop() {
                 received_message_identifiers[received_message_identifiers_tail];
             sei();
 
-            const bool message_read_successfully =
-                MqttClient.readMessage(mqtt_sub_topic,
-                                       (uint8_t *)message,
-                                       sizeof(message),
-                                       message_id);
+            const bool message_read_successfully = MqttClient.readMessage(
+                mqtt_sub_topic,
+                message,
+                sizeof(message),
+                message_id);
 
             if (message_read_successfully) {
-                Log.infof("Msg: %s\r\n", message);
                 decodeMessage(message);
             } else {
                 Log.error("Failed to read message\r\n");

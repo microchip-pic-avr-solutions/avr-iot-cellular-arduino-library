@@ -1,3 +1,7 @@
+/**
+ * @brief This example demonstrates HTTPS GET and POST request as well as
+ * reading out the the response of the POST message.
+ */
 #include <Arduino.h>
 #include <http_client.h>
 #include <led_ctrl.h>
@@ -9,11 +13,11 @@
 void testHttp();
 
 void setup() {
-
-    Log.begin(115200);
-
     LedCtrl.begin();
     LedCtrl.startupCycle();
+
+    Log.begin(115200);
+    Log.info("Starting HTTPS example");
 
     // Start LTE modem and connect to the operator
     if (!Lte.begin()) {
@@ -33,12 +37,18 @@ void setup() {
 
     Log.info("Configured to HTTPS");
 
-    HttpResponse response = HttpClient.post("/post", "{\"hello\": \"world\"}");
+    HttpResponse response = HttpClient.get("/get");
+    Log.infof("GET - status code: %u, data size: %u\r\n",
+              response.status_code,
+              response.data_size);
+
+    response = HttpClient.post("/post", "{\"hello\": \"world\"}");
     Log.infof("POST - status code: %u, data size: %u\r\n",
               response.status_code,
               response.data_size);
 
-    String body = HttpClient.readBody(512);
+    // Add some extra bytes for termination
+    String body = HttpClient.readBody(response.data_size + 16);
 
     if (body != "") {
         Log.infof("Body: %s\r\n", body.c_str());
