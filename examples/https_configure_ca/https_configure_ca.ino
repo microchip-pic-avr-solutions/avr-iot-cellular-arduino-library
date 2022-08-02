@@ -9,11 +9,13 @@ void setup() {
     SequansController.begin();
 
     Log.info("Setting up security profile for HTTPS...");
-    char response[64];
-    if (SequansController.writeCommand(
-            AT_HTTPS_CONFIGURE_SECURITY_PROFILE, response, sizeof(response)) !=
-        ResponseResult::OK) {
-        Log.info("Failed to set security profile");
+
+    SequansController.writeBytes((uint8_t*)AT_HTTPS_CONFIGURE_SECURITY_PROFILE,
+                                 strlen(AT_HTTPS_CONFIGURE_SECURITY_PROFILE),
+                                 true);
+
+    if (!SequansController.waitForURC("SQNSPCFG", 4000)) {
+        Log.infof("Failed to set security profile\r\n");
         return;
     }
 
