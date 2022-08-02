@@ -39,10 +39,8 @@ class LowPowerClass {
 
     /**
      * @brief Configures the low power module for power down configuration.
-     *
-     * @return true if the configuration was successful.
      */
-    bool configurePowerDown(void);
+    void configurePowerDown(void);
 
     /**
      * @brief Used to configure power save mode for the LTE modem. The total
@@ -63,10 +61,8 @@ class LowPowerClass {
      * might deviate from this value. If that is so, a warning will be logged.
      *
      * @param power_save_mode_period_value Note that max value is 31.
-     *
-     * @return True if configuration was set successfully.
      */
-    bool configurePeriodicPowerSave(
+    void configurePeriodicPowerSave(
         const PowerSaveModePeriodMultiplier power_save_mode_period_multiplier,
         const uint8_t power_save_mode_period_value);
 

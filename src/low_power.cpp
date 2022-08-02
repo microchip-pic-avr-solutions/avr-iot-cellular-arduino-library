@@ -100,20 +100,20 @@
 // Singleton. Defined for use of the rest of the library.
 LowPowerClass LowPower = LowPowerClass::instance();
 
-static volatile bool ring_line_activity = false;
+static volatile bool ring_line_activity     = false;
 static volatile bool modem_is_in_power_save = false;
-static volatile bool pit_triggered = false;
+static volatile bool pit_triggered          = false;
 
-static bool retrieved_period = false;
-static uint32_t period = 0;
+static bool retrieved_period     = false;
+static uint32_t period           = 0;
 static uint32_t period_requested = 0;
 
 static uint8_t cell_led_state = 0;
-static uint8_t con_led_state = 0;
+static uint8_t con_led_state  = 0;
 
 ISR(RTC_PIT_vect) {
     RTC.PITINTFLAGS = RTC_PI_bm;
-    pit_triggered = true;
+    pit_triggered   = true;
 }
 
 static void ring_line_callback(void) {
@@ -129,7 +129,7 @@ static void ring_line_callback(void) {
     }
 }
 
-static void uint8ToStringOfBits(const uint8_t value, char *string) {
+static void uint8ToStringOfBits(const uint8_t value, char* string) {
     // Terminate
     string[8] = 0;
 
@@ -138,7 +138,7 @@ static void uint8ToStringOfBits(const uint8_t value, char *string) {
     }
 }
 
-static uint8_t stringOfBitsToUint8(const char *string) {
+static uint8_t stringOfBitsToUint8(const char* string) {
 
     uint8_t value = 0;
 
@@ -213,7 +213,7 @@ attemptToEnterPowerSaveModeForModem(const unsigned long waiting_time_ms) {
 
         // Reset timer if there has been activity or the RING line is high
         if (ring_line_activity || RING_PORT.IN & RING_PIN_bm) {
-            last_time_active = millis();
+            last_time_active   = millis();
             ring_line_activity = false;
         }
 
@@ -242,7 +242,8 @@ static uint32_t retrieveOperatorSleepTime(void) {
 
     char response[RESPONSE_CONNECTION_STATUS_SIZE] = "";
     const ResponseResult response_result = SequansController.readResponse(
-        response, RESPONSE_CONNECTION_STATUS_SIZE);
+        response,
+        RESPONSE_CONNECTION_STATUS_SIZE);
 
     if (response_result != ResponseResult::OK) {
         char response_result_string[18] = "";
@@ -258,7 +259,10 @@ static uint32_t retrieveOperatorSleepTime(void) {
     // Find the period timer token in the response
     char period_timer_token[TIMER_LENGTH] = "";
     const bool found_token = SequansController.extractValueFromCommandResponse(
-        response, TIMER_SLEEP_INDEX, period_timer_token, TIMER_LENGTH);
+        response,
+        TIMER_SLEEP_INDEX,
+        period_timer_token,
+        TIMER_LENGTH);
 
     if (!found_token) {
         Log.warnf("Did not find period timer token, got the following: %s\r\n",
@@ -304,7 +308,7 @@ static void enablePIT(void) {
     _PROTECTED_WRITE(CLKCTRL.XOSC32KCTRLA, temp);
 
     // Wait for registers to synchronize
-    while (RTC.PITSTATUS) {}
+    while (RTC.PITSTATUS) { delay(1); }
 
     RTC.CLKSEL |= RTC_CLKSEL_XOSC32K_gc;
     RTC.PITINTCTRL |= RTC_PI_bm;
@@ -313,7 +317,7 @@ static void enablePIT(void) {
     // The first PIT intterupt will not necessarily be at the period specified,
     // so we just wait until it has triggered and track the reminaing time from
     // there
-    while (!pit_triggered) {}
+    while (!pit_triggered) { delay(1); }
     pit_triggered = false;
 }
 
@@ -428,34 +432,21 @@ static void disableLDO(void) {
     delay(10);
 }
 
-bool LowPowerClass::configurePowerDown(void) {
+void LowPowerClass::configurePowerDown(void) {
 
     // We need sequans controller to be initialized first before configuration.
     // This is because we need to disable the PSM mode so that the modem don't
     // do periodic power save, but we can shut it down completely.
     if (!SequansController.isInitialized()) {
         SequansController.begin();
-
-        // Allow 500ms for boot
-        delay(500);
     }
 
-    SequansController.clearReceiveBuffer();
-
-    // First we disable EDRX
-    if (!SequansController.retryCommand(AT_COMMAND_DISABLE_EDRX)) {
-        return false;
-    }
-
-    // Disable PSM
-    if (!SequansController.retryCommand(AT_COMMAND_DISABLE_PSM)) {
-        return false;
-    }
-
-    return true;
+    // Disable EDRX and PSM
+    SequansController.writeCommand(AT_COMMAND_DISABLE_EDRX);
+    SequansController.writeCommand(AT_COMMAND_DISABLE_PSM);
 }
 
-bool LowPowerClass::configurePeriodicPowerSave(
+void LowPowerClass::configurePeriodicPowerSave(
     const PowerSaveModePeriodMultiplier power_save_mode_period_multiplier,
     const uint8_t power_save_mode_period_value) {
 
@@ -466,24 +457,15 @@ bool LowPowerClass::configurePeriodicPowerSave(
     // We need sequans controller to be initialized first before configuration
     if (!SequansController.isInitialized()) {
         SequansController.begin();
-
-        // Allow 500ms for boot
-        delay(500);
     }
 
-    SequansController.clearReceiveBuffer();
+    // Disable EDRX as we use PSM
+    SequansController.writeCommand(AT_COMMAND_DISABLE_EDRX);
 
-    // First we disable EDRX
-    if (!SequansController.retryCommand(AT_COMMAND_DISABLE_EDRX)) {
-        return false;
-    }
+    // Enable RING line so that we can wake up from the power save
+    SequansController.writeCommand(AT_COMMAND_SET_RING_BEHAVIOUR);
 
-    // Then we set RING behaviour
-    if (!SequansController.retryCommand(AT_COMMAND_SET_RING_BEHAVIOUR)) {
-        return false;
-    }
-
-    // Then we set the power saving mode configuration
+    // Set the power saving mode configuration
     char period_parameter_str[9] = "";
 
     // We encode both the multipier and value in one value after the setup:
@@ -512,11 +494,11 @@ bool LowPowerClass::configurePeriodicPowerSave(
             period_parameter_str,
             PSM_DEFAULT_PAGING_PARAMETER);
 
-    period_requested =
-        decodePeriodMultiplier(power_save_mode_period_multiplier) *
-        min(power_save_mode_period_value, PSM_VALUE_MAX);
+    period_requested = decodePeriodMultiplier(
+                           power_save_mode_period_multiplier) *
+                       min(power_save_mode_period_value, PSM_VALUE_MAX);
 
-    return SequansController.retryCommand(command);
+    SequansController.writeCommand(command);
 }
 
 void LowPowerClass::powerSave(void) {
@@ -545,7 +527,7 @@ void LowPowerClass::powerSave(void) {
     }
 
     cell_led_state = digitalRead(LedCtrl.getLedPin(Led::CELL));
-    con_led_state = digitalRead(LedCtrl.getLedPin(Led::CON));
+    con_led_state  = digitalRead(LedCtrl.getLedPin(Led::CON));
 
     if (!attemptToEnterPowerSaveModeForModem(30000)) {
         Log.error("Failed to put LTE modem in sleep. Power save functionality "
