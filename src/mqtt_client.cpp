@@ -554,6 +554,9 @@ bool MqttClientClass::publish(const char* topic,
         return false;
     }
 
+    // The modem reports two URCs for publish, so we clear the other one
+    SequansController.clearReceiveBuffer();
+
     if (!SequansController.extractValueFromCommandResponse(
             urc,
             MQTT_PUB_SUB_URC_STATUS_CODE_INDEX,
@@ -672,20 +675,22 @@ bool MqttClientClass::readMessage(const char* topic,
         return false;
     }
 
-    char response_string[18] = "";
+    // We don't use writeCommand here as the AT receive command for MQTT
+    // will return a carraige return and a line feed before the content, so
+    // we write the bytes and manually clear these character before the
+    // payload
+
+    SequansController.clearReceiveBuffer();
 
     // We determine all message IDs lower than 0 as just no message ID passed
     if (message_id < 0) {
         char command[MQTT_RECEIVE_LENGTH] = "";
         sprintf(command, MQTT_RECEIVE, topic);
 
-        const ResponseResult response =
-            SequansController.writeCommand(command, buffer, buffer_size);
+        SequansController.writeBytes((uint8_t*)&command[0],
+                                     strlen(command),
+                                     true);
 
-        if (response != ResponseResult::OK) {
-            Log.errorf("Failed to read MQTT message: %s\r\n", response_string);
-            return false;
-        }
     } else {
         const uint32_t digits_in_msg_id = trunc(log10(message_id)) + 1;
         char command[MQTT_RECEIVE_WITH_MSG_ID_LENGTH + digits_in_msg_id] = "";
@@ -694,17 +699,24 @@ bool MqttClientClass::readMessage(const char* topic,
                 topic,
                 (unsigned int)message_id);
 
-        const ResponseResult response =
-            SequansController.writeCommand(command, buffer, buffer_size);
-
-        if (response != ResponseResult::OK) {
-            SequansController.responseResultToString(response, response_string);
-            Log.errorf("Failed to read MQTT messsage: %s\r\n", response_string);
-            return false;
-        }
+        SequansController.writeBytes((uint8_t*)&command[0],
+                                     strlen(command),
+                                     true);
     }
 
-    return true;
+    // First two bytes are \r\n for the MQTT message response, so we flush those
+    if (!SequansController.waitForByte('\r', MQTT_TIMEOUT_MS)) {
+        return false;
+    }
+    if (!SequansController.waitForByte('\n', MQTT_TIMEOUT_MS)) {
+        return false;
+    }
+
+    // Then we can read the response into the buffer
+    const ResponseResult response = SequansController.readResponse(buffer,
+                                                                   buffer_size);
+
+    return (response == ResponseResult::OK);
 }
 
 String MqttClientClass::readMessage(const char* topic, const uint16_t size) {
