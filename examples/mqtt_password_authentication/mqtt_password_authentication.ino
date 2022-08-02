@@ -80,8 +80,8 @@ void loop() {
 
     String message_to_publish = String("Hello world: " + String(counter));
 
-    bool publishedSuccessfully =
-        MqttClient.publish(MQTT_PUB_TOPIC, message_to_publish.c_str());
+    bool publishedSuccessfully = MqttClient.publish(MQTT_PUB_TOPIC,
+                                                    message_to_publish.c_str());
 
     if (publishedSuccessfully) {
         Log.infof("Published message: %s\r\n", message_to_publish.c_str());
