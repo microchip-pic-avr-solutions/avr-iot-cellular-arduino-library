@@ -705,10 +705,10 @@ bool MqttClientClass::readMessage(const char* topic,
     }
 
     // First two bytes are \r\n for the MQTT message response, so we flush those
-    if (!SequansController.waitForByte('\r', MQTT_TIMEOUT_MS)) {
+    if (!SequansController.waitForByte('\r', 100)) {
         return false;
     }
-    if (!SequansController.waitForByte('\n', MQTT_TIMEOUT_MS)) {
+    if (!SequansController.waitForByte('\n', 100)) {
         return false;
     }
 

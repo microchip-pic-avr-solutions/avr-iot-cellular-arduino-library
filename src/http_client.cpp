@@ -74,10 +74,6 @@ static HttpResponse sendData(const char* endpoint,
 
     HttpResponse http_response = {0, 0};
 
-    // Fix for bringing the modem out of idling and prevent timeout whilst
-    // waiting for modem response during the next AT command
-    SequansController.writeCommand("AT");
-
     // Setup and transmit SEND command before sending the data
     const uint32_t digits_in_data_length = trunc(log10(buffer_size)) + 1;
 
@@ -93,7 +89,8 @@ static HttpResponse sendData(const char* endpoint,
         return http_response;
     }
 
-    // Wait some before delivering the payload
+    // Wait some before delivering the payload. The modem might hang if we
+    // deliver it too quickly
     delay(100);
 
     // Now we deliver the payload
