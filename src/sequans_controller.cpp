@@ -15,6 +15,7 @@
 #ifdef __AVR_AVR128DB48__ // MINI
 
 #define TX_PIN PIN_PC0
+#define RX_PIN PIN_PC1
 
 #define CTS_PIN     PIN_PC4
 #define CTS_PIN_bm  PIN4_bm
@@ -31,7 +32,9 @@
 
 #ifdef __AVR_AVR128DB64__ // Non-Mini
 
-#define TX_PIN      PIN_PC0
+#define TX_PIN PIN_PC0
+#define RX_PIN PIN_PC1
+
 #define CTS_PIN     PIN_PC6
 #define CTS_PIN_bm  PIN6_bm
 #define CTS_INT_bm  PORT_INT6_bm
@@ -469,7 +472,8 @@ ISR(USART1_DRE_vect) {
 void SequansControllerClass::begin(void) {
 
     // PIN SETUP
-    pinConfigure(TX_PIN, PIN_DIR_OUTPUT | PIN_PULLUP_ON);
+    pinConfigure(TX_PIN, PIN_DIR_OUTPUT);
+    pinConfigure(RX_PIN, PIN_DIR_INPUT);
 
     // Request to send (RTS) and clear to send (CTS) are the control lines
     // on the UART line. From the configuration the MCU and the LTE modem is
