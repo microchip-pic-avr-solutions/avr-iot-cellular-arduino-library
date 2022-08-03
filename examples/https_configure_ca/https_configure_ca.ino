@@ -14,7 +14,7 @@ void setup() {
                                  strlen(AT_HTTPS_CONFIGURE_SECURITY_PROFILE),
                                  true);
 
-    if (!SequansController.waitForURC("SQNSPCFG", 4000)) {
+    if (!SequansController.waitForURC("SQNSPCFG", NULL, 0, 4000)) {
         Log.infof("Failed to set security profile\r\n");
         return;
     }
