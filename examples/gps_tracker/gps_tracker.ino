@@ -177,6 +177,8 @@ static void parseGPSMessages() {
                 Log.rawf("\r\n");
 
                 has_parsed = true;
+            } else {
+                Log.info("Waiting for GPS fix...");
             }
         }
     }
