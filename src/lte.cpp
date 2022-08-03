@@ -216,6 +216,8 @@ bool LteClass::begin(const bool print_messages) {
                 // NTP sync, so return if that is the case
                 if (!isConnected()) {
                     Lte.end();
+                    Log.warn(
+                        "Got disconnected from network whilst doing NTP sync");
                     return false;
                 }
 
