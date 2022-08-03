@@ -77,13 +77,13 @@ void setup() {
     Veml3328.shutdown();
     Mcp9808.shutdown();
 
+    // Connecting to the network might fail, so we just retry
     while (!Lte.begin()) {}
 
     Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
 }
 
 void loop() {
-    Log.raw("\r\n");
     Log.info("Power saving...");
     delay(100);
 

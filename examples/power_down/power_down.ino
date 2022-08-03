@@ -47,12 +47,8 @@ void setup() {
     Veml3328.shutdown();
     Mcp9808.shutdown();
 
-    if (!Lte.begin()) {
-        Log.error("Failed to connect to operator");
-
-        // Halt here
-        while (1) {}
-    }
+    // Connecting to the network might fail, so we just retry
+    while (!Lte.begin()) {}
 
     Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
 }
