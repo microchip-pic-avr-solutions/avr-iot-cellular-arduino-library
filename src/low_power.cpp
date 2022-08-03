@@ -108,9 +108,6 @@ static bool retrieved_period     = false;
 static uint32_t period           = 0;
 static uint32_t period_requested = 0;
 
-static uint8_t cell_led_state = 0;
-static uint8_t con_led_state  = 0;
-
 ISR(RTC_PIT_vect) {
     RTC.PITINTFLAGS = RTC_PI_bm;
     pit_triggered   = true;
@@ -333,7 +330,6 @@ static void disablePIT(void) {
 }
 
 static void powerDownPeripherals(void) {
-
     // LEDs
     pinConfigure(LedCtrl.getLedPin(Led::CELL),
                  PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
@@ -347,17 +343,11 @@ static void powerDownPeripherals(void) {
                  PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
 
     // Make sure that I2C pins are pulled up and there won't be a voltage drop
-    // over them
-    pinConfigure(I2C0_SDA_PIN, PIN_DIR_OUTPUT);
-    pinConfigure(I2C0_SCL_PIN, PIN_DIR_OUTPUT);
-    pinConfigure(I2C1_SDA_PIN, PIN_DIR_OUTPUT);
-    pinConfigure(I2C1_SCL_PIN, PIN_DIR_OUTPUT);
-
-    // Set in order to not have voltage drop across external resistors
-    digitalWrite(I2C0_SDA_PIN, HIGH);
-    digitalWrite(I2C0_SCL_PIN, HIGH);
-    digitalWrite(I2C0_SDA_PIN, HIGH);
-    digitalWrite(I2C1_SCL_PIN, HIGH);
+    // over them over the external pull up resistors
+    pinConfigure(I2C0_SDA_PIN, PIN_DIR_OUTPUT | PIN_PULLUP_ON);
+    pinConfigure(I2C0_SCL_PIN, PIN_DIR_OUTPUT | PIN_PULLUP_ON);
+    pinConfigure(I2C1_SDA_PIN, PIN_DIR_OUTPUT | PIN_PULLUP_ON);
+    pinConfigure(I2C1_SCL_PIN, PIN_DIR_OUTPUT | PIN_PULLUP_ON);
 
     // Voltage measure
     digitalWrite(VOLTAGE_MEASURE_PIN, LOW);
@@ -370,9 +360,11 @@ static void powerDownPeripherals(void) {
                  PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
     pinConfigure(DEBUGGER_LED_PIN,
                  PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
+    pinConfigure(DEBUGGER_SW0_PIN,
+                 PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
 }
 
-static void powerUpPeripherals(const bool return_leds_to_previous_state) {
+static void powerUpPeripherals() {
 
     pinConfigure(LedCtrl.getLedPin(Led::CELL),
                  PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
@@ -385,25 +377,12 @@ static void powerUpPeripherals(const bool return_leds_to_previous_state) {
     pinConfigure(LedCtrl.getLedPin(Led::USER),
                  PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
 
-    if (return_leds_to_previous_state) {
-        if (cell_led_state) {
-            LedCtrl.on(Led::CELL, true);
-        }
-
-        if (con_led_state) {
-            LedCtrl.on(Led::CON, true);
-        }
-    } else {
-        LedCtrl.off(Led::CELL, true);
-        LedCtrl.off(Led::CON, true);
-    }
-
     // Make sure that I2C pins are pulled up and there won't be a voltage drop
     // over them
-    pinConfigure(I2C0_SDA_PIN, PIN_DIR_OUTPUT);
-    pinConfigure(I2C0_SCL_PIN, PIN_DIR_OUTPUT);
-    pinConfigure(I2C1_SDA_PIN, PIN_DIR_OUTPUT);
-    pinConfigure(I2C1_SCL_PIN, PIN_DIR_OUTPUT);
+    pinConfigure(I2C0_SDA_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
+    pinConfigure(I2C0_SCL_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
+    pinConfigure(I2C1_SDA_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
+    pinConfigure(I2C1_SCL_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
 
     // Voltage measure
     digitalWrite(VOLTAGE_MEASURE_PIN, HIGH);
@@ -413,6 +392,7 @@ static void powerUpPeripherals(const bool return_leds_to_previous_state) {
     pinConfigure(DEBUGGER_TX_PIN, PIN_DIR_OUTPUT);
     pinConfigure(DEBUGGER_RX_PIN, PIN_DIR_INPUT | PIN_INPUT_ENABLE);
     pinConfigure(DEBUGGER_LED_PIN, PIN_DIR_OUTPUT);
+    pinConfigure(DEBUGGER_SW0_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
 }
 
 static void enableLDO(void) {
@@ -502,6 +482,10 @@ void LowPowerClass::configurePeriodicPowerSave(
 }
 
 void LowPowerClass::powerSave(void) {
+
+    const uint8_t cell_led_state = digitalRead(LedCtrl.getLedPin(Led::CELL));
+    const uint8_t con_led_state  = digitalRead(LedCtrl.getLedPin(Led::CON));
+
     if (!retrieved_period) {
         // Retrieve the proper sleep time set by the operator, which may
         // deviate from what we requested
@@ -525,10 +509,6 @@ void LowPowerClass::powerSave(void) {
         // trigger led ctrl, so we just disable it again.
         LedCtrl.off(Led::CELL, true);
     }
-
-    cell_led_state = digitalRead(LedCtrl.getLedPin(Led::CELL));
-    con_led_state  = digitalRead(LedCtrl.getLedPin(Led::CON));
-
     if (!attemptToEnterPowerSaveModeForModem(30000)) {
         Log.error("Failed to put LTE modem in sleep. Power save functionality "
                   "might not be available for your operator.");
@@ -545,15 +525,25 @@ void LowPowerClass::powerSave(void) {
         disableLDO();
 
         SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
-        powerUpPeripherals(true);
+        powerUpPeripherals();
 
         modem_is_in_power_save = false;
     }
 
     SequansController.setPowerSaveMode(0, NULL);
 
-    digitalWrite(LedCtrl.getLedPin(Led::CELL), cell_led_state);
-    digitalWrite(LedCtrl.getLedPin(Led::CON), con_led_state);
+    // Pins are active low
+    if (!cell_led_state) {
+        LedCtrl.on(Led::CELL, true);
+    } else {
+        LedCtrl.off(Led::CELL, true);
+    }
+
+    if (!con_led_state) {
+        LedCtrl.on(Led::CON, true);
+    } else {
+        LedCtrl.off(Led::CON, true);
+    }
 }
 
 void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
@@ -588,7 +578,7 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
     disablePIT();
     SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
 
-    powerUpPeripherals(false);
+    powerUpPeripherals();
 
     Lte.begin();
 }
