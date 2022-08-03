@@ -36,9 +36,9 @@ Adafruit_GPS GPS(&GPSSerial);
  * such that the float values for latitude and longitude are properly
  * converted before being sent to the server.
  */
-static char latitude[16] = "0";
+static char latitude[16]  = "0";
 static char longitude[16] = "0";
-static char time[24] = "0";
+static char time[24]      = "0";
 
 /**
  * @brief Keeps track of the state.
