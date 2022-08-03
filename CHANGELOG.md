@@ -92,7 +92,7 @@ No changes
 * Fix a bug where the peripherals weren't powered up before the LTE module in power down mode
 * Fix a bug where the LEDs wouldn't blink after using power down mode
 
-# 1.2.4 -- NOT RELEASED YET --
+# 1.2.4
 
 ## Features
 
@@ -101,8 +101,13 @@ No changes
 
 ## Changes
 
-* Reduce some buffer sizes in the library to reduce total RAM usage
+* Make the AT command system for the cellular modem faster and more robust
+* Make cryptoauthlib not precompiled in order to reduce flash and RAM usage
+* Reduce buffer sizes and function count (mostly callbacks) in the library to reduce total RAM usage
+* Change pin configuration for low power such that a lower current consumption is achieved
 
 ## Bugfixes
 
 * Fix a bug where the NTP sync would not retry if it failed
+* Fix a bug where the NTP sync would retry if cellular network got disconnected while doing the sync
+* Fix a bug where the LEDs weren't returned to the previous state after a power save 
