@@ -255,6 +255,11 @@ void LteClass::end(void) {
     SequansController.unregisterCallback(CEREG_CALLBACK);
     SequansController.unregisterCallback(TIMEZONE_CALLBACK);
     SequansController.writeCommand(AT_DISCONNECT);
+
+    // Wait for the CEREG URC after disconnect so that the modem doesn't have
+    // any pending URCs and won't prevent going to sleep
+    SequansController.waitForURC(CEREG_CALLBACK);
+
     SequansController.end();
 }
 

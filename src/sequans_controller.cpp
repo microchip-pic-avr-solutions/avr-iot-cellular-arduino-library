@@ -196,7 +196,7 @@ static volatile uint8_t power_save_mode = 0;
 
 /**
  * @brief Function pointer to the ring line. Is registered and set to a function
- * address in setPowerSaveMode().
+ * address in #setPowerSaveMode().
  */
 static void (*ring_line_callback)(void) = NULL;
 
@@ -539,7 +539,6 @@ void SequansControllerClass::end(void) {
     USART1.CTRLC = 0;
 
     pinConfigure(CTS_PIN, PIN_ISC_DISABLE);
-    digitalWrite(CTS_PIN, HIGH);
 
     // Set RTS high to halt the modem
     pinConfigure(RTS_PIN, PIN_DIR_OUTPUT);

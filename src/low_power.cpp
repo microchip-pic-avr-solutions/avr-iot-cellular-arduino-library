@@ -580,5 +580,5 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
 
     powerUpPeripherals();
 
-    Lte.begin();
+    while (!Lte.begin()) {}
 }
