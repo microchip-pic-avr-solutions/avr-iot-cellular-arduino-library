@@ -26,11 +26,11 @@
 static bool manual_control_enabled = false;
 
 void LedCtrlClass::begin() {
-    pinMode(LED_CELL_PIN, OUTPUT);
-    pinMode(LED_CON_PIN, OUTPUT);
-    pinMode(LED_DATA_PIN, OUTPUT);
-    pinMode(LED_ERROR_PIN, OUTPUT);
-    pinMode(LED_USER_PIN, OUTPUT);
+    pinConfigure(LED_CELL_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
+    pinConfigure(LED_CON_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
+    pinConfigure(LED_DATA_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
+    pinConfigure(LED_ERROR_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
+    pinConfigure(LED_USER_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
 
     this->off(Led::CELL);
     this->off(Led::CON);
