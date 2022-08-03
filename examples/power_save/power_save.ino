@@ -68,7 +68,8 @@ void setup() {
     // time as the LTE modem is woken up.
 
     LowPower.configurePeriodicPowerSave(
-        PowerSaveModePeriodMultiplier::THIRTY_SECONDS, 2);
+        PowerSaveModePeriodMultiplier::THIRTY_SECONDS,
+        2);
 
     // Make sure sensors are turned off
     Veml3328.begin();
@@ -76,12 +77,7 @@ void setup() {
     Veml3328.shutdown();
     Mcp9808.shutdown();
 
-    if (!Lte.begin()) {
-        Log.error("Failed to connect to operator");
-
-        // Halt here
-        while (1) {}
-    }
+    while (!Lte.begin()) {}
 
     Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
 }
