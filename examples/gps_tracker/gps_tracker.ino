@@ -12,9 +12,9 @@
 #include <http_client.h>
 #include <led_ctrl.h>
 #include <log.h>
-#include <low_power.h>
 #include <lte.h>
 #include <mcp9808.h>
+#include <power.h>
 #include <veml3328.h>
 
 #define GPSSerial Serial2
@@ -193,7 +193,7 @@ void setup() {
 
     // We configure the low power module for power down configuration, where
     // the LTE modem and the CPU will be powered down
-    LowPower.configurePowerDown();
+    Power.configurePowerDown();
 
     // Make sure sensors are turned off
     Veml3328.begin();
@@ -250,7 +250,7 @@ void loop() {
             GPS.sendCommand(PMTK_STANDBY);
             delay(1000); // Allow some time to print messages before we sleep
 
-            LowPower.powerDown(60);
+            Power.powerDown(60);
 
             Log.info("Woke up!");
             GPS.sendCommand(PMTK_AWAKE);

@@ -1,7 +1,7 @@
 #include "led_ctrl.h"
 #include "log.h"
-#include "low_power.h"
 #include "lte.h"
+#include "power.h"
 #include "sequans_controller.h"
 
 #include <Arduino.h>
@@ -58,8 +58,9 @@
 
 #define RING_PIN_bm PIN6_bm
 
-#define LOWQ_PIN            PIN_PB4
-#define VOLTAGE_MEASURE_PIN PIN_PB3
+#define LOWQ_PIN               PIN_PB4
+#define VOLTAGE_MEASURE_EN_PIN PIN_PB3
+#define VOLTAGE_MEASURE_PIN    PIN_PE0
 
 #define DEBUGGER_TX_PIN  PIN_PB0
 #define DEBUGGER_RX_PIN  PIN_PB1
@@ -78,8 +79,9 @@
 
 #define RING_PIN_bm PIN4_bm
 
-#define LOWQ_PIN            PIN_PB4
-#define VOLTAGE_MEASURE_PIN PIN_PB3
+#define LOWQ_PIN               PIN_PB4
+#define VOLTAGE_MEASURE_EN_PIN PIN_PB3
+#define VOLTAGE_MEASURE_PIN    PIN_PE0
 
 #define DEBUGGER_TX_PIN  PIN_PB0
 #define DEBUGGER_RX_PIN  PIN_PB1
@@ -98,7 +100,7 @@
 #endif
 
 // Singleton. Defined for use of the rest of the library.
-LowPowerClass LowPower = LowPowerClass::instance();
+PowerClass Power = PowerClass::instance();
 
 static volatile bool ring_line_activity     = false;
 static volatile bool modem_is_in_power_save = false;
@@ -171,19 +173,19 @@ decodePeriodMultiplier(const PowerSaveModePeriodMultiplier multiplier) {
 }
 
 /**
- * @brief Will attempt to put the LTE modem in power save mode.
+ * @brief Will attempt to put the cellular modem in power save mode.
  *
  * @note Will wait for @p waiting_time to see if the modem gets to low power
  * mode.
  *
  * @note The power save mode can be abrupted if a new message arrives from
  * the network (for example a MQTT message). Such messages have to be
- * handled before the LTE modem can be put back in into power save mode.
+ * handled before the cellular modem can be put back in into power save mode.
  *
  * @param waiting_time_ms How long to wait for the modem to get into low
  * power mode before giving up (in milliseconds).
  *
- * @return true if the LTE modem was put in power save mode.
+ * @return true if the cellular modem was put in power save mode.
  */
 static bool
 attemptToEnterPowerSaveModeForModem(const unsigned long waiting_time_ms) {
@@ -350,7 +352,7 @@ static void powerDownPeripherals(void) {
     pinConfigure(I2C1_SCL_PIN, PIN_DIR_OUTPUT | PIN_PULLUP_ON);
 
     // Voltage measure
-    digitalWrite(VOLTAGE_MEASURE_PIN, LOW);
+    digitalWrite(VOLTAGE_MEASURE_EN_PIN, LOW);
 
     // Debugger
     DEBUGGER_USART.CTRLB &= ~(USART_RXEN_bm | USART_TXEN_bm);
@@ -412,7 +414,7 @@ static void disableLDO(void) {
     delay(10);
 }
 
-void LowPowerClass::configurePowerDown(void) {
+void PowerClass::configurePowerDown(void) {
 
     // We need sequans controller to be initialized first before configuration.
     // This is because we need to disable the PSM mode so that the modem don't
@@ -426,7 +428,7 @@ void LowPowerClass::configurePowerDown(void) {
     SequansController.writeCommand(AT_COMMAND_DISABLE_PSM);
 }
 
-void LowPowerClass::configurePeriodicPowerSave(
+void PowerClass::configurePeriodicPowerSave(
     const PowerSaveModePeriodMultiplier power_save_mode_period_multiplier,
     const uint8_t power_save_mode_period_value) {
 
@@ -481,7 +483,7 @@ void LowPowerClass::configurePeriodicPowerSave(
     SequansController.writeCommand(command);
 }
 
-void LowPowerClass::powerSave(void) {
+void PowerClass::powerSave(void) {
 
     const uint8_t cell_led_state = digitalRead(LedCtrl.getLedPin(Led::CELL));
     const uint8_t con_led_state  = digitalRead(LedCtrl.getLedPin(Led::CON));
@@ -510,8 +512,9 @@ void LowPowerClass::powerSave(void) {
         LedCtrl.off(Led::CELL, true);
     }
     if (!attemptToEnterPowerSaveModeForModem(30000)) {
-        Log.error("Failed to put LTE modem in sleep. Power save functionality "
-                  "might not be available for your operator.");
+        Log.error(
+            "Failed to put cellular modem in sleep. Power save functionality "
+            "might not be available for your operator.");
     }
 
     if (modem_is_in_power_save) {
@@ -546,7 +549,7 @@ void LowPowerClass::powerSave(void) {
     }
 }
 
-void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
+void PowerClass::powerDown(const uint32_t power_down_time_seconds) {
 
     const unsigned long start_time_ms = millis();
 
@@ -581,4 +584,23 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
     powerUpPeripherals();
 
     while (!Lte.begin()) {}
+}
+
+float PowerClass::getSupplyVoltage(void) {
+
+    if (!digitalRead(VOLTAGE_MEASURE_EN_PIN)) {
+        pinConfigure(VOLTAGE_MEASURE_EN_PIN, PIN_DIR_OUTPUT);
+        digitalWrite(VOLTAGE_MEASURE_EN_PIN, HIGH);
+        Log.debug("Enabling voltage measure");
+    }
+
+    // The default resolution is 10 bits, so divide by that to get the fraction
+    // of VDD, which is 3.3 V
+    //
+    // The voltage is in a voltage divider, and is divided by 4, so have to
+    // multiply it up
+    float value = 4.0f * 3.3f * ((float)analogRead(VOLTAGE_MEASURE_PIN)) /
+                  1024.0f;
+
+    return value;
 }
