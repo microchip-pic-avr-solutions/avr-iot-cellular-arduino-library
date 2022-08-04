@@ -591,7 +591,6 @@ float PowerClass::getSupplyVoltage(void) {
     if (!digitalRead(VOLTAGE_MEASURE_EN_PIN)) {
         pinConfigure(VOLTAGE_MEASURE_EN_PIN, PIN_DIR_OUTPUT);
         digitalWrite(VOLTAGE_MEASURE_EN_PIN, HIGH);
-        Log.debug("Enabling voltage measure");
     }
 
     // The default resolution is 10 bits, so divide by that to get the fraction
