@@ -6,4 +6,9 @@ BOARD_CONFIG="DxCore:megaavr:avrdb:appspm=no,chip=avr128db48,clock=24internal,bo
 for d in examples/*/ ; do
         echo "Compiling $d...";
         arduino-cli compile -b $BOARD_CONFIG --libraries=".." "$d" --output-dir "builds/mini/$(basename $d)";
+
+        # Check the error code
+        if [ $? == 1 ]; then 
+            exit 1
+        fi
 done
