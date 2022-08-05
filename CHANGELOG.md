@@ -92,12 +92,13 @@ No changes
 * Fix a bug where the peripherals weren't powered up before the LTE module in power down mode
 * Fix a bug where the LEDs wouldn't blink after using power down mode
 
-# 1.2.4
+# 1.3.0
 
 ## Features
 
 * Add username and password authentication for MQTT
 * Add example using username and password authentication for MQTT
+* Add a function for retrieving the supply voltage of the board in LowPower and example demonstrating it
 
 ## Changes
 
