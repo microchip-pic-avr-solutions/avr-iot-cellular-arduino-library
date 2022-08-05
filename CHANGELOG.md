@@ -98,13 +98,13 @@ No changes
 
 * Add username and password authentication for MQTT
 * Add example using username and password authentication for MQTT
-* Add a function for retrieving the supply voltage of the board in LowPower and example demonstrating it
+* Add a function for retrieving the supply voltage of the board in LowPower and an example demonstrating it
 
 ## Changes
 
 * Make the AT command system for the cellular modem faster and more robust
 * Make cryptoauthlib not precompiled in order to reduce flash and RAM usage
-* Reduce buffer sizes and function count (mostly callbacks) in the library to reduce total RAM usage
+* Reduce buffer sizes and function count (mostly callbacks) in the library to reduce total flash and RAM usage
 * Change pin configuration for low power such that a lower current consumption is achieved
 
 ## Bugfixes
