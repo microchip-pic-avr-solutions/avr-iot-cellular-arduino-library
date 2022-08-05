@@ -12,8 +12,8 @@
 #define TIMEZONE_URL "worldtimeapi.org"
 #define TIMEZONE_URI "/api/timezone/Europe/Oslo.txt"
 
-long getTimeFromResponse(String *resp) {
-    int unix_time_index = resp->indexOf(String("unixtime: "));
+long getTimeFromResponse(String* resp) {
+    int unix_time_index    = resp->indexOf(String("unixtime: "));
     int utx_datetime_index = resp->indexOf(String("utc_datetime"));
 
     return resp->substring(unix_time_index + 10, utx_datetime_index - 1)

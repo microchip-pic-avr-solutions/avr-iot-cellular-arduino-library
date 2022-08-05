@@ -7,7 +7,7 @@
 #include "cert_def_1_signer.h"
 #include "cert_def_3_device.h"
 
-void printCertificate(uint8_t *certificate, uint16_t size) {
+void printCertificate(uint8_t* certificate, uint16_t size) {
     char buffer[1024];
     size_t buffer_size = sizeof(buffer);
     ATCA_STATUS result =
@@ -60,9 +60,10 @@ void setup() {
     uint8_t buffer[g_cert_def_1_signer.cert_template_size + 4];
     size_t size = sizeof(buffer);
 
-    if (ATCA_SUCCESS !=
-        (status = atcacert_read_cert(
-             &g_cert_def_1_signer, public_key, buffer, &size))) {
+    if (ATCA_SUCCESS != (status = atcacert_read_cert(&g_cert_def_1_signer,
+                                                     public_key,
+                                                     buffer,
+                                                     &size))) {
         Log.errorf("Failed to read signing certificate: %d\r\n", status);
         return;
     } else {
@@ -73,9 +74,10 @@ void setup() {
     Log.raw("\r\n\r\n");
 
     // Retrive device certificate
-    if (ATCA_SUCCESS !=
-        (status = atcacert_read_cert(
-             &g_cert_def_3_device, public_key, buffer, &size))) {
+    if (ATCA_SUCCESS != (status = atcacert_read_cert(&g_cert_def_3_device,
+                                                     public_key,
+                                                     buffer,
+                                                     &size))) {
         Log.errorf("Failed to read device certificate: %d\r\n", status);
         return;
     } else {
