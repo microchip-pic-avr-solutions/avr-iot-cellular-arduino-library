@@ -12,7 +12,7 @@
             timeout(time: 30, unit: 'MINUTES')
         }
 
-        environment {	    
+        environment {
             DEPLOY_TOOL_URL = 'https://bitbucket.microchip.com/scm/citd/tool-github-deploy.git'
             DEPLOY_SCRIPT_FILE = 'tool-github-deploy/tool-github-deploy/tool-github-deploy.py'
             BITBUCKET_REPO = 'https://bitbucket.microchip.com/scm/mcu8mass/avr-iot-cellular-arduino-library.git'
@@ -40,12 +40,13 @@
                     }
                 }
             }
-       
+
 
             stage('install-libraries') {
                 steps {
                     sh 'arduino-cli core install --additional-urls "http://drazzy.com/package_drazzy.com_index.json" DxCore:megaavr'
                     sh 'arduino-cli lib install ArduinoJson'
+                    sh 'arduino-cli lib install "Adafruit GPS Library"'
                     sh 'ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://bitbucket.microchip.com/scm/mcu8mass/veml3328_arduino_driver.git'
                     sh 'ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://bitbucket.microchip.com/scm/mcu8mass/mcp9808_arduino_driver.git'
                 }
@@ -92,7 +93,7 @@
                         steps {
                             sh "git clone ${env.DEPLOY_TOOL_URL}"
                             sh "pip3 install PyGithub atlassian-python-api jsonschema packaging lxml"
-                        }   
+                        }
                     }
 
                     // Sync the bitbucket repository with the github repository
@@ -145,7 +146,7 @@
         execute("git config --global user.email 'microchip@microchip.com'")
         execute("git config --global user.name 'Microchip Technology'")
     }
-	
-	String getDependencyError() {
-		return sh(script: "! arduino-lint --library-manager update --compliance strict --format json | grep LP048", returnStdout: true)?.trim()
-	}
+
+    String getDependencyError() {
+        return sh(script: "! arduino-lint --library-manager update --compliance strict --format json | grep LP048", returnStdout: true)?.trim()
+    }
