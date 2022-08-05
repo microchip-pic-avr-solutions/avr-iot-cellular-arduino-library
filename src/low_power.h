@@ -1,5 +1,5 @@
-#ifndef POWER_H
-#define POWER_H
+#ifndef LOW_POWER_H
+#define LOW_POWER_H
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -19,26 +19,26 @@ enum class PowerSaveModePeriodMultiplier {
     ONE_MINUTE     = 5,
 };
 
-class PowerClass {
+class LowPowerClass {
 
   private:
     /**
      * @brief Hide constructor in order to enforce a single instance of the
      * class.
      */
-    PowerClass(){};
+    LowPowerClass(){};
 
   public:
     /**
      * @brief Singleton instance.
      */
-    static PowerClass& instance(void) {
-        static PowerClass instance;
+    static LowPowerClass& instance(void) {
+        static LowPowerClass instance;
         return instance;
     }
 
     /**
-     * @brief Configures the power module for power down configuration.
+     * @brief Configures the low power module for power down configuration.
      */
     void configurePowerDown(void);
 
@@ -90,6 +90,6 @@ class PowerClass {
     float getSupplyVoltage(void);
 };
 
-extern PowerClass Power;
+extern LowPowerClass LowPower;
 
 #endif

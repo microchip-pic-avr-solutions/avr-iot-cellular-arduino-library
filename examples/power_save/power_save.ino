@@ -11,9 +11,9 @@
 #include <avr/io.h>
 #include <led_ctrl.h>
 #include <log.h>
+#include <low_power.h>
 #include <lte.h>
 #include <mcp9808.h>
-#include <power.h>
 #include <sequans_controller.h>
 #include <veml3328.h>
 
@@ -67,7 +67,7 @@ void setup() {
     // CPU to sleep. When the time period is over, the CPU is woken at the same
     // time as the cellular modem is woken up.
 
-    Power.configurePeriodicPowerSave(
+    LowPower.configurePeriodicPowerSave(
         PowerSaveModePeriodMultiplier::THIRTY_SECONDS,
         2);
 
@@ -87,7 +87,7 @@ void loop() {
     Log.info("Power saving...");
     delay(100);
 
-    Power.powerSave();
+    LowPower.powerSave();
 
     Log.info("Woke up!");
 

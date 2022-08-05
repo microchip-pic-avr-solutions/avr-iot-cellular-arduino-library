@@ -11,7 +11,7 @@
 
 #include <led_ctrl.h>
 #include <log.h>
-#include <power.h>
+#include <low_power.h>
 
 void setup() {
     Log.begin(115200);
@@ -25,7 +25,7 @@ void setup() {
 
 void loop() {
 
-    float voltage = Power.getSupplyVoltage();
+    float voltage = LowPower.getSupplyVoltage();
 
     // Note that in order to print floats, you have to set printf support to
     // full in the Arduino IDE. Go to Tools -> printf() -> Full

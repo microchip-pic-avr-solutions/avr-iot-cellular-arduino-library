@@ -1,7 +1,7 @@
 #include "led_ctrl.h"
 #include "log.h"
+#include "low_power.h"
 #include "lte.h"
-#include "power.h"
 #include "sequans_controller.h"
 
 #include <Arduino.h>
@@ -100,7 +100,7 @@
 #endif
 
 // Singleton. Defined for use of the rest of the library.
-PowerClass Power = PowerClass::instance();
+LowPowerClass LowPower = LowPowerClass::instance();
 
 static volatile bool ring_line_activity     = false;
 static volatile bool modem_is_in_power_save = false;
@@ -414,7 +414,7 @@ static void disableLDO(void) {
     delay(10);
 }
 
-void PowerClass::configurePowerDown(void) {
+void LowPowerClass::configurePowerDown(void) {
 
     // We need sequans controller to be initialized first before configuration.
     // This is because we need to disable the PSM mode so that the modem don't
@@ -428,7 +428,7 @@ void PowerClass::configurePowerDown(void) {
     SequansController.writeCommand(AT_COMMAND_DISABLE_PSM);
 }
 
-void PowerClass::configurePeriodicPowerSave(
+void LowPowerClass::configurePeriodicPowerSave(
     const PowerSaveModePeriodMultiplier power_save_mode_period_multiplier,
     const uint8_t power_save_mode_period_value) {
 
@@ -483,7 +483,7 @@ void PowerClass::configurePeriodicPowerSave(
     SequansController.writeCommand(command);
 }
 
-void PowerClass::powerSave(void) {
+void LowPowerClass::powerSave(void) {
 
     const uint8_t cell_led_state = digitalRead(LedCtrl.getLedPin(Led::CELL));
     const uint8_t con_led_state  = digitalRead(LedCtrl.getLedPin(Led::CON));
@@ -549,7 +549,7 @@ void PowerClass::powerSave(void) {
     }
 }
 
-void PowerClass::powerDown(const uint32_t power_down_time_seconds) {
+void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
 
     const unsigned long start_time_ms = millis();
 
@@ -586,7 +586,7 @@ void PowerClass::powerDown(const uint32_t power_down_time_seconds) {
     while (!Lte.begin()) {}
 }
 
-float PowerClass::getSupplyVoltage(void) {
+float LowPowerClass::getSupplyVoltage(void) {
 
     if (!digitalRead(VOLTAGE_MEASURE_EN_PIN)) {
         pinConfigure(VOLTAGE_MEASURE_EN_PIN, PIN_DIR_OUTPUT);

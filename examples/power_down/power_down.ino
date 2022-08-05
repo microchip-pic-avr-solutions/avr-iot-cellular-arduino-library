@@ -11,9 +11,9 @@
 #include <avr/io.h>
 #include <led_ctrl.h>
 #include <log.h>
+#include <low_power.h>
 #include <lte.h>
 #include <mcp9808.h>
-#include <power.h>
 #include <veml3328.h>
 
 #define SW0 PIN_PD2
@@ -39,7 +39,7 @@ void setup() {
 
     // Now we configure the low power module for power down configuration, where
     // the cellular modem and the CPU will be powered down
-    Power.configurePowerDown();
+    LowPower.configurePowerDown();
 
     // Make sure sensors are turned off
     Veml3328.begin();
@@ -61,7 +61,7 @@ void loop() {
     delay(100);
 
     // Power down for 60 seconds
-    Power.powerDown(60);
+    LowPower.powerDown(60);
 
     Log.info("Woke up!");
 
