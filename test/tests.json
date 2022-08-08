@@ -270,7 +270,7 @@
     ]
   },
   "power_down-not-finished": {
-    "enabled": true,
+    "enabled": false,
     "tests": [
       {
         "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"

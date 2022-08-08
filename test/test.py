@@ -101,16 +101,18 @@ def test(example, test_data, serial_handle):
 
             if response == None:
                 formatted_output = output.replace("\r", "\\r").replace("\n", "\\n")
-                logging.error(f"\tDid not get the expected response \"{expectation}\", got: \"{formatted_output}\"")
+                error = f"\tDid not get the expected response \"{expectation}\", got: \"{formatted_output}\""
+                logging.error(error)
                 logging.error(f"{example_name}: Failed")
-                return False
+                return (False, error)
 
             formatted_response = response.group(0).replace("\r", "\\r").replace("\n", "\\n")
 
             logging.info(f"\tGot valid response: {formatted_response}")
 
     print(f"{example_name}: Passed")
-    return True
+
+    return (True, None)
 
 
 if __name__ == '__main__':
@@ -194,12 +196,12 @@ Usage:
         example_name = os.path.splitext(os.path.basename(example))[0]
 
         if not example_name in test_config:
-            examples_test_status[example_name] = "No test defined"
+            examples_test_status[example_name] = {"status": "No test defined", "error": None}
             continue
 
         if not test_config[example_name]["enabled"]:
             logging.warning(f"Skipping test for {example_name}, not enabled")
-            examples_test_status[example_name] = "Test disabled"
+            examples_test_status[example_name] = {"status": "Test disabled", "error": None}
             continue
 
         backend.start_session(session_config)
@@ -211,11 +213,12 @@ Usage:
             # so that the board is reset and running the programmed code
             with serial.Serial(arguments.port, 115200, timeout=TIMEOUT) as serial_handle:
                 backend.end_session()
-                if test(example, test_config[example_name]["tests"], serial_handle):
-                    examples_test_status[example_name] = "Passed"
+                (result, error) = test(example, test_config[example_name]["tests"], serial_handle)
+
+                if not error:
+                    examples_test_status[example_name] = {"status": "Passed", "error": None}
                 else:
-                    examples_test_status[example_name] = "Not passed"
-                    exit(1)
+                    examples_test_status[example_name] = {"status": "Passed", "error": error}
 
         except serial.SerialException as exception:
             logging.error(f"Got exception while opening serial port: {exception}")
@@ -226,7 +229,13 @@ Usage:
     backend.disconnect_from_tool()
 
     print("--------------- Test status ---------------")
-    for example_name, status in examples_test_status.items():
-        print(f"{example_name:<30}: {status}")
+    for example_name, entry in examples_test_status.items():
+        status = entry["status"]
+        error = entry["error"]
+
+        if status == "Passed" or status == "No test defined" or status == "Test disabled":
+            print(f"{example_name:<30}: {status}")
+        else:
+            print(f"{example_name:<30}: {status} - {error}")
 
     exit(0)
