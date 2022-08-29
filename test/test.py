@@ -133,6 +133,8 @@ Usage:
     - python test.py PORT
 '''))
 
+    file_directory = os.path.dirname(os.path.realpath(__file__))
+
     parser.add_argument("port",
                         type=str,
                         help="Device port (COMx, /dev/ttyACMx etc.)")
@@ -153,7 +155,7 @@ Usage:
                         "--testsfile",
                         type=str,
                         help="Path to JSON file with tests",
-                        default="tests.json")
+                        default=f"{file_directory}/tests.json")
 
     parser.add_argument("-e",
                         "--examples",
@@ -165,13 +167,13 @@ Usage:
                         "--sketchdir",
                         type=str,
                         help="Relative path to the example directory with the example sketches",
-                        default="../examples")
+                        default=f"{file_directory}/../examples")
 
     parser.add_argument("-b",
                         "--builddir",
                         type=str,
                         help="Relative path to the build directory",
-                        default="build")
+                        default=f"{file_directory}/build")
 
     arguments = parser.parse_args()
 
