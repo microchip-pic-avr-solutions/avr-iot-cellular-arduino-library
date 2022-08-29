@@ -115,6 +115,9 @@ bool LteClass::begin(const bool print_messages) {
     char response_buffer[48] = "";
     char value_buffer[32]    = "";
 
+    // Wait for CEREG URC before checking SIM
+    SequansController.waitForURC(CEREG_CALLBACK);
+
     // We check that the SIM card is inserted and ready. Note that we can only
     // do this and get a meaningful response in CFUN=1 or CFUN=4.
     if (SequansController.writeCommand(AT_CHECK_SIM,
@@ -139,7 +142,7 @@ bool LteClass::begin(const bool print_messages) {
     }
 
     if (strncmp(value_buffer, "READY", 5) != 0) {
-        Log.error("SIM card is not ready");
+        Log.errorf("SIM card is not ready, status: %s", value_buffer);
         Lte.end();
 
         return false;
