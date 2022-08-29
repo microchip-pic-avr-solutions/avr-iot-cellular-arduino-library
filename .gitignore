@@ -8,3 +8,4 @@ builds
 lib/cryptoauth/cryptoauthlib
 lib/cryptoauth/build48
 lib/cryptoauth/build64
+__pycache__/
