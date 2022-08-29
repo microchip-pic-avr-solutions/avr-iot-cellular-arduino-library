@@ -21,7 +21,7 @@ BOARD_CONFIG = "DxCore:megaavr:avrdb:appspm=no,chip=avr128db48,clock=24internal,
     "bodvoltage=1v9,bodmode=disabled,eesave=enable,resetpin=reset,"\
     "millis=tcb2,startuptime=8,wiremode=mors2,printf=full"
 
-TIMEOUT = 10
+TIMEOUT = 30
 
 
 def retrieve_examples(examples_directory):
@@ -85,8 +85,12 @@ def test(example, test_data, serial_handle):
         expectation = entry.get("expectation", None)
         command = entry.get("command", None)
         repeat = entry.get("repeat", 1)
+        timeout = entry.get("timeout", TIMEOUT)
 
-        for _ in range(0, repeat):
+        if not expectation:
+            return (False, f"No expeted value defined for entry: {entry}")
+
+        for i in range(0, repeat):
             if command != None:
                 command_stripped = command.strip("\r")
                 logging.info(f"\tTesting command: {command_stripped}")
@@ -94,8 +98,12 @@ def test(example, test_data, serial_handle):
                 serial_handle.write(str.encode(command))
                 serial_handle.flush()
 
-            # Read until line feed
-            output = serial_handle.read_until().decode("utf-8")
+            # Read until line feed or timeout
+            start = time.time()
+            output = ""
+
+            while time.time() - start < timeout and output == "":
+                output = serial_handle.read_until().decode("utf-8")
 
             response = re.search(expectation, output)
 
@@ -148,9 +156,15 @@ Usage:
                         default="tests.json")
 
     parser.add_argument("-e",
-                        "--examplesdir",
+                        "--examples",
                         type=str,
-                        help="Relative path to the example directory",
+                        help="Examples to test (all or some specific example, e.g. sandbox)",
+                        default="all")
+
+    parser.add_argument("-s",
+                        "--sketchdir",
+                        type=str,
+                        help="Relative path to the example directory with the example sketches",
                         default="../examples")
 
     parser.add_argument("-b",
@@ -182,7 +196,7 @@ Usage:
             for name in files:
                 os.remove(os.path.join(root, name))
 
-    examples = retrieve_examples(arguments.examplesdir)
+    examples = retrieve_examples(arguments.sketchdir)
 
     test_config = {}
 
@@ -194,6 +208,9 @@ Usage:
     for example in examples:
 
         example_name = os.path.splitext(os.path.basename(example))[0]
+
+        if example_name != arguments.examples and arguments.examples != "all":
+            continue
 
         if not example_name in test_config:
             examples_test_status[example_name] = {"status": "No test defined", "error": None}
@@ -218,7 +235,7 @@ Usage:
                 if not error:
                     examples_test_status[example_name] = {"status": "Passed", "error": None}
                 else:
-                    examples_test_status[example_name] = {"status": "Passed", "error": error}
+                    examples_test_status[example_name] = {"status": "Not passed", "error": error}
 
         except serial.SerialException as exception:
             logging.error(f"Got exception while opening serial port: {exception}")
@@ -227,6 +244,8 @@ Usage:
         print("")
 
     backend.disconnect_from_tool()
+
+    all_tests_passed = True
 
     print("--------------- Test status ---------------")
     for example_name, entry in examples_test_status.items():
@@ -237,5 +256,9 @@ Usage:
             print(f"{example_name:<30}: {status}")
         else:
             print(f"{example_name:<30}: {status} - {error}")
+            all_tests_passed = False
 
-    exit(0)
+    if all_tests_passed:
+        exit(0)
+    else:
+        exit(1)

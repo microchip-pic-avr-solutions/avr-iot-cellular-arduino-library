@@ -234,8 +234,8 @@
       }
     ]
   },
-  "mqtt_polling_aws-not-finished": {
-    "enabled": false,
+  "mqtt_polling_aws": {
+    "enabled": true,
     "tests": [
       {
         "expectation": "\\[INFO\\] Starting initialization of MQTT Polling for AWS"
@@ -269,8 +269,8 @@
       }
     ]
   },
-  "power_down-not-finished": {
-    "enabled": false,
+  "power_down": {
+    "enabled": true,
     "tests": [
       {
         "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
@@ -282,7 +282,7 @@
         "expectation": "\\[INFO\\] Powering down..."
       },
       {
-        "timeout": 65,
+        "timeout": 90,
         "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
       },
       {
@@ -290,6 +290,66 @@
       },
       {
         "expectation": "\\[INFO\\] Doing work..."
+      }
+    ]
+  },
+  "power_print_voltage": {
+    "enabled": true,
+    "tests": [
+      {
+        "expectation": "\\[INFO\\] Starting up example for printing voltage supplied to the board"
+      },
+      {
+        "repeat": 5,
+        "expectation": "\\[INFO\\] The voltage supplied is: [0-9]\\.[0-9]+"
+      }
+    ]
+  },
+  "power_save": {
+    "enabled": true,
+    "tests": [
+      {
+        "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
+      },
+      {
+        "expectation": "\\[INFO\\] Connected to operator: (.*)"
+      },
+      {
+        "expectation": "\\[INFO\\] Power saving..."
+      },
+      {
+        "timeout": 300,
+        "expectation": "\\[INFO\\] Woke up!"
+      },
+      {
+        "expectation": "\\[INFO\\] Doing work..."
+      }
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "tests": [
+      {
+        "expectation": "\\[INFO\\] Starting sandbox / landing page procedure. Version = [0-9]+\\.[0-9]+\\.[0-9]+"
+      },
+      {
+        "expectation": "\\[INFO\\] Board name: [a-z0-9]+"
+      },
+      {
+        "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
+      },
+      {
+        "expectation": "\\[INFO\\] Connected to operator: (.*)"
+      },
+      {
+        "expectation": "\\[INFO\\] Connecting to MQTT broker..."
+      },
+      {
+        "expectation": "\\[INFO\\] Connected to MQTT broker, subscribing to topic: \\$aws\/things\/[a-z0-9]+\/shadow\/update\/delta!"
+      },
+      {
+        "repeat": 2,
+        "expectation": "\\[INFO\\] Sending heartbeat"
       }
     ]
   }
