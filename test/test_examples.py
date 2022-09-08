@@ -415,7 +415,7 @@ def program(request, backend):
     compilation_return_code = subprocess.run(
         ["arduino-cli", "compile", f"{sketch_path}", "-b", f"{BOARD_CONFIG}", "--output-dir", f"{build_directory}"], shell=True).returncode
 
-    assert compilation_return_code == 0, "{example_name} failed to compile"
+    assert compilation_return_code == 0, f"{example_name} failed to compile"
 
     hex_file = build_directory / f"{os.path.basename(sketch_path)}.hex"
 
@@ -427,7 +427,7 @@ def program(request, backend):
         backend.write_memory(segment.data, memory_name, segment.offset)
         verify_ok = backend.verify_memory(segment.data, memory_name, segment.offset)
 
-        assert verify_ok, "Verification of memory failed"
+        assert verify_ok, "Verification of program memory failed"
 
 
 def run_example(request, backend, example_test_data):
@@ -539,7 +539,6 @@ def test_power_print_voltage(request, backend, session_config, example_test_data
 
 def test_power_save(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)
-
 
 def test_sandbox(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)

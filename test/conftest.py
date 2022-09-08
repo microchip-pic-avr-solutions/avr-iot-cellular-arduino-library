@@ -2,8 +2,12 @@ import os
 
 from pathlib import Path
 
-
 def pytest_addoption(parser):
+    """Sets up the arguments which are passed to the tests
+
+    Args:
+        parser (obj): PyTest parser object
+    """
 
     file_directory = os.path.dirname(os.path.realpath(__file__))
 
