@@ -45,7 +45,7 @@ def backend(request):
 
     build_dir = Path(request.config.getoption("--builddir"))
 
-    # Remove the build dir if it already exists
+    # Remove the contents of the build directory if it already exists
     if build_dir.exists():
         for root, _, files in os.walk(build_dir, topdown=False):
             for name in files:
@@ -415,7 +415,7 @@ def program(request, backend):
     compilation_return_code = subprocess.run(
         ["arduino-cli", "compile", f"{sketch_path}", "-b", f"{BOARD_CONFIG}", "--output-dir", f"{build_directory}"], shell=True).returncode
 
-    assert compilation_return_code == 0
+    assert compilation_return_code == 0, "{example_name} failed to compile"
 
     hex_file = build_directory / f"{os.path.basename(sketch_path)}.hex"
 
