@@ -11,13 +11,10 @@
         "SQNHTTPSND"
     ],
     "C_Cpp.clang_format_fallbackStyle": "{ IndentWidth: 4, AllowShortLoopsOnASingleLine: true, AllowShortBlocksOnASingleLine: true, ColumnLimit: 80, BinPackParameters: false, BinPackArguments: false, AllowAllParametersOfDeclarationOnNextLine: false, AlignConsecutiveMacros: true, FixNamespaceComments: false, NamespaceIndentation: All, AlignConsecutiveAssignments: true, AlignEscapedNewlines: true, AlignOperands: Align, AlignTrailingComments: true, AllowAllParametersOfDeclarationOnNextLine: false, AllowAllArgumentsOnNextLine: false, PenaltyBreakAssignment: 50, PointerAlignment: Left, ReferenceAlignment: Left }",
-    "files.associations": {
-        "*.cfgmap": "xml",
-        "led_ctrl.h": "c"
-    },
-    "workbench.colorCustomizations": {
-        "activityBar.background": "#4D1C30",
-        "titleBar.activeBackground": "#6C2843",
-        "titleBar.activeForeground": "#FEFCFD"
-    }
+    "python.testing.pytestArgs": [
+        "--port=COM7",
+        "--ignore=lib"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
 }
