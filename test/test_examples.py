@@ -540,5 +540,6 @@ def test_power_print_voltage(request, backend, session_config, example_test_data
 def test_power_save(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)
 
+
 def test_sandbox(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)
