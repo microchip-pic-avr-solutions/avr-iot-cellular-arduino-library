@@ -538,14 +538,21 @@ void SequansControllerClass::end(void) {
     USART1.CTRLB = 0;
     USART1.CTRLC = 0;
 
-    pinConfigure(CTS_PIN, PIN_ISC_DISABLE);
+    pinConfigure(RESET_PIN, PIN_INPUT_DISABLE | PIN_DIR_INPUT);
 
-    // Set RTS high to halt the modem
-    pinConfigure(RTS_PIN, PIN_DIR_OUTPUT);
+    // Set RTS high to halt the modem. Has external pull-up, so is just set to
+    // input afterwards
     digitalWrite(RTS_PIN, HIGH);
+    pinConfigure(RTS_PIN, PIN_DIR_INPUT | PIN_INPUT_DISABLE);
 
+    pinConfigure(RING_PIN, PIN_DIR_INPUT | PIN_INPUT_DISABLE);
     detachInterrupt(RING_PIN);
+
+    pinConfigure(CTS_PIN, PIN_DIR_INPUT | PIN_INPUT_DISABLE);
     detachInterrupt(CTS_PIN);
+
+    pinConfigure(TX_PIN, PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
+    pinConfigure(RX_PIN, PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
 
     initialized = false;
 }

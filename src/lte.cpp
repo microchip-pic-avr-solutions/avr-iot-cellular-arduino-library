@@ -252,18 +252,23 @@ bool LteClass::begin(const bool print_messages) {
 }
 
 void LteClass::end(void) {
-    is_connected = false;
+
+    if (SequansController.isInitialized()) {
+
+        SequansController.unregisterCallback(TIMEZONE_CALLBACK);
+        SequansController.writeCommand(AT_DISCONNECT);
+
+        // Wait for the CEREG URC after disconnect so that the modem doesn't
+        // have any pending URCs and won't prevent going to sleep
+        uint32_t start = millis();
+        while (isConnected() && millis() - start < 2000) {}
+        SequansController.unregisterCallback(CEREG_CALLBACK);
+
+        SequansController.end();
+    }
+
     got_timezone = false;
-
-    SequansController.unregisterCallback(CEREG_CALLBACK);
-    SequansController.unregisterCallback(TIMEZONE_CALLBACK);
-    SequansController.writeCommand(AT_DISCONNECT);
-
-    // Wait for the CEREG URC after disconnect so that the modem doesn't have
-    // any pending URCs and won't prevent going to sleep
-    SequansController.waitForURC(CEREG_CALLBACK);
-
-    SequansController.end();
+    is_connected = false;
 }
 
 String LteClass::getOperator(void) {
