@@ -472,8 +472,8 @@ ISR(USART1_DRE_vect) {
 void SequansControllerClass::begin(void) {
 
     // PIN SETUP
-    pinConfigure(TX_PIN, PIN_DIR_OUTPUT);
-    pinConfigure(RX_PIN, PIN_DIR_INPUT);
+    pinConfigure(TX_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
+    pinConfigure(RX_PIN, PIN_DIR_INPUT | PIN_INPUT_ENABLE);
 
     // Request to send (RTS) and clear to send (CTS) are the control lines
     // on the UART line. From the configuration the MCU and the LTE modem is
@@ -484,12 +484,14 @@ void SequansControllerClass::begin(void) {
     //
     // Both pins are active low.
 
-    pinConfigure(RTS_PIN, PIN_DIR_OUTPUT);
+    pinConfigure(RTS_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
     digitalWrite(RTS_PIN, HIGH);
 
     // Clear to send is input and we want interrupts on both edges to know
     // when the LTE modem has changed the state of the line.
-    pinConfigure(CTS_PIN, PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INT_CHANGE);
+    pinConfigure(CTS_PIN,
+                 PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INT_CHANGE |
+                     PIN_INPUT_ENABLE);
 
     // We use attach interrupt here instead of the ISR directly as other
     // libraries might use the same ISR and we don't want to override it to
@@ -497,7 +499,7 @@ void SequansControllerClass::begin(void) {
     attachInterrupt(CTS_PIN, CTSInterrupt, CHANGE);
 
     // Set reset low to reset the LTE modem
-    pinConfigure(RESET_PIN, PIN_DIR_OUTPUT);
+    pinConfigure(RESET_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
     digitalWrite(RESET_PIN, HIGH);
     delay(10);
     digitalWrite(RESET_PIN, LOW);
