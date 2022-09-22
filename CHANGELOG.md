@@ -112,3 +112,14 @@ No changes
 * Fix a bug where the NTP sync would not retry if it failed
 * Fix a bug where the NTP sync would retry if cellular network got disconnected while doing the sync
 * Fix a bug where the LEDs weren't returned to the previous state after a power save 
+
+# 1.3.1
+
+## Changes
+* Turn off more modules in low power to save more power
+* Add hardware-in-the-loop testing
+
+## Bugfixes
+* Fix a bug where it would take some time before the board was actually in power down mode
+* Fix a bug where waking up from power down mode would reset the board
+* Fix a bug where it was wrongly reported that the SIM card was not ready
