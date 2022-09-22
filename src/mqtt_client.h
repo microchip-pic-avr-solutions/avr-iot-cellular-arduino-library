@@ -11,11 +11,7 @@
 
 #define MQTT_TOPIC_MAX_LENGTH 128
 
-typedef enum {
-    AT_MOST_ONCE = 0, // default
-    AT_LEAST_ONCE,
-    EXACTLY_ONCE
-} MqttQoS;
+typedef enum { AT_MOST_ONCE = 0, AT_LEAST_ONCE, EXACTLY_ONCE } MqttQoS;
 
 class MqttClientClass {
 
@@ -30,7 +26,7 @@ class MqttClientClass {
     /**
      * @brief Singleton instance.
      */
-    static MqttClientClass &instance(void) {
+    static MqttClientClass& instance(void) {
         static MqttClientClass instance;
         return instance;
     }
@@ -54,14 +50,14 @@ class MqttClientClass {
      *
      * @return true if configuration and connection was succesful.
      */
-    bool begin(const char *client_id,
-               const char *host,
+    bool begin(const char* client_id,
+               const char* host,
                const uint16_t port,
                const bool use_tls,
                const size_t keep_alive = 60,
-               const bool use_ecc = true,
-               const char *username = "",
-               const char *password = "");
+               const bool use_ecc      = true,
+               const char* username    = "",
+               const char* password    = "");
 
     /**
      * @brief Will configure and connect to the device specific AWS broker.
@@ -97,10 +93,10 @@ class MqttClientClass {
      *
      * @return true if publish was successful.
      */
-    bool publish(const char *topic,
-                 const uint8_t *buffer,
+    bool publish(const char* topic,
+                 const uint8_t* buffer,
                  const uint32_t buffer_size,
-                 const MqttQoS quality_of_service = AT_MOST_ONCE);
+                 const MqttQoS quality_of_service = AT_LEAST_ONCE);
 
     /**
      * @brief Publishes the contents of the message to the given topic.
@@ -111,9 +107,9 @@ class MqttClientClass {
      *
      * @return true if publish was successful.
      */
-    bool publish(const char *topic,
-                 const char *message,
-                 const MqttQoS quality_of_service = AT_MOST_ONCE);
+    bool publish(const char* topic,
+                 const char* message,
+                 const MqttQoS quality_of_service = AT_LEAST_ONCE);
 
     /**
      * @brief Subscribes to a given topic.
@@ -123,7 +119,7 @@ class MqttClientClass {
      *
      * @return true if subscription was successful.
      */
-    bool subscribe(const char *topic,
+    bool subscribe(const char* topic,
                    const MqttQoS quality_of_service = AT_MOST_ONCE);
 
     /**
@@ -134,7 +130,7 @@ class MqttClientClass {
      * @param message_id This value will be -1 if the MqttQoS is set to
      * AT_MOST_ONCE.
      */
-    void onReceive(void (*callback)(const char *topic,
+    void onReceive(void (*callback)(const char* topic,
                                     const uint16_t message_length,
                                     const int32_t message_id));
 
@@ -152,8 +148,8 @@ class MqttClientClass {
      * message or the message buffer was over 1024, which is a limitation from
      * the LTE module.
      */
-    bool readMessage(const char *topic,
-                     char *buffer,
+    bool readMessage(const char* topic,
+                     char* buffer,
                      const uint16_t buffer_size,
                      const int32_t message_id = -1);
 
@@ -165,7 +161,7 @@ class MqttClientClass {
      * @return The message or an empty string if no new message was retrieved on
      * the given topic.
      */
-    String readMessage(const char *topic, const uint16_t size = 256);
+    String readMessage(const char* topic, const uint16_t size = 256);
 
     /**
      * @brief Reads @p num_messages MQTT messages from the Sequans modem and
@@ -174,7 +170,7 @@ class MqttClientClass {
      * @param topic Topic to clear the messages from.
      * @param num_messages Number of messages to discard.
      */
-    void clearMessages(const char *topic, const uint16_t num_messages);
+    void clearMessages(const char* topic, const uint16_t num_messages);
 };
 
 extern MqttClientClass MqttClient;
