@@ -52,16 +52,17 @@
 #define TIMER_LENGTH      11
 #define TIMER_SLEEP_INDEX 8
 
-#define RING_PORT VPORTC
-
 #ifdef __AVR_AVR128DB48__ // MINI
 
+#define RING_PORT   VPORTC
 #define RING_PIN_bm PIN6_bm
 
 #define LOWQ_PIN               PIN_PB4
 #define VOLTAGE_MEASURE_EN_PIN PIN_PB3
 #define VOLTAGE_MEASURE_PIN    PIN_PE0
 
+#define EEPROM_CS_PIN PIN_PE3
+
 #define DEBUGGER_TX_PIN  PIN_PB0
 #define DEBUGGER_RX_PIN  PIN_PB1
 #define DEBUGGER_LED_PIN PIN_PB2
@@ -73,16 +74,26 @@
 #define I2C1_SDA_PIN PIN_PF2
 #define I2C1_SCL_PIN PIN_PF3
 
+#define SPI_CS   PIN_PB5
+#define SPI_MOSI PIN_PA4
+#define SPI_MISO PIN_PA5
+#define SPI_SCK  PIN_PA6
+
+#define SW0_PORT PORTD
+
 #else
 
 #ifdef __AVR_AVR128DB64__ // Non-Mini
 
+#define RING_PORT   VPORTC
 #define RING_PIN_bm PIN4_bm
 
 #define LOWQ_PIN               PIN_PB4
 #define VOLTAGE_MEASURE_EN_PIN PIN_PB3
 #define VOLTAGE_MEASURE_PIN    PIN_PE0
 
+#define EEPROM_CS_PIN PIN_PE3
+
 #define DEBUGGER_TX_PIN  PIN_PB0
 #define DEBUGGER_RX_PIN  PIN_PB1
 #define DEBUGGER_LED_PIN PIN_PB2
@@ -93,6 +104,13 @@
 #define I2C0_SCL_PIN PIN_PC3
 #define I2C1_SDA_PIN PIN_PF2
 #define I2C1_SCL_PIN PIN_PF3
+
+#define SPI_CS   PIN_PB5
+#define SPI_MOSI PIN_PA4
+#define SPI_MISO PIN_PA5
+#define SPI_SCK  PIN_PA6
+
+#define SW0_PORT PORTD
 
 #else
 #error "INCOMPATIBLE_DEVICE_SELECTED"
@@ -331,70 +349,119 @@ static void disablePIT(void) {
     RTC.PITCTRLA &= ~RTC_PITEN_bm;
 }
 
+static void setPinLowPowerMode(const uint8_t pin, const bool pull_up = true) {
+
+    if (pull_up) {
+        pinConfigure(pin,
+                     PIN_DIR_INPUT | PIN_ISC_DISABLE | PIN_PULLUP_ON |
+                         PIN_INPUT_DISABLE);
+    } else {
+        pinConfigure(pin, PIN_DIR_INPUT | PIN_ISC_DISABLE | PIN_INPUT_DISABLE);
+    }
+}
+
+static void setPinNormalInputMode(const uint8_t pin) {
+    pinConfigure(pin, PIN_DIR_INPUT | PIN_PULLUP_OFF | PIN_INPUT_ENABLE);
+}
+
+static void setPinNormalOutputMode(const uint8_t pin) {
+    pinConfigure(pin, PIN_DIR_OUTPUT | PIN_PULLUP_OFF | PIN_INPUT_ENABLE);
+}
+
 static void powerDownPeripherals(void) {
-    // LEDs
-    pinConfigure(LedCtrl.getLedPin(Led::CELL),
-                 PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
-    pinConfigure(LedCtrl.getLedPin(Led::CON),
-                 PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
-    pinConfigure(LedCtrl.getLedPin(Led::DATA),
-                 PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
-    pinConfigure(LedCtrl.getLedPin(Led::ERROR),
-                 PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
-    pinConfigure(LedCtrl.getLedPin(Led::USER),
-                 PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
 
-    // Make sure that I2C pins are pulled up and there won't be a voltage drop
-    // over them over the external pull up resistors
-    pinConfigure(I2C0_SDA_PIN, PIN_DIR_OUTPUT | PIN_PULLUP_ON);
-    pinConfigure(I2C0_SCL_PIN, PIN_DIR_OUTPUT | PIN_PULLUP_ON);
-    pinConfigure(I2C1_SDA_PIN, PIN_DIR_OUTPUT | PIN_PULLUP_ON);
-    pinConfigure(I2C1_SCL_PIN, PIN_DIR_OUTPUT | PIN_PULLUP_ON);
+    // EEPROM - Set in standby mode
+    setPinLowPowerMode(EEPROM_CS_PIN);
 
-    // Voltage measure
-    digitalWrite(VOLTAGE_MEASURE_EN_PIN, LOW);
+    // I2C
+    //
+    // We don't pull up the I2C lines as they have external pull-ups
+    Wire.end();
+    Wire1.end();
+    setPinLowPowerMode(I2C0_SDA_PIN, false);
+    setPinLowPowerMode(I2C0_SCL_PIN, false);
+    setPinLowPowerMode(I2C1_SDA_PIN, false);
+    setPinLowPowerMode(I2C1_SCL_PIN, false);
 
-    // Debugger
+    // SPI
+    setPinLowPowerMode(SPI_CS);
+    setPinLowPowerMode(SPI_MOSI);
+    setPinLowPowerMode(SPI_MOSI);
+    setPinLowPowerMode(SPI_SCK);
+
+    // Debugger, add pull-ups on pins for USART TX & RX, as well as LED pin
+
     DEBUGGER_USART.CTRLB &= ~(USART_RXEN_bm | USART_TXEN_bm);
-    pinConfigure(DEBUGGER_TX_PIN,
-                 PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
-    pinConfigure(DEBUGGER_RX_PIN,
-                 PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
-    pinConfigure(DEBUGGER_LED_PIN,
-                 PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
-    pinConfigure(DEBUGGER_SW0_PIN,
-                 PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INPUT_DISABLE);
+    setPinLowPowerMode(DEBUGGER_TX_PIN);
+    setPinLowPowerMode(DEBUGGER_RX_PIN);
+    setPinLowPowerMode(DEBUGGER_LED_PIN);
+
+    // Only enable pull-up for SW0 to not have current over it, but keep active
+    // for waking the device up by the button
+    SW0_PORT.PIN2CTRL |= PORT_PULLUPEN_bm;
+
+    // LEDs
+    setPinLowPowerMode(LedCtrl.getLedPin(Led::CELL));
+    setPinLowPowerMode(LedCtrl.getLedPin(Led::CON));
+    setPinLowPowerMode(LedCtrl.getLedPin(Led::DATA));
+    setPinLowPowerMode(LedCtrl.getLedPin(Led::ERROR));
+    setPinLowPowerMode(LedCtrl.getLedPin(Led::USER));
+
+    // Disable ADC0, used for analogRead
+    ADC0.CTRLA &= ~ADC_ENABLE_bm;
+
+    // Voltage measure enable and voltage measure pins have external pull-up
+    setPinLowPowerMode(VOLTAGE_MEASURE_EN_PIN, false);
+    setPinLowPowerMode(VOLTAGE_MEASURE_PIN, false);
+
+    // Disable millis() timer
+    stop_millis();
 }
 
 static void powerUpPeripherals() {
 
-    pinConfigure(LedCtrl.getLedPin(Led::CELL),
-                 PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
-    pinConfigure(LedCtrl.getLedPin(Led::CON),
-                 PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
-    pinConfigure(LedCtrl.getLedPin(Led::DATA),
-                 PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
-    pinConfigure(LedCtrl.getLedPin(Led::ERROR),
-                 PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
-    pinConfigure(LedCtrl.getLedPin(Led::USER),
-                 PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
-
-    // Make sure that I2C pins are pulled up and there won't be a voltage drop
-    // over them
-    pinConfigure(I2C0_SDA_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
-    pinConfigure(I2C0_SCL_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
-    pinConfigure(I2C1_SDA_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
-    pinConfigure(I2C1_SCL_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
+    // Enable millis() timer
+    restart_millis();
 
     // Voltage measure
-    digitalWrite(VOLTAGE_MEASURE_PIN, HIGH);
+    setPinNormalInputMode(VOLTAGE_MEASURE_PIN);
+    setPinNormalOutputMode(VOLTAGE_MEASURE_EN_PIN);
+
+    // ADC for analogRead
+    init_ADC0();
+
+    // LEDs
+    setPinNormalOutputMode(LedCtrl.getLedPin(Led::CELL));
+    setPinNormalOutputMode(LedCtrl.getLedPin(Led::CON));
+    setPinNormalOutputMode(LedCtrl.getLedPin(Led::DATA));
+    setPinNormalOutputMode(LedCtrl.getLedPin(Led::ERROR));
+    setPinNormalOutputMode(LedCtrl.getLedPin(Led::USER));
 
     // Debugger
-    DEBUGGER_USART.CTRLB |= (USART_RXEN_bm | USART_TXEN_bm);
-    pinConfigure(DEBUGGER_TX_PIN, PIN_DIR_OUTPUT);
-    pinConfigure(DEBUGGER_RX_PIN, PIN_DIR_INPUT | PIN_INPUT_ENABLE);
-    pinConfigure(DEBUGGER_LED_PIN, PIN_DIR_OUTPUT);
-    pinConfigure(DEBUGGER_SW0_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
+    setPinNormalOutputMode(DEBUGGER_TX_PIN);
+    setPinNormalInputMode(DEBUGGER_RX_PIN);
+    setPinNormalOutputMode(DEBUGGER_LED_PIN);
+
+    SW0_PORT.PIN2CTRL &= ~PORT_PULLUPEN_bm;
+
+    DEBUGGER_USART.CTRLB |= USART_TXEN_bm | USART_RXEN_bm;
+
+    // I2C
+    setPinNormalOutputMode(I2C0_SDA_PIN);
+    setPinNormalOutputMode(I2C0_SCL_PIN);
+    setPinNormalOutputMode(I2C1_SDA_PIN);
+    setPinNormalOutputMode(I2C1_SCL_PIN);
+    Wire.begin();
+    Wire1.begin();
+
+    // SPI
+    setPinNormalOutputMode(SPI_CS);
+    setPinNormalOutputMode(SPI_MOSI);
+    setPinNormalInputMode(SPI_MISO);
+    setPinNormalOutputMode(SPI_SCK);
+
+    // EEPROM
+    setPinNormalOutputMode(EEPROM_CS_PIN);
 }
 
 static void enableLDO(void) {
@@ -403,7 +470,7 @@ static void enableLDO(void) {
     digitalWrite(LOWQ_PIN, HIGH);
 
     // Wait a little to let LDO mode settle
-    delay(10);
+    delay(100);
 }
 
 static void disableLDO(void) {
@@ -411,7 +478,7 @@ static void disableLDO(void) {
     digitalWrite(LOWQ_PIN, LOW);
 
     // Wait a little to let PWM mode settle
-    delay(10);
+    delay(100);
 }
 
 void LowPowerClass::configurePowerDown(void) {
@@ -553,7 +620,6 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
 
     const unsigned long start_time_ms = millis();
 
-    powerDownPeripherals();
     SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
 
     Lte.end();
@@ -563,6 +629,10 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
     uint32_t remaining_time_seconds =
         power_down_time_seconds -
         (uint32_t)(((millis() - start_time_ms) / 1000.0f));
+
+    // Need to power down the peripherals here as we want to grab the time
+    // (millis()) from the timer before disabling it
+    powerDownPeripherals();
 
     while (remaining_time_seconds > 0) {
 
