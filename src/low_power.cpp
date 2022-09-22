@@ -1,6 +1,7 @@
+#include "low_power.h"
+
 #include "led_ctrl.h"
 #include "log.h"
-#include "low_power.h"
 #include "lte.h"
 #include "sequans_controller.h"
 
@@ -391,7 +392,6 @@ static void powerDownPeripherals(void) {
 
     // Debugger, add pull-ups on pins for USART TX & RX, as well as LED pin
 
-    DEBUGGER_USART.CTRLB &= ~(USART_RXEN_bm | USART_TXEN_bm);
     setPinLowPowerMode(DEBUGGER_TX_PIN);
     setPinLowPowerMode(DEBUGGER_RX_PIN);
     setPinLowPowerMode(DEBUGGER_LED_PIN);
@@ -443,8 +443,6 @@ static void powerUpPeripherals() {
     setPinNormalOutputMode(DEBUGGER_LED_PIN);
 
     SW0_PORT.PIN2CTRL &= ~PORT_PULLUPEN_bm;
-
-    DEBUGGER_USART.CTRLB |= USART_TXEN_bm | USART_RXEN_bm;
 
     // I2C
     setPinNormalOutputMode(I2C0_SDA_PIN);
