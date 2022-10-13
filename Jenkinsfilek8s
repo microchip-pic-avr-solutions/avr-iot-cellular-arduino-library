@@ -54,7 +54,7 @@
 
             stage('linter') {
                 steps {
-                    sh 'arduino-lint --library-manager update --compliance strict'
+                    sh 'arduino-lint --library-manager update --compliance permissive'
                     script {
                         env.DEP_ERROR = getDependencyError()
                         if (env.DEP_ERROR != '') {
