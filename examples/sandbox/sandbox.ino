@@ -12,7 +12,6 @@
 #include <lte.h>
 #include <mcp9808.h>
 #include <mqtt_client.h>
-#include <sequans_controller.h>
 #include <veml3328.h>
 
 #define HEARTBEAT_INTERVAL_MS 10000
@@ -323,19 +322,6 @@ void setup() {
 
     sprintf(mqtt_sub_topic, MQTT_SUB_TOPIC_FMT, thing_name);
     sprintf(mqtt_pub_topic, MQTT_PUB_TOPIC_FMT, thing_name);
-
-    // - Patch begin -
-    // Updated patch for TLS verification in certain regions
-    // This now turns on TLS certificate verification
-    SequansController.begin();
-
-    char buffer[64];
-    SequansController.writeCommand(
-        "AT+SQNSPCFG=1,2,\"0xC02B\",1,19,0,0,\"\",\"\",1,0,0",
-        buffer,
-        sizeof(buffer));
-
-    // - Patch end -
 
     connectLTE();
 }
