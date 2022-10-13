@@ -25,9 +25,9 @@
 #define SECURITY_PROFILE_PREFIX_LENGTH 11
 #define HTTPS_SECURITY_PROFILE_NUMBER  '3'
 
-#define HTTP_SEND    "AT+SQNHTTPSND=0,%u,\"%s\",%lu"
+#define HTTP_SEND    "AT+SQNHTTPSND=0,%u,\"%s\",%lu,\"\",\"%s\""
 #define HTTP_RECEIVE "AT+SQNHTTPRCV=0,%lu"
-#define HTTP_QUERY   "AT+SQNHTTPQRY=0,%u,\"%s\""
+#define HTTP_QUERY   "AT+SQNHTTPQRY=0,%u,\"%s\",\"%s\""
 
 #define HTTP_RING_URC "SQNHTTPRING"
 
@@ -63,38 +63,59 @@ HttpClientClass HttpClient = HttpClientClass::instance();
  * Issues an AT command to the LTE modem.
  *
  * @param endpoint Destination of payload, part after host name in URL.
- * @param buffer Payload to send.
- * @param buffer_size Size of payload.
+ * @param data Payload to send.
+ * @param data_length Length of payload.
  * @param method POST(0) or PUT(1).
+ * @param header Optional header.
+ * @param header_length Length of header.
  */
 static HttpResponse sendData(const char* endpoint,
-                             const uint8_t* buffer,
-                             const uint32_t buffer_size,
-                             const uint8_t method) {
+                             const uint8_t* data,
+                             const uint32_t data_length,
+                             const uint8_t method,
+                             const uint8_t* header        = NULL,
+                             const uint32_t header_length = 0) {
 
     HttpResponse http_response = {0, 0};
 
     // Setup and transmit SEND command before sending the data
-    const uint32_t digits_in_data_length = trunc(log10(buffer_size)) + 1;
+    const uint32_t digits_in_data_length = trunc(log10(data_length)) + 1;
 
-    char command[strlen(HTTP_SEND) + strlen(endpoint) + digits_in_data_length];
-    sprintf(command, HTTP_SEND, method, endpoint, (unsigned long)buffer_size);
-    SequansController.writeBytes((uint8_t*)command, strlen(command), true);
+    const uint32_t command_length = strlen(HTTP_SEND) + strlen(endpoint) +
+                                    digits_in_data_length + header_length;
 
-    if (!SequansController.waitForByte(HTTP_SEND_START_CHARACTER,
-                                       HTTP_TIMEOUT)) {
-        Log.error(
-            "Timed out whilst waiting on delivering the HTTP payload. Is the "
-            "server online?");
-        return http_response;
+    // Append +1 for NULL termination
+    char command[command_length + 1];
+
+    // Append +1 for NULL termination
+    snprintf(command,
+             command_length + 1,
+             HTTP_SEND,
+             method,
+             endpoint,
+             (unsigned long)data_length,
+             header == NULL ? "" : (const char*)header);
+
+    SequansController.writeBytes((uint8_t*)command, command_length, true);
+
+    // Only send the data payload if there is any
+    if (data_length > 0) {
+
+        if (!SequansController.waitForByte(HTTP_SEND_START_CHARACTER,
+                                           HTTP_TIMEOUT)) {
+            Log.error("Timed out whilst waiting on delivering the HTTP "
+                      "payload. Is the "
+                      "server online?");
+            return http_response;
+        }
+
+        // Wait some before delivering the payload. The modem might hang if we
+        // deliver it too quickly
+        delay(100);
+
+        // Now we deliver the payload
+        SequansController.writeBytes(data, data_length);
     }
-
-    // Wait some before delivering the payload. The modem might hang if we
-    // deliver it too quickly
-    delay(100);
-
-    // Now we deliver the payload
-    SequansController.writeBytes(buffer, buffer_size);
 
     char http_response_buffer[HTTP_RESPONSE_MAX_LENGTH]                = "";
     char http_status_code_buffer[HTTP_RESPONSE_STATUS_CODE_LENGTH + 1] = "";
@@ -141,18 +162,30 @@ static HttpResponse sendData(const char* endpoint,
  *
  * @param endpoint Destination of retrieve, part after host name in URL.
  * @param method GET(0), HEAD(1) or DELETE(2).
+ * @param header Optional header.
+ * @param header_length Length of header.
  */
-static HttpResponse queryData(const char* endpoint, const uint8_t method) {
+static HttpResponse queryData(const char* endpoint,
+                              const uint8_t method,
+                              const uint8_t* header,
+                              const uint32_t header_length) {
 
     HttpResponse http_response = {0, 0};
 
-    // Fix for bringing the modem out of idling and prevent timeout whilst
-    // waiting for modem response during the next AT command
-    SequansController.writeCommand("AT");
-
     // Set up and send the query
-    char command[strlen(HTTP_QUERY) + strlen(endpoint)];
-    sprintf(command, HTTP_QUERY, method, endpoint);
+    const uint32_t command_length = strlen(HTTP_QUERY) + strlen(endpoint) +
+                                    header_length;
+
+    // Append +1 for NULL termination
+    char command[command_length + 1];
+
+    snprintf(command,
+             command_length + 1,
+             HTTP_QUERY,
+             method,
+             endpoint,
+             header == NULL ? "" : (const char*)header);
+
     SequansController.writeCommand(command);
 
     char http_response_buffer[HTTP_RESPONSE_MAX_LENGTH]                = "";
@@ -243,35 +276,70 @@ bool HttpClientClass::configure(const char* host,
 }
 
 HttpResponse HttpClientClass::post(const char* endpoint,
-                                   const uint8_t* buffer,
-                                   const uint32_t buffer_size) {
-    return sendData(endpoint, buffer, buffer_size, HTTP_POST_METHOD);
+                                   const uint8_t* data_buffer,
+                                   const uint32_t data_length,
+                                   const uint8_t* header_buffer,
+                                   const uint32_t header_length) {
+    return sendData(endpoint,
+                    data_buffer,
+                    data_length,
+                    HTTP_POST_METHOD,
+                    header_buffer,
+                    header_length);
 }
 
-HttpResponse HttpClientClass::post(const char* endpoint, const char* message) {
-    return post(endpoint, (uint8_t*)message, strlen(message));
+HttpResponse HttpClientClass::post(const char* endpoint,
+                                   const char* data,
+                                   const char* header) {
+    return post(endpoint,
+                (uint8_t*)data,
+                strlen(data),
+                (uint8_t*)header,
+                strlen(header));
 }
 
 HttpResponse HttpClientClass::put(const char* endpoint,
-                                  const uint8_t* buffer,
-                                  const uint32_t buffer_size) {
-    return sendData(endpoint, buffer, buffer_size, HTTP_PUT_METHOD);
+                                  const uint8_t* data_buffer,
+                                  const uint32_t data_length,
+                                  const uint8_t* header_buffer,
+                                  const uint32_t header_length) {
+    return sendData(endpoint,
+                    data_buffer,
+                    data_length,
+                    HTTP_PUT_METHOD,
+                    header_buffer,
+                    header_length);
 }
 
-HttpResponse HttpClientClass::put(const char* endpoint, const char* message) {
-    return put(endpoint, (uint8_t*)message, strlen(message));
+HttpResponse HttpClientClass::put(const char* endpoint,
+                                  const char* message,
+                                  const char* header) {
+    return put(endpoint,
+               (uint8_t*)message,
+               strlen(message),
+               (uint8_t*)header,
+               strlen(header));
 }
 
-HttpResponse HttpClientClass::get(const char* endpoint) {
-    return queryData(endpoint, HTTP_GET_METHOD);
+HttpResponse HttpClientClass::get(const char* endpoint, const char* header) {
+    return queryData(endpoint,
+                     HTTP_GET_METHOD,
+                     (uint8_t*)header,
+                     strlen(header));
 }
 
-HttpResponse HttpClientClass::head(const char* endpoint) {
-    return queryData(endpoint, HTTP_HEAD_METHOD);
+HttpResponse HttpClientClass::head(const char* endpoint, const char* header) {
+    return queryData(endpoint,
+                     HTTP_HEAD_METHOD,
+                     (uint8_t*)header,
+                     strlen(header));
 }
 
-HttpResponse HttpClientClass::del(const char* endpoint) {
-    return queryData(endpoint, HTTP_DELETE_METHOD);
+HttpResponse HttpClientClass::del(const char* endpoint, const char* header) {
+    return queryData(endpoint,
+                     HTTP_DELETE_METHOD,
+                     (uint8_t*)header,
+                     strlen(header));
 }
 
 int16_t HttpClientClass::readBody(char* buffer, const uint32_t buffer_size) {

@@ -19,14 +19,14 @@ class HttpClientClass {
     HttpClientClass(){};
 
   public:
-    static HttpClientClass &instance(void) {
+    static HttpClientClass& instance(void) {
         static HttpClientClass instance;
         return instance;
     }
 
     enum StatusCodes {
-        STATUS_OK = 200,
-        STATUS_NOT_FOUND = 404,
+        STATUS_OK                    = 200,
+        STATUS_NOT_FOUND             = 404,
         STATUS_INTERNAL_SERVER_ERROR = 500,
     };
 
@@ -41,59 +41,103 @@ class HttpClientClass {
      * @return True if operation was successful.
      */
     bool
-    configure(const char *host, const uint16_t port, const bool enable_tls);
-
-    /**
-     * @brief Issues a post to the host configured. Will block until operation
-     * is done.
-     */
-    HttpResponse post(const char *endpoint,
-                      const uint8_t *buffer,
-                      const uint32_t buffer_size);
+    configure(const char* host, const uint16_t port, const bool enable_tls);
 
     /**
      * @brief Issues a post to the host configured. Will block until operation
      * is done.
      *
-     * @param messsage Needs to be a regular c string which is null terminated.
-     *
+     * @param endpoint Endpoint to issue the POST to. Is the part of the URL
+     * after the domain.
+     * @param data_buffer The data payload.
+     * @param data_length The data length.
+     * @param header_buffer Optional header line (e.g. for authorization
+     * bearers)
+     * @param header_length Length of the optinal header line.
      */
-    HttpResponse post(const char *endpoint, const char *messsage);
+    HttpResponse post(const char* endpoint,
+                      const uint8_t* data_buffer,
+                      const uint32_t data_length,
+                      const uint8_t* header_buffer = NULL,
+                      const uint32_t header_length = 0);
+
+    /**
+     * @brief Issues a post to the host configured. Will block until operation
+     * is done.
+     *
+     * @param endpoint Endpoint to issue the POST to. Is the part of the URL
+     * after the domain.
+     * @param data The data payload.
+     * @param header Optional header line (e.g. for authorization
+     * bearers).
+     */
+    HttpResponse
+    post(const char* endpoint, const char* data, const char* header = NULL);
 
     /**
      * @brief Issues a put to the host configured. Will block until operation is
      * done.
+     *
+     * @param endpoint Endpoint to issue the PUT to. Is the part of the URL
+     * after the domain.
+     * @param data_buffer The data payload.
+     * @param data_length The data length.
+     * @param header_buffer Optional header line (e.g. for authorization
+     * bearers)
+     * @param header_length Length of the optinal header line.
      */
-    HttpResponse put(const char *endpoint,
-                     const uint8_t *buffer,
-                     const uint32_t buffer_size);
+    HttpResponse put(const char* endpoint,
+                     const uint8_t* data_buffer,
+                     const uint32_t data_length,
+                     const uint8_t* header_buffer = NULL,
+                     const uint32_t header_length = 0);
 
     /**
      * @brief Issues a put to the host configured. Will block until operation is
      * done.
      *
-     * @param messsage Needs to be a regular c string which is null terminated.
+     * @param endpoint Endpoint to issue the PUT to. Is the part of the URL
+     * after the domain.
+     * @param data The data payload.
+     * @param header Optional header line (e.g. for authorization
+     * bearers).
      */
-    HttpResponse put(const char *endpoint, const char *message);
+    HttpResponse
+    put(const char* endpoint, const char* data, const char* header = NULL);
 
     /**
      * @brief Issues a get from the host configured. Will block until operation
      * is done. The contents of the body after the get can be read using the
      * readBody() function after.
+     *
+     * @param endpoint Endpoint to issue the PUT to. Is the part of the URL
+     * after the domain.
+     * @param header Optional header line (e.g. for authorization
+     * bearers).
      */
-    HttpResponse get(const char *endpoint);
+    HttpResponse get(const char* endpoint, const char* header = NULL);
 
     /**
      * @brief Issues a head from the host configured. Will block until operation
      * is done.
+     *
+     * @param endpoint Endpoint to issue the PUT to. Is the part of the URL
+     * after the domain.
+     * @param header Optional header line (e.g. for authorization
+     * bearers).
      */
-    HttpResponse head(const char *endpoint);
+    HttpResponse head(const char* endpoint, const char* header = NULL);
 
     /**
      * @brief Issues a delete from the host configured. Will block until
      * operation is done.
+     *
+     * @param endpoint Endpoint to issue the PUT to. Is the part of the URL
+     * after the domain.
+     * @param header Optional header line (e.g. for authorization
+     * bearers).
      */
-    HttpResponse del(const char *endpoint);
+    HttpResponse del(const char* endpoint, const char* header = NULL);
 
     /**
      * @brief Reads the body of a response after a HTTP call. Note that the
@@ -107,7 +151,7 @@ class HttpClientClass {
      * @return bytes read from receive buffer. -1 indicates the buffer_size was
      * outside the range allowed.
      */
-    int16_t readBody(char *buffer, const uint32_t buffer_size);
+    int16_t readBody(char* buffer, const uint32_t buffer_size);
 
     /**
      * @brief Reads the body of the response after a HTTP call. Will read @param

@@ -123,3 +123,11 @@ No changes
 * Fix a bug where it would take some time before the board was actually in power down mode
 * Fix a bug where waking up from power down mode would reset the board
 * Fix a bug where it was wrongly reported that the SIM card was not ready
+
+# 1.3.2
+
+## Features 
+* Add ability to add HTTP headers 
+
+## Changes
+* Security profile patch is removed as this is now taken care of by NTP synchronization

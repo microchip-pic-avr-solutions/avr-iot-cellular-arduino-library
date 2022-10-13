@@ -217,6 +217,27 @@ def example_test_data():
             {
                 "expectation": "\\[INFO\\] Body: {"
             }
+
+        ],
+        "https_with_header": [
+            {
+                "expectation": "\\[INFO\\] Starting HTTPS with header example"
+            },
+            {
+                "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
+            },
+            {
+                "expectation": "\\[INFO\\] Connected to operator: (.*)"
+            },
+            {
+                "expectation": "\\[INFO\\] Performing GET with header..."
+            },
+            {
+                "expectation": "\\[INFO\\] GET - status code: 200, data size: (\\d{1,})"
+            },
+            {
+                "expectation": "\\[INFO\\] Response: {"
+            }
         ],
         "https_configure_ca": [
             {
@@ -510,6 +531,10 @@ def test_http_get_time(request, backend, session_config, example_test_data):
 
 
 def test_https(request, backend, session_config, example_test_data):
+    run_test(request, backend, session_config, example_test_data)
+
+
+def test_https_with_header(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)
 
 
