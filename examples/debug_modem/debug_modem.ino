@@ -28,7 +28,7 @@ void loop() { debugBridgeUpdate(); }
 #define DEL_CHARACTER   127
 #define ENTER_CHARACTER 13
 
-#define INPUT_BUFFER_SIZE    128
+#define INPUT_BUFFER_SIZE    256
 #define RESPONSE_BUFFER_SIZE 256
 
 void debugBridgeUpdate(void) {
