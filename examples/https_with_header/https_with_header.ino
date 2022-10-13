@@ -11,8 +11,6 @@
 
 #define DOMAIN "httpbin.org"
 
-void testHttp();
-
 void setup() {
     LedCtrl.begin();
     LedCtrl.startupCycle();
