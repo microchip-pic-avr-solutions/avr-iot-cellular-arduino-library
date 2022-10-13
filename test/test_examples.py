@@ -249,7 +249,7 @@ def example_test_data():
         ],
         "mqtt_password_authentication": [
             {
-                "expectation": "\\[INFO\\] Starting initialization of MQTT with username and password"
+                "expectation": "\\[INFO\\] Starting MQTT with username and password example"
             },
             {
                 "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
@@ -277,11 +277,14 @@ def example_test_data():
             },
             {
                 "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
+            },
+            {
+                "expectation": "\\[INFO\\] Closing MQTT connection"
             }
         ],
         "mqtt_polling": [
             {
-                "expectation": "\\[INFO\\] Starting initialization of MQTT Polling"
+                "expectation": "\\[INFO\\] Starting MQTT Polling example"
             },
             {
                 "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
@@ -306,11 +309,14 @@ def example_test_data():
             },
             {
                 "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
+            },
+            {
+                "expectation": "\\[INFO\\] Closing MQTT connection"
             }
         ],
         "mqtt_polling_aws": [
             {
-                "expectation": "\\[INFO\\] Starting initialization of MQTT Polling for AWS"
+                "expectation": "\\[INFO\\] Starting MQTT Polling for AWS example"
             },
             {
                 "expectation": "\r\n"
@@ -338,6 +344,9 @@ def example_test_data():
             },
             {
                 "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
+            },
+            {
+                "expectation": "\\[INFO\\] Closing MQTT connection"
             }
         ],
         "power_down": [
