@@ -28,7 +28,7 @@ void setup() {
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
-    Log.info("Starting initialization of MQTT Polling");
+    Log.info("Starting MQTT Polling example");
 
     // Establish LTE connection
     if (!Lte.begin()) {
@@ -62,29 +62,35 @@ void setup() {
         // Halt here
         while (1) {}
     }
-}
 
-void loop() {
-    String message_to_publish = String("Hello world: " + String(counter));
+    // Test MQTT publish and receive
+    for (uint8_t i = 0; i < 3; i++) {
+        String message_to_publish = String("Hello world: " + String(counter));
 
-    bool publishedSuccessfully = MqttClient.publish(MQTT_PUB_TOPIC,
-                                                    message_to_publish.c_str());
+        bool publishedSuccessfully =
+            MqttClient.publish(MQTT_PUB_TOPIC, message_to_publish.c_str());
 
-    if (publishedSuccessfully) {
-        Log.infof("Published message: %s\r\n", message_to_publish.c_str());
-        counter++;
-    } else {
-        Log.error("Failed to publish");
+        if (publishedSuccessfully) {
+            Log.infof("Published message: %s\r\n", message_to_publish.c_str());
+            counter++;
+        } else {
+            Log.error("Failed to publish");
+        }
+
+        delay(3000);
+
+        String message = MqttClient.readMessage(MQTT_SUB_TOPIC);
+
+        // Read message will return an empty string if there were no new
+        // messages, so anything other than that means that there was a new
+        // message
+        if (message != "") {
+            Log.infof("Got new message: %s\r\n", message.c_str());
+        }
     }
 
-    delay(3000);
-
-    String message = MqttClient.readMessage(MQTT_SUB_TOPIC);
-
-    // Read message will return an empty string if there were no new
-    // messages, so anything other than that means that there was a new
-    // message
-    if (message != "") {
-        Log.infof("Got new message: %s\r\n", message.c_str());
-    }
+    Log.infof("Closing MQTT connection");
+    MqttClient.end();
 }
+
+void loop() {}

@@ -47,7 +47,7 @@ void setup() {
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
-    Log.info("Starting initialization of MQTT Polling for AWS\r\n");
+    Log.info("Starting MQTT Polling for AWS example\r\n");
 
     if (initMQTTTopics() == false) {
         Log.error("Unable to initialize the MQTT topics. Stopping...");
@@ -81,29 +81,34 @@ void setup() {
         // Halt here
         while (1) {}
     }
-}
 
-void loop() {
+    // Test MQTT publish and receive
+    for (uint8_t i = 0; i < 3; i++) {
+        bool published_successfully =
+            MqttClient.publish(mqtt_pub_topic, "{\"light\": 9, \"temp\": 9}");
 
-    bool published_successfully =
-        MqttClient.publish(mqtt_pub_topic, "{\"light\": 9, \"temp\": 9}");
+        if (published_successfully) {
+            Log.info("Published message");
+        } else {
+            Log.error("Failed to publish\r\n");
+        }
 
-    if (published_successfully) {
-        Log.info("Published message");
-    } else {
-        Log.error("Failed to publish\r\n");
+        delay(2000);
+
+        String message = MqttClient.readMessage(mqtt_sub_topic);
+
+        // Read message will return an empty string if there were no new
+        // messages, so anything other than that means that there were a
+        // new message
+        if (message != "") {
+            Log.infof("Got new message: %s\r\n", message.c_str());
+        }
+
+        delay(2000);
     }
 
-    delay(2000);
-
-    String message = MqttClient.readMessage(mqtt_sub_topic);
-
-    // Read message will return an empty string if there were no new
-    // messages, so anything other than that means that there were a
-    // new message
-    if (message != "") {
-        Log.infof("Got new message: %s\r\n", message.c_str());
-    }
-
-    delay(2000);
+    Log.infof("Closing MQTT connection");
+    MqttClient.end();
 }
+
+void loop() {}
