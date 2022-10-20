@@ -25,7 +25,7 @@
 #define SECURITY_PROFILE_PREFIX_LENGTH 11
 #define HTTPS_SECURITY_PROFILE_NUMBER  '3'
 
-#define HTTP_SEND    "AT+SQNHTTPSND=0,%u,\"%s\",%lu,\"\",\"%s\""
+#define HTTP_SEND    "AT+SQNHTTPSND=0,%u,\"%s\",%lu,\"%s\",\"%s\""
 #define HTTP_RECEIVE "AT+SQNHTTPRCV=0,%lu"
 #define HTTP_QUERY   "AT+SQNHTTPQRY=0,%u,\"%s\",\"%s\""
 
@@ -36,6 +36,13 @@
 #define HTTP_GET_METHOD    0
 #define HTTP_HEAD_METHOD   1
 #define HTTP_DELETE_METHOD 2
+
+// Content type specifiers for POST requests for the AT+SQNHTTPSND command
+#define HTTP_CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED "0"
+#define HTTP_CONTENT_TYPE_TEXT_PLAIN                        "1"
+#define HTTP_CONTENT_TYPE_APPLICATION_OCTET_STREAM          "2"
+#define HTTP_CONTENT_TYPE_APPLICATION_MULTIPART_FORM_DATA   "3"
+#define HTTP_CONTENT_TYPE_APPLICATION_APPLICATION_JSON      "4"
 
 #define HTTP_RECEIVE_LENGTH          32
 #define HTTP_RECEIVE_START_CHARACTER '<'
@@ -74,7 +81,12 @@ static HttpResponse sendData(const char* endpoint,
                              const uint32_t data_length,
                              const uint8_t method,
                              const uint8_t* header        = NULL,
-                             const uint32_t header_length = 0) {
+                             const uint32_t header_length = 0,
+                             const char* content_type     = "") {
+
+    // The modem could hang if several HTTP requests are done quickly after each
+    // other, this alleviates this
+    SequansController.writeCommand("AT");
 
     HttpResponse http_response = {0, 0};
 
@@ -94,6 +106,7 @@ static HttpResponse sendData(const char* endpoint,
              method,
              endpoint,
              (unsigned long)data_length,
+             content_type,
              header == NULL ? "" : (const char*)header);
 
     SequansController.writeBytes((uint8_t*)command, command_length, true);
@@ -169,6 +182,10 @@ static HttpResponse queryData(const char* endpoint,
                               const uint8_t method,
                               const uint8_t* header,
                               const uint32_t header_length) {
+
+    // The modem could hang if several HTTP requests are done quickly after each
+    // other, this alleviates this
+    SequansController.writeCommand("AT");
 
     HttpResponse http_response = {0, 0};
 
@@ -279,23 +296,64 @@ HttpResponse HttpClientClass::post(const char* endpoint,
                                    const uint8_t* data_buffer,
                                    const uint32_t data_length,
                                    const uint8_t* header_buffer,
-                                   const uint32_t header_length) {
+                                   const uint32_t header_length,
+                                   const ContentType content_type) {
+
+    // The content type within the Sequans modem is classified by a single
+    // character (+1 for NULL termination)
+    char content_type_buffer[2] = "";
+
+    switch (content_type) {
+    case CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED:
+        strncpy(content_type_buffer,
+                HTTP_CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED,
+                sizeof(content_type_buffer));
+        break;
+
+    case CONTENT_TYPE_APPLICATION_OCTET_STREAM:
+        strncpy(content_type_buffer,
+                HTTP_CONTENT_TYPE_APPLICATION_OCTET_STREAM,
+                sizeof(content_type_buffer));
+        break;
+
+    case CONTENT_TYPE_MULTIPART_FORM_DATA:
+        strncpy(content_type_buffer,
+                HTTP_CONTENT_TYPE_APPLICATION_MULTIPART_FORM_DATA,
+                sizeof(content_type_buffer));
+        break;
+
+    case CONTENT_TYPE_APPLICATION_JSON:
+        strncpy(content_type_buffer,
+                HTTP_CONTENT_TYPE_APPLICATION_APPLICATION_JSON,
+                sizeof(content_type_buffer));
+        break;
+
+    default:
+        strncpy(content_type_buffer,
+                HTTP_CONTENT_TYPE_TEXT_PLAIN,
+                sizeof(content_type_buffer));
+        break;
+    }
+
     return sendData(endpoint,
                     data_buffer,
                     data_length,
                     HTTP_POST_METHOD,
                     header_buffer,
-                    header_length);
+                    header_length,
+                    content_type_buffer);
 }
 
 HttpResponse HttpClientClass::post(const char* endpoint,
                                    const char* data,
-                                   const char* header) {
+                                   const char* header,
+                                   const ContentType content_type) {
     return post(endpoint,
                 (uint8_t*)data,
                 strlen(data),
                 (uint8_t*)header,
-                strlen(header));
+                header == NULL ? 0 : strlen(header),
+                content_type);
 }
 
 HttpResponse HttpClientClass::put(const char* endpoint,
@@ -318,7 +376,7 @@ HttpResponse HttpClientClass::put(const char* endpoint,
                (uint8_t*)message,
                strlen(message),
                (uint8_t*)header,
-               strlen(header));
+               header == NULL ? 0 : strlen(header));
 }
 
 HttpResponse HttpClientClass::get(const char* endpoint, const char* header) {

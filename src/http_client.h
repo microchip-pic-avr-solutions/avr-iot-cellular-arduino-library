@@ -30,6 +30,14 @@ class HttpClientClass {
         STATUS_INTERNAL_SERVER_ERROR = 500,
     };
 
+    enum ContentType {
+        CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED,
+        CONTENT_TYPE_TEXT_PLAIN,
+        CONTENT_TYPE_APPLICATION_OCTET_STREAM,
+        CONTENT_TYPE_MULTIPART_FORM_DATA,
+        CONTENT_TYPE_APPLICATION_JSON
+    };
+
     /**
      * @brief Sets up the HTTP client with a host and port.
      *
@@ -54,12 +62,14 @@ class HttpClientClass {
      * @param header_buffer Optional header line (e.g. for authorization
      * bearers)
      * @param header_length Length of the optinal header line.
+     * @param content_type HTTP content type of the post request.
      */
     HttpResponse post(const char* endpoint,
                       const uint8_t* data_buffer,
                       const uint32_t data_length,
-                      const uint8_t* header_buffer = NULL,
-                      const uint32_t header_length = 0);
+                      const uint8_t* header_buffer   = NULL,
+                      const uint32_t header_length   = 0,
+                      const ContentType content_type = CONTENT_TYPE_TEXT_PLAIN);
 
     /**
      * @brief Issues a post to the host configured. Will block until operation
@@ -70,9 +80,12 @@ class HttpClientClass {
      * @param data The data payload.
      * @param header Optional header line (e.g. for authorization
      * bearers).
+     * @param content_type HTTP content type of the post request.
      */
-    HttpResponse
-    post(const char* endpoint, const char* data, const char* header = NULL);
+    HttpResponse post(const char* endpoint,
+                      const char* data,
+                      const char* header             = NULL,
+                      const ContentType content_type = CONTENT_TYPE_TEXT_PLAIN);
 
     /**
      * @brief Issues a put to the host configured. Will block until operation is
