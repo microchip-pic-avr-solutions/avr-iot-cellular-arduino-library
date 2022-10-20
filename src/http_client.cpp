@@ -183,6 +183,10 @@ static HttpResponse queryData(const char* endpoint,
                               const uint8_t* header,
                               const uint32_t header_length) {
 
+    // The modem could hang if several HTTP requests are done quickly after each
+    // other, this alleviates this
+    SequansController.writeCommand("AT");
+
     HttpResponse http_response = {0, 0};
 
     // Set up and send the query
