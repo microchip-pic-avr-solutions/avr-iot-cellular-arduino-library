@@ -900,9 +900,10 @@ bool SequansControllerClass::waitForURC(const char* urc_identifier,
         if (out_buffer != NULL) {
             memcpy(out_buffer, wait_for_urc_buffer, out_buffer_size);
         }
+
         return true;
     } else {
-        return true;
+        return false;
     }
 }
 

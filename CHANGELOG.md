@@ -124,10 +124,20 @@ No changes
 * Fix a bug where waking up from power down mode would reset the board
 * Fix a bug where it was wrongly reported that the SIM card was not ready
 
+
 # 1.3.2
+
+Internal build
+
+
+# 1.3.3
 
 ## Features 
 * Add ability to add HTTP headers 
+* Add ability for specifying content type for HTTP POST requests
 
 ## Changes
 * Security profile patch is removed as this is now taken care of by NTP synchronization
+
+## Bugfix
+* Fix a bug where Sequans.waitForURC would return true even when the URC was not received
