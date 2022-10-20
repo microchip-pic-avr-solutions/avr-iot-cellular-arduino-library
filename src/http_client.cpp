@@ -230,7 +230,7 @@ bool HttpClientClass::configure(const char* host,
 
     if (enable_tls) {
 
-        char response[128]    = "";
+        char response[256]    = "";
         ResponseResult result = SequansController.writeCommand(
             QUERY_SECURITY_PROFILE,
             response,
