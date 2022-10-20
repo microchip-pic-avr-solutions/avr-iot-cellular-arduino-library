@@ -138,6 +138,7 @@ Internal build
 
 ## Changes
 * Security profile patch is removed as this is now taken care of by NTP synchronization
+* Add Mqtt.end() in MQTT examples to prevent the broker waiting after running the example
 
 ## Bugfix
 * Fix a bug where Sequans.waitForURC would return true even when the URC was not received
