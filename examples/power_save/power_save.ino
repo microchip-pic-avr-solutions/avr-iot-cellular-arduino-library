@@ -1,11 +1,6 @@
 /**
  * Note that this example requires the Mcp9808 and Veml3328 driver, they can be
- * found here:
- *
- * Mcp9808:
- * https://github.com/microchip-pic-avr-solutions/mcp9808_arduino_driver
- * Veml3328:
- * https://github.com/microchip-pic-avr-solutions/veml3328_arduino_driver
+ * found here in the Arduino IDE's library manager.
  */
 
 #include <avr/io.h>
@@ -52,8 +47,8 @@ void setup() {
     // that the cellular modem will not be sleeping for the whole time period,
     // but most of it. This repeats as long as we want.
     //
-    // Here we say that we want to have a power save period of 30 seconds * 2 =
-    // 60 seconds.
+    // Here we say that we want to have a power save period of 1 minute * 3 =
+    // 180 seconds.
     //
     // 2. This happens periodically as long as we tell it that it's okay for it
     // to go into power save, which we do with Power.powerSave(). Note that
@@ -68,8 +63,8 @@ void setup() {
     // time as the cellular modem is woken up.
 
     LowPower.configurePeriodicPowerSave(
-        PowerSaveModePeriodMultiplier::THIRTY_SECONDS,
-        2);
+        PowerSaveModePeriodMultiplier::ONE_MINUTE,
+        3);
 
     // Make sure sensors are turned off
     Veml3328.begin();
