@@ -107,7 +107,7 @@ void setup() {
         delay(2000);
     }
 
-    Log.infof("Closing MQTT connection");
+    Log.info("Closing MQTT connection");
     MqttClient.end();
 }
 

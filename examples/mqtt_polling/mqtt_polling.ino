@@ -89,7 +89,7 @@ void setup() {
         }
     }
 
-    Log.infof("Closing MQTT connection");
+    Log.info("Closing MQTT connection");
     MqttClient.end();
 }
 
