@@ -560,7 +560,7 @@ void SequansControllerClass::end(void) {
 }
 
 bool SequansControllerClass::isTxReady(void) {
-    return tx_num_elements != TX_BUFFER_SIZE;
+    return tx_num_elements < TX_BUFFER_SIZE;
 }
 
 bool SequansControllerClass::isRxReady(void) { return rx_num_elements > 0; }
@@ -570,6 +570,22 @@ void SequansControllerClass::writeBytes(const uint8_t* data,
                                         const bool append_carriage_return) {
 
     for (size_t i = 0; i < buffer_size; i++) {
+
+        // If the transmit buffer is full, flush out first
+        if (!isTxReady()) {
+            while (VPORTC.IN & CTS_PIN_bm) { delay(1); }
+
+            // Enable data register empty interrupt so that the data gets pushed
+            // out
+            HWSERIALAT.CTRLA |= USART_DREIE_bm;
+
+            while (!isTxReady()) { delay(1); }
+
+            // Disable data register empty interrupt again before filling up the
+            // buffer
+            HWSERIALAT.CTRLA &= ~USART_DREIE_bm;
+        }
+
         cli();
         tx_head_index            = (tx_head_index + 1) & TX_BUFFER_MASK;
         tx_buffer[tx_head_index] = data[i];
