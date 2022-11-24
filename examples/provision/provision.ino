@@ -139,7 +139,7 @@ PGM_P const cipher_values[NUMBER_OF_CIPHERS] PROGMEM = {
     cipher42, cipher43, cipher44, cipher45, cipher46, cipher47, cipher48,
     cipher49, cipher50, cipher51, cipher52, cipher53, cipher54, cipher55,
     cipher56, cipher57, cipher58, cipher59, cipher60, cipher61, cipher62,
-    cipher63,
+    cipher63
 };
 
 // clang-format off
@@ -1073,6 +1073,7 @@ void provisionMqtt() {
             }
         }
 
+
         char line[82]                 = "";
         bool has_chosen_psk_cipher    = false;
         size_t cipher_count           = 0;
@@ -1083,15 +1084,9 @@ void provisionMqtt() {
 
             if (ciphers_chosen[i]) {
 
-                char* cipher;
-                strcpy_P(cipher, (PGM_P)pgm_read_word(&(cipher_values[i])));
-
                 // Append the cipher to the string which will be passed with the
                 // command to the modem
-                memcpy(&ciphers[cipher_character_index],
-                       cipher,
-                       CIPHER_VALUE_LENGTH);
-
+                strcpy_P(&ciphers[cipher_character_index], (PGM_P)pgm_read_word(&(cipher_values[i])));
                 cipher_character_index += CIPHER_VALUE_LENGTH;
                 cipher_count++;
 
@@ -1102,6 +1097,7 @@ void provisionMqtt() {
 
                 // Load from progmem before checking for PSK cipher
                 char cipher_text_value[CIPHER_TEXT_MAX_LENGTH] = "";
+
                 strcpy_P(cipher_text_value,
                          (PGM_P)pgm_read_word(&(cipher_text_values[i])));
 
