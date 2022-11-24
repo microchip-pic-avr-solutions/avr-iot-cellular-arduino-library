@@ -5,11 +5,11 @@
 
 static bool initialized = false;
 
-uint8_t ECC608Class::getEndpoint(uint8_t *endpoint, uint8_t *length) {
+uint8_t ECC608Class::getEndpoint(uint8_t* endpoint, uint8_t* length) {
     return this->readProvisionItem(AWS_ENDPOINT, endpoint, length);
 }
 
-uint8_t ECC608Class::getThingName(uint8_t *thingName, uint8_t *length) {
+uint8_t ECC608Class::getThingName(uint8_t* thingName, uint8_t* length) {
     return this->readProvisionItem(AWS_THINGNAME, thingName, length);
 }
 
@@ -37,8 +37,8 @@ uint8_t ECC608Class::begin() {
 }
 
 uint8_t ECC608Class::readProvisionItem(enum ecc_data_types type,
-                                       uint8_t *buffer,
-                                       uint8_t *length) {
+                                       uint8_t* buffer,
+                                       uint8_t* length) {
     uint8_t atca_status = ATCA_SUCCESS;
     // Use union for data header to avoid pointer casting
     union {
@@ -49,8 +49,9 @@ uint8_t ECC608Class::readProvisionItem(enum ecc_data_types type,
     uint16_t offset = 0;
 
     // Determine slot size
-    if ((atca_status = atcab_get_zone_size(
-             ATCA_ZONE_DATA, SLOT_NUM, &slot_size)) != ATCA_SUCCESS) {
+    if ((atca_status = atcab_get_zone_size(ATCA_ZONE_DATA,
+                                           SLOT_NUM,
+                                           &slot_size)) != ATCA_SUCCESS) {
         *length = 0;
         return atca_status;
     }
@@ -59,9 +60,11 @@ uint8_t ECC608Class::readProvisionItem(enum ecc_data_types type,
     // *length
     do {
         // Read data header from ECC slot
-        if ((atca_status = atcab_read_bytes_zone(
-                 ATCA_ZONE_DATA, SLOT_NUM, offset, h.bytes, sizeof(h))) !=
-            ATCA_SUCCESS) {
+        if ((atca_status = atcab_read_bytes_zone(ATCA_ZONE_DATA,
+                                                 SLOT_NUM,
+                                                 offset,
+                                                 h.bytes,
+                                                 sizeof(h))) != ATCA_SUCCESS) {
             *length = 0;
             return atca_status;
         }
@@ -79,7 +82,7 @@ uint8_t ECC608Class::readProvisionItem(enum ecc_data_types type,
                     *length = 0;
                     return atca_status;
                 }
-                *length = size;
+                *length      = size;
                 buffer[size] = '\0';
                 return this->ERR_OK;
             } else {

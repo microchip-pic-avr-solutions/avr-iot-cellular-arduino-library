@@ -21,21 +21,21 @@ LogClass Log(&Serial5);
 #endif
 #endif
 
-int16_t printf_putchar(char c, FILE *fp) {
-    ((class Print *)(fdev_get_udata(fp)))->write((uint8_t)c);
+int16_t printf_putchar(char c, FILE* fp) {
+    ((class Print*)(fdev_get_udata(fp)))->write((uint8_t)c);
     return 0;
 }
 
-void LogClass::print(const char *str, const char level[]) {
+void LogClass::print(const char* str, const char level[]) {
     this->uart->printf("%s%s\r\n", level, str);
 }
 
-LogClass::LogClass(UartClass *uart) {
+LogClass::LogClass(UartClass* uart) {
     this->uart = uart;
-    log_level = LogLevel::INFO;
+    log_level  = LogLevel::INFO;
 }
 
-void LogClass::setOutputUart(UartClass *uart) { this->uart = uart; }
+void LogClass::setOutputUart(UartClass* uart) { this->uart = uart; }
 
 void LogClass::setLogLevel(const LogLevel log_level) {
     this->log_level = log_level;
@@ -43,7 +43,7 @@ void LogClass::setLogLevel(const LogLevel log_level) {
 
 LogLevel LogClass::getLogLevel(void) { return log_level; }
 
-bool LogClass::setLogLevelStr(const char *log_level) {
+bool LogClass::setLogLevelStr(const char* log_level) {
     LogLevel ll = LogLevel::NONE;
     if (strstr(log_level, "debug") != NULL) {
         ll = LogLevel::DEBUG;
@@ -75,7 +75,7 @@ void LogClass::info(const char str[]) {
 
 void LogClass::info(const String str) { this->info(str.c_str()); }
 
-void LogClass::infof(const char *format, ...) {
+void LogClass::infof(const char* format, ...) {
     if (log_level >= LogLevel::INFO) {
 
         // Append format with [ERROR]
@@ -101,7 +101,7 @@ void LogClass::debug(const char str[]) {
 
 void LogClass::debug(const String str) { this->debug(str.c_str()); }
 
-void LogClass::debugf(const char *format, ...) {
+void LogClass::debugf(const char* format, ...) {
     if (log_level >= LogLevel::DEBUG) {
 
         // Append format with [ERROR]
@@ -129,7 +129,7 @@ void LogClass::raw(const char str[]) {
 
 void LogClass::raw(const String str) { this->raw(str.c_str()); }
 
-void LogClass::rawf(const char *format, ...) {
+void LogClass::rawf(const char* format, ...) {
     FILE f;
     va_list ap;
 
@@ -147,7 +147,7 @@ void LogClass::error(const char str[]) {
 
 void LogClass::error(const String str) { this->error(str.c_str()); }
 
-void LogClass::errorf(const char *format, ...) {
+void LogClass::errorf(const char* format, ...) {
     if (log_level >= LogLevel::ERROR) {
 
         // Append format with [ERROR]
@@ -172,7 +172,7 @@ void LogClass::warn(const char str[]) {
 
 void LogClass::warn(const String str) { this->warn(str.c_str()); }
 
-void LogClass::warnf(const char *format, ...) {
+void LogClass::warnf(const char* format, ...) {
     if (log_level >= LogLevel::WARN) {
 
         // Append format with [ERROR]
