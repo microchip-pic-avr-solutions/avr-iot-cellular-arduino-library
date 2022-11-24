@@ -1,8 +1,9 @@
+#include "mqtt_client.h"
 #include "ecc608.h"
 #include "led_ctrl.h"
 #include "log.h"
 #include "lte.h"
-#include "mqtt_client.h"
+#include "security_profile.h"
 #include "sequans_controller.h"
 
 #include <cryptoauthlib.h>
@@ -289,6 +290,7 @@ static bool generateSigningCommand(char* data, char* command_buffer) {
     uint8_t message_to_sign[HCESIGN_DIGEST_LENGTH / 2];
     char* position = digest;
 
+    // Convert hex representation in string to numerical hex values
     for (uint8_t i = 0; i < sizeof(message_to_sign); i++) {
         sscanf(position, "%2hhx", &message_to_sign[i]);
         position += 2;
@@ -298,7 +300,7 @@ static bool generateSigningCommand(char* data, char* command_buffer) {
     ATCA_STATUS result = atcab_sign(0, message_to_sign, (uint8_t*)digest);
 
     if (result != ATCA_SUCCESS) {
-        Log.error("ECC signing failed");
+        Log.errorf("ECC signing failed, status code: %x\r\n", result);
         return false;
     }
 
@@ -323,31 +325,30 @@ static bool generateSigningCommand(char* data, char* command_buffer) {
 }
 
 bool MqttClientClass::beginAWS() {
-    // Get the endoint and thing name
-    // -- Initialize the ECC
-    uint8_t err = ECC608.begin();
-    if (err != ATCA_SUCCESS) {
+
+    // Initialize the ECC
+    uint8_t status = ECC608.begin();
+    if (status != ECC608.ERR_OK) {
         Log.error("Could not initialize ECC hardware");
         return false;
     }
 
-    // -- Allocate the buffers
     uint8_t thingName[128];
     uint8_t thingNameLen = sizeof(thingName);
     uint8_t endpoint[128];
     uint8_t endpointLen = sizeof(endpoint);
 
-    // -- Get the thingname
-    err = ECC608.getThingName(thingName, &thingNameLen);
-    if (err != ECC608.ERR_OK) {
+    // Get the thingname
+    status = ECC608.getThingName(thingName, &thingNameLen);
+    if (status != ECC608.ERR_OK) {
         Log.error("Could not retrieve thing name from the ECC");
         return false;
     }
 
-    // -- Get the endpoint
-    err = ECC608.getEndpoint(endpoint, &endpointLen);
+    // Get the endpoint
+    status = ECC608.getEndpoint(endpoint, &endpointLen);
 
-    if (err != ECC608.ERR_OK) {
+    if (status != ECC608.ERR_OK) {
         Log.error("Could not retrieve endpoint from the ECC");
         return false;
     }
@@ -394,6 +395,21 @@ bool MqttClientClass::begin(const char* client_id,
                      username_length + password_length] = "";
 
         if (use_ecc) {
+
+            if (!SecurityProfile.profileExists(
+                    MQTT_TLS_ECC_SECURITY_PROFILE_ID)) {
+                Log.error("Security profile not set up for MQTT TLS with ECC. "
+                          "Run the 'provision' example Arduino sketch to set "
+                          "this up.");
+                return false;
+            }
+
+            uint8_t status = ECC608.begin();
+            if (status != ATCA_SUCCESS) {
+                Log.error("Could not initialize ECC hardware");
+                return false;
+            }
+
             sprintf(command,
                     MQTT_CONFIGURE_TLS,
                     client_id,
@@ -402,6 +418,12 @@ bool MqttClientClass::begin(const char* client_id,
                     MQTT_TLS_ECC_SECURITY_PROFILE_ID);
 
         } else {
+            if (!SecurityProfile.profileExists(MQTT_TLS_SECURITY_PROFILE_ID)) {
+                Log.error("Security profile not set up for MQTT TLS. Run the "
+                          "'provision' example Arduino sketch to set this up.");
+                return false;
+            }
+
             sprintf(command,
                     MQTT_CONFIGURE_TLS,
                     client_id,
