@@ -1,6 +1,7 @@
 /**
- * @brief This provisioning is for using MQTT with TLS and without the ECC. In
- * order to start the provisioning, just upload this sketch to the board.
+ * @brief This provisioning is for HTTPS as well as MQTT with TLS (with or 
+ * without the ECC). In order to start the provisioning, just upload this sketch 
+ * to the board.
  */
 
 #include <cryptoauthlib.h>
