@@ -116,7 +116,8 @@ static HttpResponse sendData(const char* endpoint,
                                            HTTP_TIMEOUT)) {
             Log.error("Timed out whilst waiting on delivering the HTTP "
                       "payload. Is the "
-                      "server online?");
+                      "server online? If you're using HTTPS, you might need to "
+                      "provision with a different CA certificate.");
             return http_response;
         }
 

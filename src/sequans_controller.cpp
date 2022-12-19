@@ -661,7 +661,7 @@ SequansControllerClass::readResponse(char* out_buffer,
 
     // Enough to hold the OK and ERROR termination if the out_buffer is NULL
     // and the result is not needed
-    char placeholder_buffer[10] = "";
+    char placeholder_buffer[32] = "";
 
     char* buffer       = placeholder_buffer;
     size_t buffer_size = sizeof(placeholder_buffer);

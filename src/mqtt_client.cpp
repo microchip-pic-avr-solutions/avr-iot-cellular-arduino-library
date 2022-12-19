@@ -433,7 +433,11 @@ bool MqttClientClass::begin(const char* client_id,
         }
 
         if (SequansController.writeCommand(command) != ResponseResult::OK) {
-            Log.error("Failed to configure MQTT");
+            Log.error(
+                "Failed to configure MQTT. The TLS setup might be incorrect. "
+                "If you're using a custom broker with TLS, run the provision "
+                "example sketch in order to provision for a custom MQTT broker "
+                "with TLS.");
             return false;
         }
     } else {
@@ -467,7 +471,9 @@ bool MqttClientClass::begin(const char* client_id,
 
         char urc[URC_DATA_BUFFER_SIZE] = "";
         if (!SequansController.waitForURC(HCESIGN_URC, urc, sizeof(urc))) {
-            Log.error("Timed out whilst waiting for TLS signing\r\n");
+            Log.error("Timed out whilst waiting for TLS signing. Please verify "
+                      "your certificate setup (run the provision Arduino "
+                      "sketch to set this up for a new broker).\r\n");
             return false;
         }
 
