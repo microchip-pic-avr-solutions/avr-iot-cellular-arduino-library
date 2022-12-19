@@ -1,6 +1,6 @@
 /**
- * @brief This provisioning is for HTTPS as well as MQTT with TLS (with or 
- * without the ECC). In order to start the provisioning, just upload this sketch 
+ * @brief This provisioning is for HTTPS as well as MQTT with TLS (with or
+ * without the ECC). In order to start the provisioning, just upload this sketch
  * to the board.
  */
 
@@ -38,7 +38,9 @@
 #define AT_HTTPS_SECURITY_PROFILE "AT+SQNSPCFG=3,%u,\"\",%u,%u"
 
 #define AT_WRITE_CERTIFICATE "AT+SQNSNVW=\"certificate\",%u,%u"
+#define AT_ERASE_CERTIFICATE "AT+SQNSNVW=\"certificate\",%u,0"
 #define AT_WRITE_PRIVATE_KEY "AT+SQNSNVW=\"privatekey\",%u,%u"
+#define AT_ERASE_PRIVATE_KEY "AT+SQNSNVW=\"privatekey\",%u,0"
 
 #define NUMBER_OF_CIPHERS      (64)
 #define CIPHER_VALUE_LENGTH    (6)
@@ -139,8 +141,7 @@ PGM_P const cipher_values[NUMBER_OF_CIPHERS] PROGMEM = {
     cipher42, cipher43, cipher44, cipher45, cipher46, cipher47, cipher48,
     cipher49, cipher50, cipher51, cipher52, cipher53, cipher54, cipher55,
     cipher56, cipher57, cipher58, cipher59, cipher60, cipher61, cipher62,
-    cipher63
-};
+    cipher63};
 
 // clang-format off
 const char cipher_text_0[50] PROGMEM = "TLS_AES_128_GCM_SHA256";
@@ -590,8 +591,15 @@ static bool requestAndSaveToNonVolatileMemory(const char* message,
     SequansController.clearReceiveBuffer();
 
     if (is_certificate) {
+        // First erase the existing certifiate at the slot (if any)
+        sprintf(command, AT_ERASE_CERTIFICATE, slot);
+        SequansController.writeCommand(command);
+
         sprintf(command, AT_WRITE_CERTIFICATE, slot, data_length);
     } else {
+        sprintf(command, AT_ERASE_PRIVATE_KEY, slot);
+        SequansController.writeCommand(command);
+
         sprintf(command, AT_WRITE_PRIVATE_KEY, slot, data_length);
     }
 
@@ -1073,7 +1081,6 @@ void provisionMqtt() {
             }
         }
 
-
         char line[82]                 = "";
         bool has_chosen_psk_cipher    = false;
         size_t cipher_count           = 0;
@@ -1086,7 +1093,8 @@ void provisionMqtt() {
 
                 // Append the cipher to the string which will be passed with the
                 // command to the modem
-                strcpy_P(&ciphers[cipher_character_index], (PGM_P)pgm_read_word(&(cipher_values[i])));
+                strcpy_P(&ciphers[cipher_character_index],
+                         (PGM_P)pgm_read_word(&(cipher_values[i])));
                 cipher_character_index += CIPHER_VALUE_LENGTH;
                 cipher_count++;
 
@@ -1231,8 +1239,9 @@ void provisionMqtt() {
     } else {
 
         bool use_ecc = askCloseEndedQuestion(
-            "Do you want to utilize the ECC rather than storing the "
-            "certificates in the non-volatile memory of the modem?");
+            "Do you want to utilize the ECC cryptography chip rather than "
+            "storing the certificates in the non-volatile memory of the "
+            "modem?");
 
         SerialModule.println("\r\n");
 
@@ -1334,7 +1343,7 @@ void provisionMqtt() {
 
             SerialModule.println("\r\n");
             if (!requestAndSaveToNonVolatileMemory(
-                    "Please paste in the private key and press enter."
+                    "Please paste in the private key and press enter. "
                     "It should be on the following form:\r\n"
                     "-----BEGIN RSA/EC PRIVATE KEY-----\r\n"
                     "...\r\n"
