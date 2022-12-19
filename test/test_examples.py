@@ -239,14 +239,6 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Response: {"
             }
         ],
-        "https_configure_ca": [
-            {
-                "expectation": "\\[INFO\\] Setting up security profile for HTTPS..."
-            },
-            {
-                "expectation": "\\[INFO\\] Done!"
-            }
-        ],
         "mqtt_password_authentication": [
             {
                 "expectation": "\\[INFO\\] Starting MQTT with username and password example"
