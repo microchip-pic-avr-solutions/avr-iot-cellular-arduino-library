@@ -39,6 +39,7 @@ void setup() {
     // info: info, warning and error messages
     // warn: Warning and error messages
     // error: Only error messages
+    // none: No messages
     //
     // Note that raw messages always will be printed
     Log.setLogLevel(LogLevel::DEBUG);
@@ -67,6 +68,13 @@ void setup() {
     Log.info("This will not be printed now");
     Log.warn("This will not be printed now");
     Log.error("An error message");
+
+    Log.setLogLevel(LogLevel::NONE);
+    Log.raw(""); // Just to add a newline
+    Log.debug("This will not be printed now");
+    Log.info("This will not be printed now");
+    Log.warn("This will not be printed now");
+    Log.error("This will not be printed now");
     Log.raw(""); // Just to add a newline
 
     Log.setLogLevel(LogLevel::INFO);
