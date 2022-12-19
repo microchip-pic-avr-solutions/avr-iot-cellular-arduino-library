@@ -119,13 +119,7 @@ void LogClass::debugf(const char* format, ...) {
     }
 }
 
-void LogClass::raw(const char str[]) {
-    if (log_level >= LogLevel::DEBUG) {
-        this->print(str, DEBUG_LEVEL_FMT);
-    }
-
-    this->uart->print(str);
-}
+void LogClass::raw(const char str[]) { this->print(str, ""); }
 
 void LogClass::raw(const String str) { this->raw(str.c_str()); }
 
