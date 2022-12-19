@@ -566,7 +566,7 @@ void LowPowerClass::powerSave(void) {
                 Log.warnf("Operator was not able to match the requested power "
                           "save mode period of %d seconds. ",
                           period_requested);
-                Log.rawf("Operator sat the period to %d seconds.\r\n", period);
+                Log.rawf("Operator set the period to %d seconds.\r\n", period);
             }
 
             retrieved_period = true;
