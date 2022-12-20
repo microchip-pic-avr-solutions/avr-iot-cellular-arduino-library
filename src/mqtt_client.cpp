@@ -121,7 +121,7 @@
 // Singleton instance
 MqttClientClass MqttClient = MqttClientClass::instance();
 
-static bool connected_to_broker            = false;
+static volatile bool connected_to_broker   = false;
 static void (*connected_callback)(void)    = NULL;
 static void (*disconnected_callback)(void) = NULL;
 
@@ -169,12 +169,17 @@ static void internalConnectedCallback(char* urc_data) {
 
         connected_to_broker = true;
         LedCtrl.on(Led::CON, true);
+
         if (connected_callback != NULL) {
             connected_callback();
         }
     } else {
-        LedCtrl.off(Led::CON, true);
         connected_to_broker = false;
+        LedCtrl.off(Led::CON, true);
+
+        // TODO: test
+        LedCtrl.on(Led::USER, true);
+
         if (disconnected_callback != NULL) {
             disconnected_callback();
         }
@@ -326,6 +331,10 @@ static bool generateSigningCommand(char* data, char* command_buffer) {
 
 bool MqttClientClass::beginAWS() {
 
+    if (!Lte.isConnected()) {
+        return false;
+    }
+
     // Initialize the ECC
     uint8_t status = ECC608.begin();
     if (status != ECC608.ERR_OK) {
@@ -375,6 +384,10 @@ bool MqttClientClass::begin(const char* client_id,
                             const bool use_ecc,
                             const char* username,
                             const char* password) {
+
+    if (!Lte.isConnected()) {
+        return false;
+    }
 
     // Disconnect if connected
     if (isConnected()) {
@@ -498,6 +511,8 @@ bool MqttClientClass::begin(const char* client_id,
 }
 
 bool MqttClientClass::end(void) {
+    connected_to_broker = false;
+
     SequansController.unregisterCallback(MQTT_ON_MESSAGE_URC);
     SequansController.unregisterCallback(MQTT_ON_CONNECT_URC);
     SequansController.unregisterCallback(MQTT_ON_DISCONNECT_URC);
