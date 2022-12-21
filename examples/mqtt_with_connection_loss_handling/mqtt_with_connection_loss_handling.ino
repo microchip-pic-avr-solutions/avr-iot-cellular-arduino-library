@@ -9,10 +9,8 @@
 #include <led_ctrl.h>
 #include <log.h>
 #include <lte.h>
-#include <mcp9808.h>
 #include <mqtt_client.h>
 #include <sequans_controller.h>
-#include <veml3328.h>
 
 #define MQTT_PUB_TOPIC_FMT "%s/sensors"
 
@@ -127,6 +125,7 @@ static uint32_t failed_publishes = 0;
 static uint32_t timer = 0;
 
 void loop() {
+
     if (!connecteded_to_network) {
         Log.info("Not connected to the network. Attempting to connect!");
         if (connectLTE()) {
@@ -142,26 +141,26 @@ void loop() {
         }
     }
 
-    if (millis() - timer > 10000) {
-        if (connected_to_broker) {
-            char message_to_publish[8] = {0};
-            sprintf(message_to_publish, "%lu", counter);
+    // if (millis() - timer > 10000) {
+    if (connected_to_broker) {
+        char message_to_publish[8] = {0};
+        sprintf(message_to_publish, "%lu", counter);
 
-            bool published_successfully = MqttClient.publish(mqtt_pub_topic,
-                                                             message_to_publish,
-                                                             AT_LEAST_ONCE,
-                                                             60000);
-            if (published_successfully) {
-                Log.infof("Published message: %s. Failed publishes: %d.\r\n",
-                          message_to_publish,
-                          failed_publishes);
-            } else {
-                failed_publishes++;
-            }
-
-            counter++;
+        bool published_successfully = MqttClient.publish(mqtt_pub_topic,
+                                                         message_to_publish,
+                                                         AT_LEAST_ONCE,
+                                                         60000);
+        if (published_successfully) {
+            Log.infof("Published message: %s. Failed publishes: %d.\r\n",
+                      message_to_publish,
+                      failed_publishes);
+        } else {
+            failed_publishes++;
         }
 
-        timer = millis();
+        counter++;
     }
+
+    timer = millis();
+    // }
 }
