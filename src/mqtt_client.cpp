@@ -177,8 +177,11 @@ static void internalConnectedCallback(char* urc_data) {
         connected_to_broker = false;
         LedCtrl.off(Led::CON, true);
 
-        // TODO: test
-        LedCtrl.on(Led::USER, true);
+        SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
+                                     strlen(MQTT_DISCONNECT),
+                                     true);
+        delay(10);
+        SequansController.clearReceiveBuffer();
 
         if (disconnected_callback != NULL) {
             disconnected_callback();
@@ -188,6 +191,12 @@ static void internalConnectedCallback(char* urc_data) {
 
 static void internalDisconnectCallback(char* urc_data) {
     connected_to_broker = false;
+
+    SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
+                                 strlen(MQTT_DISCONNECT),
+                                 true);
+    delay(10);
+    SequansController.clearReceiveBuffer();
 
     if (disconnected_callback != NULL) {
         disconnected_callback();
@@ -389,10 +398,13 @@ bool MqttClientClass::begin(const char* client_id,
         return false;
     }
 
-    // Disconnect if connected
-    if (isConnected()) {
-        SequansController.writeCommand(MQTT_DISCONNECT);
-    }
+    // Disconnect to terminate existing configuration
+    SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
+                                 strlen(MQTT_DISCONNECT),
+                                 true);
+
+    delay(100);
+    SequansController.clearReceiveBuffer();
 
     // -- Configuration --
 
@@ -511,29 +523,24 @@ bool MqttClientClass::begin(const char* client_id,
 }
 
 bool MqttClientClass::end(void) {
-    connected_to_broker = false;
+
+    LedCtrl.off(Led::CON, true);
 
     SequansController.unregisterCallback(MQTT_ON_MESSAGE_URC);
     SequansController.unregisterCallback(MQTT_ON_CONNECT_URC);
     SequansController.unregisterCallback(MQTT_ON_DISCONNECT_URC);
 
-    connected_callback    = NULL;
-    disconnected_callback = NULL;
+    SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
+                                 strlen(MQTT_DISCONNECT),
+                                 true);
+    delay(10);
+    SequansController.clearReceiveBuffer();
 
-    LedCtrl.off(Led::CON, true);
+    connected_to_broker = false;
 
-    if (!isConnected()) {
-        return true;
-    }
+    internalDisconnectCallback(NULL);
 
-    // If LTE is not connected, the MQTT client will be disconnected
-    // automatically
-    if (!Lte.isConnected()) {
-        return true;
-    }
-
-    return (SequansController.writeCommand(MQTT_DISCONNECT) ==
-            ResponseResult::OK);
+    return true;
 }
 
 void MqttClientClass::onConnectionStatusChange(void (*connected)(void),
