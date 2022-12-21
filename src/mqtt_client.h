@@ -90,13 +90,15 @@ class MqttClientClass {
      * @param buffer Data to publish.
      * @param buffer_size Has to be in range 1-65535.
      * @param quality_of_service MQTT protocol QoS.
+     * @param timeout_ms Timeout waiting for publish confirmation.
      *
      * @return true if publish was successful.
      */
     bool publish(const char* topic,
                  const uint8_t* buffer,
                  const uint32_t buffer_size,
-                 const MqttQoS quality_of_service = AT_LEAST_ONCE);
+                 const MqttQoS quality_of_service = AT_LEAST_ONCE,
+                 const uint32_t timeout_ms        = 30000);
 
     /**
      * @brief Publishes the contents of the message to the given topic.
@@ -104,12 +106,14 @@ class MqttClientClass {
      * @param topic Topic to publish to.
      * @param message String to publish, has to be null terminated.
      * @param quality_of_service MQTT protocol QoS.
+     * @param timeout_ms Timeout waiting for publish confirmation.
      *
      * @return true if publish was successful.
      */
     bool publish(const char* topic,
                  const char* message,
-                 const MqttQoS quality_of_service = AT_LEAST_ONCE);
+                 const MqttQoS quality_of_service = AT_LEAST_ONCE,
+                 const uint32_t timeout_ms        = 30000);
 
     /**
      * @brief Subscribes to a given topic.

@@ -536,9 +536,9 @@ bool MqttClientClass::end(void) {
     delay(10);
     SequansController.clearReceiveBuffer();
 
-    connected_to_broker = false;
-
     internalDisconnectCallback(NULL);
+
+    connected_to_broker = false;
 
     return true;
 }
@@ -559,7 +559,8 @@ bool MqttClientClass::isConnected(void) { return connected_to_broker; }
 bool MqttClientClass::publish(const char* topic,
                               const uint8_t* buffer,
                               const uint32_t buffer_size,
-                              const MqttQoS quality_of_service) {
+                              const MqttQoS quality_of_service,
+                              const uint32_t timeout_ms) {
 
     if (!isConnected()) {
         Log.error("Attempted publish without being connected to a broker");
@@ -599,8 +600,12 @@ bool MqttClientClass::publish(const char* topic,
     // termination
     char status_code_buffer[3] = "";
 
-    if (!SequansController.waitForURC(MQTT_ON_PUBLISH_URC, urc, sizeof(urc))) {
-        Log.warn("Timed out waiting for publish confirmation\r\n");
+    if (!SequansController.waitForURC(MQTT_ON_PUBLISH_URC,
+                                      urc,
+                                      sizeof(urc),
+                                      timeout_ms)) {
+        Log.warn("Timed out waiting for publish confirmation. Consider "
+                 "increasing timeout for publishing\r\n");
         return false;
     }
 
@@ -639,11 +644,13 @@ bool MqttClientClass::publish(const char* topic,
 
 bool MqttClientClass::publish(const char* topic,
                               const char* message,
-                              const MqttQoS quality_of_service) {
+                              const MqttQoS quality_of_service,
+                              const uint32_t timeout_ms) {
     return publish(topic,
                    (uint8_t*)message,
                    strlen(message),
-                   quality_of_service);
+                   quality_of_service,
+                   timeout_ms);
 }
 
 bool MqttClientClass::subscribe(const char* topic,
