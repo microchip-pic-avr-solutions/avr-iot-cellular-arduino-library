@@ -38,7 +38,7 @@ class LteClass {
      *
      * @return True if initialization was successful and connection was made.
      */
-    bool begin(const uint32_t timeout_ms = 240000,
+    bool begin(const uint32_t timeout_ms = 600000,
                const bool print_messages = true);
 
     /**
