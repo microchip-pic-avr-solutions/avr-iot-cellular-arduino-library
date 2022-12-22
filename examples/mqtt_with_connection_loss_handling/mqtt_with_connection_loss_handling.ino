@@ -141,26 +141,26 @@ void loop() {
         }
     }
 
-    // if (millis() - timer > 10000) {
-    if (connected_to_broker) {
-        char message_to_publish[8] = {0};
-        sprintf(message_to_publish, "%lu", counter);
+    if (millis() - timer > 10000) {
+        if (connected_to_broker) {
+            char message_to_publish[8] = {0};
+            sprintf(message_to_publish, "%lu", counter);
 
-        bool published_successfully = MqttClient.publish(mqtt_pub_topic,
-                                                         message_to_publish,
-                                                         AT_LEAST_ONCE,
-                                                         60000);
-        if (published_successfully) {
-            Log.infof("Published message: %s. Failed publishes: %d.\r\n",
-                      message_to_publish,
-                      failed_publishes);
-        } else {
-            failed_publishes++;
+            bool published_successfully = MqttClient.publish(mqtt_pub_topic,
+                                                             message_to_publish,
+                                                             AT_LEAST_ONCE,
+                                                             60000);
+            if (published_successfully) {
+                Log.infof("Published message: %s. Failed publishes: %d.\r\n",
+                          message_to_publish,
+                          failed_publishes);
+            } else {
+                failed_publishes++;
+            }
+
+            counter++;
         }
 
-        counter++;
+        timer = millis();
     }
-
-    timer = millis();
-    // }
 }
