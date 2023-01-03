@@ -1,6 +1,6 @@
+#include "lte.h"
 #include "led_ctrl.h"
 #include "log.h"
-#include "lte.h"
 #include "mqtt_client.h"
 #include "sequans_controller.h"
 
@@ -255,6 +255,9 @@ void LteClass::end(void) {
 
     if (SequansController.isInitialized()) {
 
+        // Terminate active connections (if any)
+        MqttClient.end();
+
         SequansController.unregisterCallback(TIMEZONE_CALLBACK);
         SequansController.writeCommand(AT_DISCONNECT);
 
@@ -300,8 +303,8 @@ String LteClass::getOperator(void) {
     }
 
     // Remove the quotes
-    char* buffer            = id + 1;
-    id[strnlen(buffer, 47)] = '\0';
+    char* buffer                        = id + 1;
+    id[strnlen(buffer, sizeof(id) - 1)] = '\0';
 
     return String(buffer);
 }

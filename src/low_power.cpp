@@ -436,11 +436,9 @@ static void restorePinState(void) {
  * @brief Sets the pin state in order to minimize the power consumption. Will
  * not enable LDO.
  *
- * @param keep_ring_active Whether to keep ring line active (used in PSM).
+ * @param keep_modem_active Whether to keep modem lines active (used in PSM).
  */
-static void powerDownPeripherals(const bool keep_ring_active) {
-
-    // TODO: might keep SW0 in order to not mess with interrupt
+static void powerDownPeripherals(const bool keep_modem_active) {
 
     savePinState();
 
@@ -508,14 +506,26 @@ static void powerDownPeripherals(const bool keep_ring_active) {
 
     PORTA.DIR = 0x00;
     PORTB.DIR = PIN3_bm | PIN4_bm;
-    PORTC.DIR = 0x00;
+
+    if (keep_modem_active) {
+        PORTC.DIRCLR = PIN2_bm | PIN3_bm;
+    } else {
+        PORTC.DIR = 0x00;
+    }
+
     PORTD.DIR = 0x00;
     PORTE.DIR = 0x00;
     PORTF.DIR = 0x00;
 
     PORTA.OUT = 0x00;
     PORTB.OUT = 0x00;
-    PORTC.OUT = 0x00;
+
+    if (keep_modem_active) {
+        PORTC.OUTCLR = PIN2_bm | PIN3_bm;
+    } else {
+        PORTC.OUT = 0x00;
+    }
+
     PORTD.OUT = 0x00;
     PORTE.OUT = 0x00;
     PORTF.OUT = 0x00;
@@ -538,18 +548,17 @@ static void powerDownPeripherals(const bool keep_ring_active) {
     PORTB.PIN6CTRL = 0x0C;
     PORTB.PIN7CTRL = 0x0C;
 
-    PORTC.PIN0CTRL = 0x0C;
-    PORTC.PIN1CTRL = 0x0C;
     PORTC.PIN2CTRL = 0x04;
     PORTC.PIN3CTRL = 0x04;
-    PORTC.PIN4CTRL = 0x0C;
-    PORTC.PIN5CTRL = 0x04;
-    if (keep_ring_active) {
-        PORTC.PIN6CTRL = 0x01;
-    } else {
+
+    if (!keep_modem_active) {
+        PORTC.PIN0CTRL = 0x0C;
+        PORTC.PIN1CTRL = 0x0C;
+        PORTC.PIN4CTRL = 0x0C;
+        PORTC.PIN5CTRL = 0x04;
         PORTC.PIN6CTRL = 0x04;
+        PORTC.PIN7CTRL = 0x04;
     }
-    PORTC.PIN7CTRL = 0x04;
 
     PORTD.PIN0CTRL = 0x0C;
     PORTD.PIN1CTRL = 0x0C;
@@ -688,9 +697,6 @@ void LowPowerClass::configurePeriodicPowerSave(
 
 void LowPowerClass::powerSave(void) {
 
-    const uint8_t cell_led_state = digitalRead(LedCtrl.getLedPin(Led::CELL));
-    const uint8_t con_led_state  = digitalRead(LedCtrl.getLedPin(Led::CON));
-
     if (!retrieved_period) {
         // Retrieve the proper sleep time set by the operator, which may
         // deviate from what we requested
@@ -712,7 +718,7 @@ void LowPowerClass::powerSave(void) {
 
         // Retrieving the operator sleep time will call CEREG, which will
         // trigger led ctrl, so we just disable it again.
-        LedCtrl.off(Led::CELL, true);
+        // LedCtrl.off(Led::CELL, true);
     }
     if (!attemptToEnterPowerSaveModeForModem(30000)) {
         Log.error(
@@ -724,11 +730,11 @@ void LowPowerClass::powerSave(void) {
         powerDownPeripherals(true);
         SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
 
-        // enableLDO();
+        enableLDO();
         sleep_cpu();
 
         // Will sleep here until we get the RING line activity and wake up
-        // disableLDO();
+        disableLDO();
 
         SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
         powerUpPeripherals();
@@ -736,43 +742,24 @@ void LowPowerClass::powerSave(void) {
         modem_is_in_power_save = false;
     }
 
+    // LedCtrl.on(Led::CELL, true);
+
     SequansController.setPowerSaveMode(0, NULL);
-
-    // Pins are active low
-    if (!cell_led_state) {
-        LedCtrl.on(Led::CELL, true);
-    } else {
-        LedCtrl.off(Led::CELL, true);
-    }
-
-    if (!con_led_state) {
-        LedCtrl.on(Led::CON, true);
-    } else {
-        LedCtrl.off(Led::CON, true);
-    }
 }
 
 void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
-
-    const unsigned long start_time_ms = millis();
 
     SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
 
     Lte.end();
 
-    uint32_t remaining_time_seconds =
-        power_down_time_seconds -
-        (uint32_t)(((millis() - start_time_ms) / 1000.0f));
-
-    // Need to power down the peripherals here as we want to grab the time
-    // (millis()) from the timer before disabling it
+    // TODO: somehow this prevents the modem to sleep...
     powerDownPeripherals(false);
 
     enablePIT();
     enableLDO();
 
-    // TODO: might want to just have the remaining time in seconds to be the
-    // power_down_time_seconds to prevent issues with millis() overflowing
+    uint32_t remaining_time_seconds = power_down_time_seconds;
 
     while (remaining_time_seconds > 0) {
 
@@ -793,7 +780,6 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
 
     powerUpPeripherals();
 
-    // TODO: should we keep this here?
     while (!Lte.begin()) {}
 }
 

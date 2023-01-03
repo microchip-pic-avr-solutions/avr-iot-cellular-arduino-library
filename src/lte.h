@@ -5,6 +5,7 @@
 #ifndef LTE_H
 #define LTE_H
 
+#include <Arduino.h>
 #include <stdint.h>
 
 class LteClass {
@@ -20,7 +21,7 @@ class LteClass {
     /**
      * @brief Singleton instance.
      */
-    static LteClass &instance(void) {
+    static LteClass& instance(void) {
         static LteClass instance;
         return instance;
     }

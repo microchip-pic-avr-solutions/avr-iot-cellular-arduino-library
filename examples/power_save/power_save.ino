@@ -12,24 +12,11 @@
 #include <sequans_controller.h>
 #include <veml3328.h>
 
-#define SW0 PIN_PD2
-
-void buttonPressedInterrupt(void) {
-    if (PORTD.INTFLAGS & PIN2_bm) {
-        PORTD.INTFLAGS = PIN2_bm;
-    }
-}
-
 void setup() {
     Log.begin(115200);
 
     LedCtrl.begin();
     LedCtrl.startupCycle();
-
-    // Configure SW0 for interrupt so we can wake the device up from sleep by
-    // pressing the button
-    pinConfigure(SW0, PIN_DIR_INPUT);
-    attachInterrupt(SW0, buttonPressedInterrupt, FALLING);
 
     // Now we configure the power save configuration. Note that this has to be
     // done before calling Lte.begin().
