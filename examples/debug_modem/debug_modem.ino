@@ -2,6 +2,8 @@
 #include <log.h>
 #include <sequans_controller.h>
 
+void debugBridgeUpdate(void);
+
 void setup() {
     Log.begin(115200);
     SequansController.begin();

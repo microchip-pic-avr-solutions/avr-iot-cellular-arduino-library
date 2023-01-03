@@ -13,7 +13,7 @@
 #include <mqtt_client.h>
 #include <veml3328.h>
 
-#define USE_PSM true
+#define USE_PSM false
 
 static char mqtt_pub_topic[128];
 
