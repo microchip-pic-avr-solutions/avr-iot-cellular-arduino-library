@@ -62,26 +62,6 @@
 #define VOLTAGE_MEASURE_EN_PIN PIN_PB3
 #define VOLTAGE_MEASURE_PIN    PIN_PE0
 
-#define EEPROM_CS_PIN PIN_PE3
-
-#define DEBUGGER_TX_PIN  PIN_PB0
-#define DEBUGGER_RX_PIN  PIN_PB1
-#define DEBUGGER_LED_PIN PIN_PB2
-#define DEBUGGER_SW0_PIN PIN_PD2
-#define DEBUGGER_USART   USART3
-
-#define I2C0_SDA_PIN PIN_PC2
-#define I2C0_SCL_PIN PIN_PC3
-#define I2C1_SDA_PIN PIN_PF2
-#define I2C1_SCL_PIN PIN_PF3
-
-#define SPI_CS   PIN_PB5
-#define SPI_MOSI PIN_PA4
-#define SPI_MISO PIN_PA5
-#define SPI_SCK  PIN_PA6
-
-#define SW0_PORT PORTD
-
 #else
 
 #ifdef __AVR_AVR128DB64__ // Non-Mini
@@ -93,31 +73,10 @@
 #define VOLTAGE_MEASURE_EN_PIN PIN_PB3
 #define VOLTAGE_MEASURE_PIN    PIN_PE0
 
-#define EEPROM_CS_PIN PIN_PE3
-
-#define DEBUGGER_TX_PIN  PIN_PB0
-#define DEBUGGER_RX_PIN  PIN_PB1
-#define DEBUGGER_LED_PIN PIN_PB2
-#define DEBUGGER_SW0_PIN PIN_PD2
-#define DEBUGGER_USART   USART3
-
-#define I2C0_SDA_PIN PIN_PC2
-#define I2C0_SCL_PIN PIN_PC3
-#define I2C1_SDA_PIN PIN_PF2
-#define I2C1_SCL_PIN PIN_PF3
-
-#define SPI_CS   PIN_PB5
-#define SPI_MOSI PIN_PA4
-#define SPI_MISO PIN_PA5
-#define SPI_SCK  PIN_PA6
-
-#define SW0_PORT PORTD
-
 #else
 #error "INCOMPATIBLE_DEVICE_SELECTED"
 #endif
 #endif
-
 // Singleton. Defined for use of the rest of the library.
 LowPowerClass LowPower = LowPowerClass::instance();
 
@@ -125,9 +84,37 @@ static volatile bool ring_line_activity     = false;
 static volatile bool modem_is_in_power_save = false;
 static volatile bool pit_triggered          = false;
 
-static bool retrieved_period     = false;
-static uint32_t period           = 0;
+/**
+ * @brief Whether we retireved a periode for PSM from the operator.
+ */
+static bool retrieved_period = false;
+
+/**
+ * @brief The period the operator gave for PSM.
+ */
+static uint32_t period = 0;
+
+/**
+ * @brief The periode requested, which might deviate from what the operator
+ * gave for PSM.
+ */
 static uint32_t period_requested = 0;
+
+/**
+ * @brief Contains stored values of the PINCTRL register for the respective
+ * ports.
+ */
+static uint8_t pin_ctrl_state[6][8];
+
+/**
+ * @brief Contains stored values of the DIR register for the respective ports.
+ */
+static uint8_t pin_dir_state[6];
+
+/**
+ * @brief Contains stored values of the OUT register for the respective ports.
+ */
+static uint8_t pin_out_state[6];
 
 ISR(RTC_PIT_vect) {
     RTC.PITINTFLAGS = RTC_PI_bm;
@@ -303,11 +290,15 @@ static uint32_t retrieveOperatorSleepTime(void) {
     return decodePeriodMultiplier(psm_period_multiplier) * psm_period_value;
 }
 
+/**
+ * @brief Enables the periodic interrupt timer which is used in power down mode
+ * to count how long along the requested time we've been powered down.
+ */
 static void enablePIT(void) {
 
     uint8_t temp;
 
-    // Disable first and wait for clock to stabilize
+    // Disable first and wait for oscillator to stabilize
     temp = CLKCTRL.XOSC32KCTRLA;
     temp &= ~CLKCTRL_ENABLE_bm;
     _PROTECTED_WRITE(CLKCTRL.XOSC32KCTRLA, temp);
@@ -339,9 +330,12 @@ static void enablePIT(void) {
     pit_triggered = false;
 }
 
+/**
+ * @brief Disables the periodic interrupt timer.
+ */
 static void disablePIT(void) {
 
-    // Disable external clock and turn off RTC PIT
+    // Disable external oscillator and turn off RTC PIT
     uint8_t temp;
     temp = CLKCTRL.XOSC32KCTRLA;
     temp &= ~(CLKCTRL_ENABLE_bm);
@@ -350,127 +344,271 @@ static void disablePIT(void) {
     RTC.PITCTRLA &= ~RTC_PITEN_bm;
 }
 
-static void setPinLowPowerMode(const uint8_t pin, const bool pull_up = true) {
+/**
+ * @brief Saves the pin state before powering down the peripherals.
+ */
+static void savePinState(void) {
 
-    if (pull_up) {
-        pinConfigure(pin,
-                     PIN_DIR_INPUT | PIN_ISC_DISABLE | PIN_PULLUP_ON |
-                         PIN_INPUT_DISABLE);
-    } else {
-        pinConfigure(pin, PIN_DIR_INPUT | PIN_ISC_DISABLE | PIN_INPUT_DISABLE);
+    for (uint8_t i = 0; i < 8; i++) {
+        pin_ctrl_state[0][i] = *((uint8_t*)&PORTA + 0x10 + i);
     }
+
+    for (uint8_t i = 0; i < 8; i++) {
+        pin_ctrl_state[1][i] = *((uint8_t*)&PORTB + 0x10 + i);
+    }
+
+    for (uint8_t i = 0; i < 8; i++) {
+        pin_ctrl_state[2][i] = *((uint8_t*)&PORTC + 0x10 + i);
+    }
+
+    for (uint8_t i = 0; i < 8; i++) {
+        pin_ctrl_state[3][i] = *((uint8_t*)&PORTD + 0x10 + i);
+    }
+
+    for (uint8_t i = 0; i < 8; i++) {
+        pin_ctrl_state[4][i] = *((uint8_t*)&PORTE + 0x10 + i);
+    }
+
+    for (uint8_t i = 0; i < 8; i++) {
+        pin_ctrl_state[5][i] = *((uint8_t*)&PORTF + 0x10 + i);
+    }
+
+    pin_dir_state[0] = PORTA.DIR;
+    pin_dir_state[1] = PORTB.DIR;
+    pin_dir_state[2] = PORTC.DIR;
+    pin_dir_state[3] = PORTD.DIR;
+    pin_dir_state[4] = PORTE.DIR;
+    pin_dir_state[5] = PORTF.DIR;
+
+    pin_out_state[0] = PORTA.OUT;
+    pin_out_state[1] = PORTB.OUT;
+    pin_out_state[2] = PORTC.OUT;
+    pin_out_state[3] = PORTD.OUT;
+    pin_out_state[4] = PORTE.OUT;
+    pin_out_state[5] = PORTF.OUT;
 }
 
-static void setPinNormalInputMode(const uint8_t pin) {
-    pinConfigure(pin, PIN_DIR_INPUT | PIN_PULLUP_OFF | PIN_INPUT_ENABLE);
+/**
+ * @brief Restores the pin state from the stored buffer.
+ */
+static void restorePinState(void) {
+
+    for (uint8_t i = 0; i < 8; i++) {
+        *((uint8_t*)&PORTA + 0x10 + i) = pin_ctrl_state[0][i];
+    }
+
+    for (uint8_t i = 0; i < 8; i++) {
+        *((uint8_t*)&PORTB + 0x10 + i) = pin_ctrl_state[1][i];
+    }
+
+    for (uint8_t i = 0; i < 8; i++) {
+        *((uint8_t*)&PORTC + 0x10 + i) = pin_ctrl_state[2][i];
+    }
+
+    for (uint8_t i = 0; i < 8; i++) {
+        *((uint8_t*)&PORTD + 0x10 + i) = pin_ctrl_state[3][i];
+    }
+
+    for (uint8_t i = 0; i < 8; i++) {
+        *((uint8_t*)&PORTE + 0x10 + i) = pin_ctrl_state[4][i];
+    }
+
+    for (uint8_t i = 0; i < 8; i++) {
+        *((uint8_t*)&PORTF + 0x10 + i) = pin_ctrl_state[5][i];
+    }
+
+    PORTA.DIR = pin_dir_state[0];
+    PORTB.DIR = pin_dir_state[1];
+    PORTC.DIR = pin_dir_state[2];
+    PORTD.DIR = pin_dir_state[3];
+    PORTE.DIR = pin_dir_state[4];
+    PORTF.DIR = pin_dir_state[5];
+
+    PORTA.OUT = pin_out_state[0];
+    PORTB.OUT = pin_out_state[1];
+    PORTC.OUT = pin_out_state[2];
+    PORTD.OUT = pin_out_state[3];
+    PORTE.OUT = pin_out_state[4];
+    PORTF.OUT = pin_out_state[5];
 }
 
-static void setPinNormalOutputMode(const uint8_t pin) {
-    pinConfigure(pin, PIN_DIR_OUTPUT | PIN_PULLUP_OFF | PIN_INPUT_ENABLE);
-}
+/**
+ * @brief Sets the pin state in order to minimize the power consumption. Will
+ * not enable LDO.
+ *
+ * @param keep_ring_active Whether to keep ring line active (used in PSM).
+ */
+static void powerDownPeripherals(const bool keep_ring_active) {
 
-static void powerDownPeripherals(void) {
+    // TODO: might keep SW0 in order to not mess with interrupt
 
-    // EEPROM - Set in standby mode
-    setPinLowPowerMode(EEPROM_CS_PIN);
-
-    // I2C
-    //
-    // We don't pull up the I2C lines as they have external pull-ups
-    Wire.end();
-    Wire1.end();
-    setPinLowPowerMode(I2C0_SDA_PIN, false);
-    setPinLowPowerMode(I2C0_SCL_PIN, false);
-    setPinLowPowerMode(I2C1_SDA_PIN, false);
-    setPinLowPowerMode(I2C1_SCL_PIN, false);
-
-    // SPI
-    setPinLowPowerMode(SPI_CS);
-    setPinLowPowerMode(SPI_MOSI);
-    setPinLowPowerMode(SPI_MOSI);
-    setPinLowPowerMode(SPI_SCK);
-
-    // Debugger, add pull-ups on pins for USART TX & RX, as well as LED pin
-
-    setPinLowPowerMode(DEBUGGER_TX_PIN);
-    setPinLowPowerMode(DEBUGGER_RX_PIN);
-    setPinLowPowerMode(DEBUGGER_LED_PIN);
-
-    // Only enable pull-up for SW0 to not have current over it, but keep active
-    // for waking the device up by the button
-    SW0_PORT.PIN2CTRL |= PORT_PULLUPEN_bm;
-
-    // LEDs
-    setPinLowPowerMode(LedCtrl.getLedPin(Led::CELL));
-    setPinLowPowerMode(LedCtrl.getLedPin(Led::CON));
-    setPinLowPowerMode(LedCtrl.getLedPin(Led::DATA));
-    setPinLowPowerMode(LedCtrl.getLedPin(Led::ERROR));
-    setPinLowPowerMode(LedCtrl.getLedPin(Led::USER));
-
-    // Disable ADC0, used for analogRead
-    ADC0.CTRLA &= ~ADC_ENABLE_bm;
-
-    // Voltage measure enable and voltage measure pins have external pull-up
-    setPinLowPowerMode(VOLTAGE_MEASURE_EN_PIN, false);
-    setPinLowPowerMode(VOLTAGE_MEASURE_PIN, false);
+    savePinState();
 
     // Disable millis() timer
     stop_millis();
+
+    // For low power, the following configuration should be used.
+    // If no comment is specified, the pin is set to input with input buffer
+    // disabled and pull-up on
+
+    // Pin - Description            - Comment
+    // PA0 - LED0 (CELLULAR)        -
+    // PA1 - LED1 (CONNECTION)      -
+    // PA2 - LED2 (DATA)            -
+    // PA3 - LED3 (ERROR)           -
+    // PA4 - SPI0 MOSI              -
+    // PA5 - SPI0 MISO              -
+    // PA6 - SPI0 MSCK              -
+    // PA7 - CLKO                   -
+
+    // PB0 - USART3 TX              - No pullup, measuring yields lower uA
+    // PB1 - USART3 RX              -
+    // PB2 - LED4 (USER)            -
+    // PB3 - VOLTAGE MEASURE EN     - Output, low, no pullup
+    // PB4 - LOWQ EN                - Output, low, no pullup
+    // PB5 - SPI0 CS                -
+    // PB6 - NC                     -
+    // PB7 - NC                     -
+
+    // PC0 - USART1 TX (Modem)      -
+    // PC1 - USART1 RX (Modem)      -
+    // PC2 - I2C0 SDA               - Has external pullup
+    // PC3 - I2C0 SCL               - Has external pullup
+    // PC4 - CTS0 (Modem)           -
+    // PC5 - RESETN (Modem)         - Has external pulldown
+    // PC6 - RING0 (modem)          - Source for wake up for PSM
+    // PC7 - RTS0 (Modem)           - Has external pullup
+
+    // PD0 - GPIO                   -
+    // PD1 - GPIO A1                -
+    // PD2 - SW0 button             -
+    // PD3 - GPIO A2                -
+    // PD4 - GPIO A3                -
+    // PD5 - GPIO A4                -
+    // PD6 - DAC A0                 -
+    // PD7 - AREF A5                -
+
+    // PE0 - VMUX Measure           -
+    // PE1 - GPIO D6                -
+    // PE2 - GPIO D5                -
+    // PE3 - SPI0 CS (EEPROM)       - Active low, so nothing extra done here
+    // PE4 - NC                     -
+    // PE5 - NC                     -
+    // PE6 - NC                     -
+    // PE7 - NC                     -
+
+    // PF0 - XTAL32K1               - Input buffer not disabled, no pullup
+    // PF1 - XTAL32K2               - Input buffer not disabled, no pullup
+    // PF2 - I2C1 SDA               - Has external pullup
+    // PF3 - I2C1 SCL               - Has external pullup
+    // PF4 - USART2 TX              -
+    // PF5 - USART2 RX              -
+    // PF6 - SW1 button             -
+    // PF7 - NC                     -
+
+    PORTA.DIR = 0x00;
+    PORTB.DIR = PIN3_bm | PIN4_bm;
+    PORTC.DIR = 0x00;
+    PORTD.DIR = 0x00;
+    PORTE.DIR = 0x00;
+    PORTF.DIR = 0x00;
+
+    PORTA.OUT = 0x00;
+    PORTB.OUT = 0x00;
+    PORTC.OUT = 0x00;
+    PORTD.OUT = 0x00;
+    PORTE.OUT = 0x00;
+    PORTF.OUT = 0x00;
+
+    PORTA.PIN0CTRL = 0x0C;
+    PORTA.PIN1CTRL = 0x0C;
+    PORTA.PIN2CTRL = 0x0C;
+    PORTA.PIN3CTRL = 0x0C;
+    PORTA.PIN4CTRL = 0x0C;
+    PORTA.PIN5CTRL = 0x0C;
+    PORTA.PIN6CTRL = 0x0C;
+    PORTA.PIN7CTRL = 0x0C;
+
+    PORTB.PIN0CTRL = 0x04;
+    PORTB.PIN1CTRL = 0x0C;
+    PORTB.PIN2CTRL = 0x0C;
+    PORTB.PIN3CTRL = 0x04;
+    PORTB.PIN4CTRL = 0x04;
+    PORTB.PIN5CTRL = 0x0C;
+    PORTB.PIN6CTRL = 0x0C;
+    PORTB.PIN7CTRL = 0x0C;
+
+    PORTC.PIN0CTRL = 0x0C;
+    PORTC.PIN1CTRL = 0x0C;
+    PORTC.PIN2CTRL = 0x04;
+    PORTC.PIN3CTRL = 0x04;
+    PORTC.PIN4CTRL = 0x0C;
+    PORTC.PIN5CTRL = 0x04;
+    if (keep_ring_active) {
+        PORTC.PIN6CTRL = 0x01;
+    } else {
+        PORTC.PIN6CTRL = 0x04;
+    }
+    PORTC.PIN7CTRL = 0x04;
+
+    PORTD.PIN0CTRL = 0x0C;
+    PORTD.PIN1CTRL = 0x0C;
+    PORTD.PIN2CTRL = 0x0C;
+    PORTD.PIN3CTRL = 0x0C;
+    PORTD.PIN4CTRL = 0x0C;
+    PORTD.PIN5CTRL = 0x0C;
+    PORTD.PIN6CTRL = 0x0C;
+    PORTD.PIN7CTRL = 0x0C;
+
+    PORTE.PIN0CTRL = 0x04;
+    PORTE.PIN1CTRL = 0x0C;
+    PORTE.PIN2CTRL = 0x0C;
+    PORTE.PIN3CTRL = 0x0C;
+    PORTE.PIN4CTRL = 0x0C;
+    PORTE.PIN5CTRL = 0x0C;
+    PORTE.PIN6CTRL = 0x0C;
+    PORTE.PIN7CTRL = 0x0C;
+
+    PORTF.PIN0CTRL = 0x00;
+    PORTF.PIN1CTRL = 0x00;
+    PORTF.PIN2CTRL = 0x04;
+    PORTF.PIN3CTRL = 0x04;
+    PORTF.PIN4CTRL = 0x0C;
+    PORTF.PIN5CTRL = 0x0C;
+    PORTF.PIN6CTRL = 0x0C;
+    PORTF.PIN7CTRL = 0x0C;
 }
 
+/**
+ * @brief Restores the pin configuration which the device had before a power
+ * down.
+ */
 static void powerUpPeripherals() {
 
-    // Enable millis() timer
-    restart_millis();
+    restorePinState();
 
-    // Voltage measure
-    setPinNormalInputMode(VOLTAGE_MEASURE_PIN);
-    setPinNormalOutputMode(VOLTAGE_MEASURE_EN_PIN);
+    restart_millis();
 
     // ADC for analogRead
     init_ADC0();
-
-    // LEDs
-    setPinNormalOutputMode(LedCtrl.getLedPin(Led::CELL));
-    setPinNormalOutputMode(LedCtrl.getLedPin(Led::CON));
-    setPinNormalOutputMode(LedCtrl.getLedPin(Led::DATA));
-    setPinNormalOutputMode(LedCtrl.getLedPin(Led::ERROR));
-    setPinNormalOutputMode(LedCtrl.getLedPin(Led::USER));
-
-    // Debugger
-    setPinNormalOutputMode(DEBUGGER_TX_PIN);
-    setPinNormalInputMode(DEBUGGER_RX_PIN);
-    setPinNormalOutputMode(DEBUGGER_LED_PIN);
-
-    SW0_PORT.PIN2CTRL &= ~PORT_PULLUPEN_bm;
-
-    // I2C
-    setPinNormalOutputMode(I2C0_SDA_PIN);
-    setPinNormalOutputMode(I2C0_SCL_PIN);
-    setPinNormalOutputMode(I2C1_SDA_PIN);
-    setPinNormalOutputMode(I2C1_SCL_PIN);
-    Wire.begin();
-    Wire1.begin();
-
-    // SPI
-    setPinNormalOutputMode(SPI_CS);
-    setPinNormalOutputMode(SPI_MOSI);
-    setPinNormalInputMode(SPI_MISO);
-    setPinNormalOutputMode(SPI_SCK);
-
-    // EEPROM
-    setPinNormalOutputMode(EEPROM_CS_PIN);
 }
 
+/**
+ * @brief Enables the LDO regulator, which has a significant lower amp footprint
+ * than the standard voltage regulator.
+ */
 static void enableLDO(void) {
 
-    pinConfigure(LOWQ_PIN, PIN_DIR_OUTPUT);
+    pinConfigure(LOWQ_PIN, PIN_DIR_OUTPUT | PIN_PULLUP_ON);
     digitalWrite(LOWQ_PIN, HIGH);
 
     // Wait a little to let LDO mode settle
     delay(100);
 }
 
+/**
+ * @brief Disables the LOD after a power down.
+ */
 static void disableLDO(void) {
     pinConfigure(LOWQ_PIN, PIN_DIR_OUTPUT);
     digitalWrite(LOWQ_PIN, LOW);
@@ -583,14 +721,14 @@ void LowPowerClass::powerSave(void) {
     }
 
     if (modem_is_in_power_save) {
-        powerDownPeripherals();
+        powerDownPeripherals(true);
         SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
 
-        enableLDO();
+        // enableLDO();
         sleep_cpu();
 
         // Will sleep here until we get the RING line activity and wake up
-        disableLDO();
+        // disableLDO();
 
         SLPCTRL.CTRLA &= ~SLPCTRL_SEN_bm;
         powerUpPeripherals();
@@ -621,8 +759,6 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
     SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
 
     Lte.end();
-    enablePIT();
-    enableLDO();
 
     uint32_t remaining_time_seconds =
         power_down_time_seconds -
@@ -630,7 +766,13 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
 
     // Need to power down the peripherals here as we want to grab the time
     // (millis()) from the timer before disabling it
-    powerDownPeripherals();
+    powerDownPeripherals(false);
+
+    enablePIT();
+    enableLDO();
+
+    // TODO: might want to just have the remaining time in seconds to be the
+    // power_down_time_seconds to prevent issues with millis() overflowing
 
     while (remaining_time_seconds > 0) {
 
@@ -651,6 +793,7 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
 
     powerUpPeripherals();
 
+    // TODO: should we keep this here?
     while (!Lte.begin()) {}
 }
 
