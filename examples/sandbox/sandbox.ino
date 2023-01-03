@@ -288,7 +288,7 @@ void setup() {
     attachInterrupt(PIN_PD2, sendHeartbeatInterrupt, FALLING);
 
     // Set PF6 as input (reset button)
-    pinConfigure(PIN_PF6, PIN_DIR_INPUT);
+    pinConfigure(PIN_PF6, PIN_DIR_INPUT | PIN_PULLUP_ON);
     attachInterrupt(PIN_PF6, resetInterrupt, FALLING);
 
     sei();
@@ -517,7 +517,7 @@ void loop() {
                             \"Light Intensity\": %d \
                         } \
                     }",
-                    int(Mcp9808.readTempC()),
+                    int(Mcp9808.readTemperatureCelsius()),
                     Veml3328.getRed());
 
             if (!MqttClient.publish(mqtt_pub_topic, transmit_buffer)) {
