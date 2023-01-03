@@ -517,7 +517,7 @@ void loop() {
                             \"Light Intensity\": %d \
                         } \
                     }",
-                    int(Mcp9808.readTemperatureCelsius()),
+                    int(Mcp9808.readTempC()),
                     Veml3328.getRed());
 
             if (!MqttClient.publish(mqtt_pub_topic, transmit_buffer)) {
