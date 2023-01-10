@@ -30,12 +30,15 @@ class LteClass {
      * @brief Initializes the LTE module and its controller interface. Connects
      * to the network.
      *
+     * @param timeout_ms The amount of time to wait for connection before
+     * aborting.
      * @param print_messages If set to true, the messages related to connection
      * will be logged.
      *
      * @return True if initialization was successful and connection was made.
      */
-    bool begin(const bool print_messages = true);
+    bool begin(const uint32_t timeout_ms = 600000,
+               const bool print_messages = true);
 
     /**
      * @brief Disables the interface with the LTE module. Disconnects from

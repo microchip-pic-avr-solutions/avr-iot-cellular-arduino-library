@@ -341,6 +341,30 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Closing MQTT connection"
             }
         ],
+        "mqtt_with_connection_loss_handling": [
+            {
+                "expectation": "\\[INFO\\] Starting MQTT with Connection Loss Handling"
+            },
+            {
+                "expectation": "\r\n"
+            },
+            {
+                "expectation": "\\[INFO\\] Not connected to the network. Attempting to connect!"
+            },
+            {
+                "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
+            },
+            {
+                "expectation": "\\[INFO\\] Not connected to broker. Attempting to connect!"
+            },
+            {
+                "expectation": "\\[INFO\\] Connecting to broker.{0,}OK!"
+            },
+            {
+                "repeat": 5,
+                "expectation": "\\[INFO\\] Published message: \\d{1,}. Failed publishes: \\d{1,}."
+            },
+        ],
         "power_down": [
             {
                 "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"

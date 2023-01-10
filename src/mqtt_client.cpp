@@ -121,7 +121,7 @@
 // Singleton instance
 MqttClientClass MqttClient = MqttClientClass::instance();
 
-static bool connected_to_broker            = false;
+static volatile bool connected_to_broker   = false;
 static void (*connected_callback)(void)    = NULL;
 static void (*disconnected_callback)(void) = NULL;
 
@@ -169,12 +169,20 @@ static void internalConnectedCallback(char* urc_data) {
 
         connected_to_broker = true;
         LedCtrl.on(Led::CON, true);
+
         if (connected_callback != NULL) {
             connected_callback();
         }
     } else {
-        LedCtrl.off(Led::CON, true);
         connected_to_broker = false;
+        LedCtrl.off(Led::CON, true);
+
+        SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
+                                     strlen(MQTT_DISCONNECT),
+                                     true);
+        delay(10);
+        SequansController.clearReceiveBuffer();
+
         if (disconnected_callback != NULL) {
             disconnected_callback();
         }
@@ -183,6 +191,12 @@ static void internalConnectedCallback(char* urc_data) {
 
 static void internalDisconnectCallback(char* urc_data) {
     connected_to_broker = false;
+
+    SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
+                                 strlen(MQTT_DISCONNECT),
+                                 true);
+    delay(10);
+    SequansController.clearReceiveBuffer();
 
     if (disconnected_callback != NULL) {
         disconnected_callback();
@@ -326,6 +340,10 @@ static bool generateSigningCommand(char* data, char* command_buffer) {
 
 bool MqttClientClass::beginAWS() {
 
+    if (!Lte.isConnected()) {
+        return false;
+    }
+
     // Initialize the ECC
     uint8_t status = ECC608.begin();
     if (status != ECC608.ERR_OK) {
@@ -376,10 +394,17 @@ bool MqttClientClass::begin(const char* client_id,
                             const char* username,
                             const char* password) {
 
-    // Disconnect if connected
-    if (isConnected()) {
-        SequansController.writeCommand(MQTT_DISCONNECT);
+    if (!Lte.isConnected()) {
+        return false;
     }
+
+    // Disconnect to terminate existing configuration
+    SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
+                                 strlen(MQTT_DISCONNECT),
+                                 true);
+
+    delay(100);
+    SequansController.clearReceiveBuffer();
 
     // -- Configuration --
 
@@ -498,27 +523,24 @@ bool MqttClientClass::begin(const char* client_id,
 }
 
 bool MqttClientClass::end(void) {
+
+    LedCtrl.off(Led::CON, true);
+
     SequansController.unregisterCallback(MQTT_ON_MESSAGE_URC);
     SequansController.unregisterCallback(MQTT_ON_CONNECT_URC);
     SequansController.unregisterCallback(MQTT_ON_DISCONNECT_URC);
 
-    connected_callback    = NULL;
-    disconnected_callback = NULL;
+    SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
+                                 strlen(MQTT_DISCONNECT),
+                                 true);
+    delay(10);
+    SequansController.clearReceiveBuffer();
 
-    LedCtrl.off(Led::CON, true);
+    internalDisconnectCallback(NULL);
 
-    if (!isConnected()) {
-        return true;
-    }
+    connected_to_broker = false;
 
-    // If LTE is not connected, the MQTT client will be disconnected
-    // automatically
-    if (!Lte.isConnected()) {
-        return true;
-    }
-
-    return (SequansController.writeCommand(MQTT_DISCONNECT) ==
-            ResponseResult::OK);
+    return true;
 }
 
 void MqttClientClass::onConnectionStatusChange(void (*connected)(void),
@@ -537,7 +559,8 @@ bool MqttClientClass::isConnected(void) { return connected_to_broker; }
 bool MqttClientClass::publish(const char* topic,
                               const uint8_t* buffer,
                               const uint32_t buffer_size,
-                              const MqttQoS quality_of_service) {
+                              const MqttQoS quality_of_service,
+                              const uint32_t timeout_ms) {
 
     if (!isConnected()) {
         Log.error("Attempted publish without being connected to a broker");
@@ -577,8 +600,12 @@ bool MqttClientClass::publish(const char* topic,
     // termination
     char status_code_buffer[3] = "";
 
-    if (!SequansController.waitForURC(MQTT_ON_PUBLISH_URC, urc, sizeof(urc))) {
-        Log.warn("Timed out waiting for publish confirmation\r\n");
+    if (!SequansController.waitForURC(MQTT_ON_PUBLISH_URC,
+                                      urc,
+                                      sizeof(urc),
+                                      timeout_ms)) {
+        Log.warn("Timed out waiting for publish confirmation. Consider "
+                 "increasing timeout for publishing\r\n");
         return false;
     }
 
@@ -617,11 +644,13 @@ bool MqttClientClass::publish(const char* topic,
 
 bool MqttClientClass::publish(const char* topic,
                               const char* message,
-                              const MqttQoS quality_of_service) {
+                              const MqttQoS quality_of_service,
+                              const uint32_t timeout_ms) {
     return publish(topic,
                    (uint8_t*)message,
                    strlen(message),
-                   quality_of_service);
+                   quality_of_service,
+                   timeout_ms);
 }
 
 bool MqttClientClass::subscribe(const char* topic,

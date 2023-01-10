@@ -288,7 +288,7 @@ void setup() {
     attachInterrupt(PIN_PD2, sendHeartbeatInterrupt, FALLING);
 
     // Set PF6 as input (reset button)
-    pinConfigure(PIN_PF6, PIN_DIR_INPUT);
+    pinConfigure(PIN_PF6, PIN_DIR_INPUT | PIN_PULLUP_ON);
     attachInterrupt(PIN_PF6, resetInterrupt, FALLING);
 
     sei();

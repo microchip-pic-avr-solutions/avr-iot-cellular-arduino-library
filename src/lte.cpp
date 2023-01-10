@@ -1,4 +1,5 @@
 #include "lte.h"
+
 #include "led_ctrl.h"
 #include "log.h"
 #include "mqtt_client.h"
@@ -97,13 +98,21 @@ static void timezoneCallback(__attribute__((unused)) char* buffer) {
     got_timezone = true;
 }
 
-bool LteClass::begin(const bool print_messages) {
+bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
+
+    const uint32_t start = millis();
 
     // If low power is utilized, sequans controller will already been
     // initialized, so don't reset it by calling begin again
     if (!SequansController.isInitialized()) {
         SequansController.begin();
     }
+
+    // Disconnect before configuration if already connected
+    SequansController.writeCommand(AT_DISCONNECT);
+
+    delay(100);
+    SequansController.clearReceiveBuffer();
 
     SequansController.registerCallback(TIMEZONE_CALLBACK, timezoneCallback);
 
@@ -154,13 +163,27 @@ bool LteClass::begin(const bool print_messages) {
         Log.infof("Connecting to operator");
     }
 
-    while (!isConnected()) {
+    while (!isConnected() && millis() - start < timeout_ms) {
         LedCtrl.toggle(Led::CELL, true);
         delay(500);
 
         if (print_messages) {
             Log.rawf(".");
         }
+    }
+
+    if (millis() - start >= timeout_ms) {
+
+        Log.rawf(" Was not able to connect to the network within the timeout "
+                 "of %d ms. Consider increasing the timeout or checking your "
+                 "cellular coverage.\r\n",
+                 timeout_ms);
+
+        SequansController.unregisterCallback(CEREG_CALLBACK);
+        SequansController.unregisterCallback(TIMEZONE_CALLBACK);
+        SequansController.writeCommand(AT_DISCONNECT);
+
+        return false;
     }
 
     if (print_messages) {
@@ -267,6 +290,7 @@ void LteClass::end(void) {
         while (isConnected() && millis() - start < 2000) {}
         SequansController.unregisterCallback(CEREG_CALLBACK);
 
+        SequansController.clearReceiveBuffer();
         SequansController.end();
     }
 
