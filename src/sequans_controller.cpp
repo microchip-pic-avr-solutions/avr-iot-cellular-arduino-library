@@ -639,6 +639,17 @@ SequansControllerClass::writeCommand(const char* command,
         writeBytes((const uint8_t*)command, strlen(command), true);
         response = readResponse(result_buffer, result_buffer_size);
 
+        if (response == ResponseResult::BUFFER_OVERFLOW &&
+            result_buffer != NULL) {
+
+            strcpy(result_buffer, "");
+            Log.error(
+                "SequansController.writeCommand() called with buffer which "
+                "is too small for the response. Increase response buffer "
+                "size.");
+            return response;
+        }
+
         if (response != ResponseResult::OK) {
             delay(COMMAND_RETRY_SLEEP_MS);
         }
@@ -694,11 +705,11 @@ SequansControllerClass::readResponse(char* out_buffer,
         // Reset timeout timer
         start = millis();
 
-        buffer[i++] = (uint8_t)readByte();
+        buffer[i++] = (char)readByte();
 
         // We won't check for the buffer having a termination until at least
         // 2 bytes are in it
-        if (i == 0) {
+        if (i < 2) {
             continue;
         }
 

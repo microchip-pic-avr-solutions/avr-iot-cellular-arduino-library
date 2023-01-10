@@ -76,6 +76,45 @@ def example_test_data():
         test_data(dict): Dictionary with the test for each example
     """
     return {
+        "custom_at_commands": [
+            {
+                "expectation": "\\[INFO\\] Starting up example for custom AT commands"
+            },
+            {
+                "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
+            },
+            {
+                "expectation": "\\[ERROR\\] Error writing command, the response was:"
+            },
+            {
+                "expectation": "+CME ERROR: invalid characters in text string"
+            },
+            {
+                "expectation": ""
+            },
+            {
+                "expectation": "\\[INFO\\] Received the following ping response:"
+            },
+            {
+                "expectation": "\\d{1},\\d{1,3}.\\d{1,3}.\\d{1,3}.\\d{1,3},\\d{1,},\\d{1,}",
+                "repeat": 4
+            },
+            {
+                "expectation": ""
+            },
+            {
+                "expectation": "\\[INFO\\] Command written successfully, the response was:"
+            },
+            {
+                "expectation": "\\+CEREG: 5,5,\"[a-zA-Z0-9]{1,}\",\"[a-zA-Z0-9]{1,}\",\\d{1,},,,\"[a-zA-Z0-9]{1,}\",\"[a-zA-Z0-9]{1,}\""
+            },
+            {
+                "expectation": ""
+            },
+            {
+                "expectation": "The value was: 5"
+            },
+        ],
         "debug_modem": [
             {
                 "command": "AT\r",
