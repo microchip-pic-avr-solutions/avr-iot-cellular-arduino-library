@@ -566,7 +566,7 @@ void LowPowerClass::powerSave(void) {
                 Log.warnf("Operator was not able to match the requested power "
                           "save mode period of %d seconds. ",
                           period_requested);
-                Log.rawf("Operator sat the period to %d seconds.\r\n", period);
+                Log.rawf("Operator set the period to %d seconds.\r\n", period);
             }
 
             retrieved_period = true;
@@ -662,12 +662,12 @@ float LowPowerClass::getSupplyVoltage(void) {
     }
 
     // The default resolution is 10 bits, so divide by that to get the fraction
-    // of VDD, which is 3.3 V
+    // of VDD, which is 3.3 V (which logic level at the input pin is at)
     //
     // The voltage is in a voltage divider, and is divided by 4, so have to
     // multiply it up
     float value = 4.0f * 3.3f * ((float)analogRead(VOLTAGE_MEASURE_PIN)) /
-                  1024.0f;
+                  1023.0f;
 
     return value;
 }

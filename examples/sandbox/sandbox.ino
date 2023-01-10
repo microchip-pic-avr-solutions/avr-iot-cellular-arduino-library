@@ -288,7 +288,7 @@ void setup() {
     attachInterrupt(PIN_PD2, sendHeartbeatInterrupt, FALLING);
 
     // Set PF6 as input (reset button)
-    pinConfigure(PIN_PF6, PIN_DIR_INPUT);
+    pinConfigure(PIN_PF6, PIN_DIR_INPUT | PIN_PULLUP_ON);
     attachInterrupt(PIN_PF6, resetInterrupt, FALLING);
 
     sei();
@@ -323,6 +323,9 @@ void setup() {
     sprintf(mqtt_sub_topic, MQTT_SUB_TOPIC_FMT, thing_name);
     sprintf(mqtt_pub_topic, MQTT_PUB_TOPIC_FMT, thing_name);
 
+    Log.info("Will now connect to the operator. If the board hasn't previously "
+             "connected to the operator/network, establishing the "
+             "connection the first time might take some time.");
     connectLTE();
 }
 
