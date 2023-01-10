@@ -1,6 +1,6 @@
 /**
  * Note that this example requires the Mcp9808 and Veml3328 driver, they can be
- * found here in the Arduino IDE's library manager.
+ * found in the Arduino IDE's library manager.
  */
 
 #include <avr/io.h>
