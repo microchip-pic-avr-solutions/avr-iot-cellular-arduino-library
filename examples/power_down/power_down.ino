@@ -13,11 +13,11 @@
 
 #define SW0 PIN_PD2
 
-static bool woke_up_from_button = false;
+static volatile bool woke_up_from_button = false;
 
 void button_pressed_callback(void) {
     if (PORTD.INTFLAGS & PIN2_bm) {
-        // Reset the interupt flag so that we can process the next incoming
+        // Reset the interrupt flag so that we can process the next incoming
         // interrupt
         PORTD.INTFLAGS = PIN2_bm;
 
@@ -62,7 +62,7 @@ void loop() {
     LowPower.powerDown(60);
 
     if (woke_up_from_button) {
-        Log.info("Button was pressed");
+        Log.info("SW0 was pressed");
         woke_up_from_button = false;
     }
 
