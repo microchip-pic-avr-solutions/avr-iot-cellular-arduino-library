@@ -449,22 +449,28 @@ static void powerDownPeripherals(const bool keep_modem_active) {
     // If no comment is specified, the pin is set to input with input buffer
     // disabled and pull-up on
 
+    // On all pins along the feather, interrupts are left on for both edges in
+    // case the user wants to wake the device up from external signals. This is
+    // also the case for the buttons SW0 and SW1
+
+    // clang-format off
+
     // Pin - Description            - Comment
     // PA0 - LED0 (CELLULAR)        -
     // PA1 - LED1 (CONNECTION)      -
     // PA2 - LED2 (DATA)            -
     // PA3 - LED3 (ERROR)           -
-    // PA4 - SPI0 MOSI              -
-    // PA5 - SPI0 MISO              -
-    // PA6 - SPI0 MSCK              -
-    // PA7 - CLKO                   -
+    // PA4 - SPI0 MOSI (Feather)    -
+    // PA5 - SPI0 MISO (Feather)    -
+    // PA6 - SPI0 MSCK (Feather)    -
+    // PA7 - CLKO (Feather)         -
 
     // PB0 - USART3 TX              - No pullup, measuring yields lower uA
     // PB1 - USART3 RX              -
     // PB2 - LED4 (USER)            -
     // PB3 - VOLTAGE MEASURE EN     - Output, low, no pullup
     // PB4 - LOWQ EN                - Output, low, no pullup
-    // PB5 - SPI0 CS                -
+    // PB5 - SPI0 CS (Feather)      -
     // PB6 - NC                     -
     // PB7 - NC                     -
 
@@ -477,32 +483,34 @@ static void powerDownPeripherals(const bool keep_modem_active) {
     // PC6 - RING0 (modem)          - Source for wake up for PSM
     // PC7 - RTS0 (Modem)           - Has external pullup
 
-    // PD0 - GPIO                   -
-    // PD1 - GPIO A1                -
-    // PD2 - SW0 button             -
-    // PD3 - GPIO A2                -
-    // PD4 - GPIO A3                -
-    // PD5 - GPIO A4                -
-    // PD6 - DAC A0                 -
-    // PD7 - AREF A5                -
+    // PD0 - GPIO D9 (Feather)      -
+    // PD1 - GPIO A1 (Feather)      -
+    // PD2 - SW0 button (Feather)   -
+    // PD3 - GPIO A2 (Feather)      -
+    // PD4 - GPIO A3 (Feather)      -
+    // PD5 - GPIO A4 (Feather)      -
+    // PD6 - DAC A0  (Feather)      -
+    // PD7 - AREF A5 (Feather)      -
 
-    // PE0 - VMUX Measure           -
-    // PE1 - GPIO D6                -
-    // PE2 - GPIO D5                -
+    // PE0 - VMUX Measure           - Not pulled up
+    // PE1 - GPIO D6 (Feather)      -
+    // PE2 - GPIO D5 (Feather)      -
     // PE3 - SPI0 CS (EEPROM)       - Active low, so nothing extra done here
     // PE4 - NC                     -
     // PE5 - NC                     -
     // PE6 - NC                     -
     // PE7 - NC                     -
 
-    // PF0 - XTAL32K1               - Input buffer not disabled, no pullup
-    // PF1 - XTAL32K2               - Input buffer not disabled, no pullup
-    // PF2 - I2C1 SDA               - Has external pullup
-    // PF3 - I2C1 SCL               - Has external pullup
-    // PF4 - USART2 TX              -
-    // PF5 - USART2 RX              -
+    // PF0 - XTAL32K1               - Input buffer not disabled, no pullup. Is used for PIT
+    // PF1 - XTAL32K2               - Input buffer not disabled, no pullup. Is used for PIT
+    // PF2 - I2C1 SDA (Feather)     - Has external pullup
+    // PF3 - I2C1 SCL (Feather)     - Has external pullup
+    // PF4 - USART2 TX (Feather)    -
+    // PF5 - USART2 RX (Feather)    -
     // PF6 - SW1 button             -
     // PF7 - NC                     -
+
+    // clang-format on
 
     PORTA.DIR = 0x00;
     PORTB.DIR = PIN3_bm | PIN4_bm;
@@ -530,62 +538,62 @@ static void powerDownPeripherals(const bool keep_modem_active) {
     PORTE.OUT = 0x00;
     PORTF.OUT = 0x00;
 
-    PORTA.PIN0CTRL = 0x0C;
-    PORTA.PIN1CTRL = 0x0C;
-    PORTA.PIN2CTRL = 0x0C;
-    PORTA.PIN3CTRL = 0x0C;
-    PORTA.PIN4CTRL = 0x0C;
-    PORTA.PIN5CTRL = 0x0C;
-    PORTA.PIN6CTRL = 0x0C;
-    PORTA.PIN7CTRL = 0x0C;
+    PORTA.PIN0CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
+    PORTA.PIN1CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
+    PORTA.PIN2CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
+    PORTA.PIN3CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
+    PORTA.PIN4CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTA.PIN5CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTA.PIN6CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTA.PIN7CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
 
-    PORTB.PIN0CTRL = 0x04;
-    PORTB.PIN1CTRL = 0x0C;
-    PORTB.PIN2CTRL = 0x0C;
-    PORTB.PIN3CTRL = 0x04;
-    PORTB.PIN4CTRL = 0x04;
-    PORTB.PIN5CTRL = 0x0C;
-    PORTB.PIN6CTRL = 0x0C;
-    PORTB.PIN7CTRL = 0x0C;
+    PORTB.PIN0CTRL = PORT_ISC_INPUT_DISABLE_gc;
+    PORTB.PIN1CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
+    PORTB.PIN2CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
+    PORTB.PIN3CTRL = PORT_ISC_INPUT_DISABLE_gc;
+    PORTB.PIN4CTRL = PORT_ISC_INPUT_DISABLE_gc;
+    PORTB.PIN5CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTB.PIN6CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
+    PORTB.PIN7CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
 
-    PORTC.PIN2CTRL = 0x04;
-    PORTC.PIN3CTRL = 0x04;
+    PORTC.PIN2CTRL = PORT_ISC_INPUT_DISABLE_gc;
+    PORTC.PIN3CTRL = PORT_ISC_INPUT_DISABLE_gc;
 
     if (!keep_modem_active) {
-        PORTC.PIN0CTRL = 0x0C;
-        PORTC.PIN1CTRL = 0x0C;
-        PORTC.PIN4CTRL = 0x0C;
-        PORTC.PIN5CTRL = 0x04;
-        PORTC.PIN6CTRL = 0x04;
-        PORTC.PIN7CTRL = 0x04;
+        PORTC.PIN0CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
+        PORTC.PIN1CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
+        PORTC.PIN4CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
+        PORTC.PIN5CTRL = PORT_ISC_INPUT_DISABLE_gc;
+        PORTC.PIN6CTRL = PORT_ISC_INPUT_DISABLE_gc;
+        PORTC.PIN7CTRL = PORT_ISC_INPUT_DISABLE_gc;
     }
 
-    PORTD.PIN0CTRL = 0x0C;
-    PORTD.PIN1CTRL = 0x0C;
-    PORTD.PIN2CTRL = 0x0C;
-    PORTD.PIN3CTRL = 0x0C;
-    PORTD.PIN4CTRL = 0x0C;
-    PORTD.PIN5CTRL = 0x0C;
-    PORTD.PIN6CTRL = 0x0C;
-    PORTD.PIN7CTRL = 0x0C;
+    PORTD.PIN0CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTD.PIN1CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTD.PIN2CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTD.PIN3CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTD.PIN4CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTD.PIN5CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTD.PIN6CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTD.PIN7CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
 
-    PORTE.PIN0CTRL = 0x04;
-    PORTE.PIN1CTRL = 0x0C;
-    PORTE.PIN2CTRL = 0x0C;
-    PORTE.PIN3CTRL = 0x0C;
-    PORTE.PIN4CTRL = 0x0C;
-    PORTE.PIN5CTRL = 0x0C;
-    PORTE.PIN6CTRL = 0x0C;
-    PORTE.PIN7CTRL = 0x0C;
+    PORTE.PIN0CTRL = PORT_ISC_INPUT_DISABLE_gc;
+    PORTE.PIN1CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTE.PIN2CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTE.PIN3CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
+    PORTE.PIN4CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
+    PORTE.PIN5CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
+    PORTE.PIN6CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
+    PORTE.PIN7CTRL = PORT_PULLUPEN_bm | PORT_ISC_INPUT_DISABLE_gc;
 
     PORTF.PIN0CTRL = 0x00;
     PORTF.PIN1CTRL = 0x00;
-    PORTF.PIN2CTRL = 0x04;
-    PORTF.PIN3CTRL = 0x04;
-    PORTF.PIN4CTRL = 0x0C;
-    PORTF.PIN5CTRL = 0x0C;
-    PORTF.PIN6CTRL = 0x0C;
-    PORTF.PIN7CTRL = 0x0C;
+    PORTF.PIN2CTRL = PORT_ISC_BOTHEDGES_gc;
+    PORTF.PIN3CTRL = PORT_ISC_BOTHEDGES_gc;
+    PORTF.PIN4CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTF.PIN5CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTF.PIN6CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+    PORTF.PIN7CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
 }
 
 /**

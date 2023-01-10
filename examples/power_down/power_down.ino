@@ -11,11 +11,29 @@
 #include <mcp9808.h>
 #include <veml3328.h>
 
+#define SW0 PIN_PD2
+
+static bool woke_up_from_button = false;
+
+void button_pressed_callback(void) {
+    if (PORTD.INTFLAGS & PIN2_bm) {
+        // Reset the interupt flag so that we can process the next incoming
+        // interrupt
+        PORTD.INTFLAGS = PIN2_bm;
+
+        woke_up_from_button = true;
+    }
+}
+
 void setup() {
     Log.begin(115200);
 
     LedCtrl.begin();
     LedCtrl.startupCycle();
+
+    // Attach interrupt callback to detect if SW0 was pressed during sleep
+    pinConfigure(SW0, PIN_DIR_INPUT);
+    attachInterrupt(SW0, button_pressed_callback, FALLING);
 
     // Now we configure the low power module for power down configuration, where
     // the cellular modem and the CPU will be powered down
@@ -42,6 +60,11 @@ void loop() {
 
     // Power down for 60 seconds
     LowPower.powerDown(60);
+
+    if (woke_up_from_button) {
+        Log.info("Button was pressed");
+        woke_up_from_button = false;
+    }
 
     Log.info("Woke up!");
 

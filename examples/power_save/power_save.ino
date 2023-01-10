@@ -12,11 +12,29 @@
 #include <sequans_controller.h>
 #include <veml3328.h>
 
+#define SW0 PIN_PD2
+
+static bool woke_up_from_button = false;
+
+void button_pressed_callback(void) {
+    if (PORTD.INTFLAGS & PIN2_bm) {
+        // Reset the interupt flag so that we can process the next incoming
+        // interrupt
+        PORTD.INTFLAGS = PIN2_bm;
+
+        woke_up_from_button = true;
+    }
+}
+
 void setup() {
     Log.begin(115200);
 
     LedCtrl.begin();
     LedCtrl.startupCycle();
+
+    // Attach interrupt callback to detect if SW0 was pressed during sleep
+    pinConfigure(SW0, PIN_DIR_INPUT);
+    attachInterrupt(SW0, button_pressed_callback, FALLING);
 
     // Now we configure the power save configuration. Note that this has to be
     // done before calling Lte.begin().
@@ -70,6 +88,11 @@ void loop() {
     delay(100);
 
     LowPower.powerSave();
+
+    if (woke_up_from_button) {
+        Log.info("Button was pressed");
+        woke_up_from_button = false;
+    }
 
     Log.info("Woke up!");
 
