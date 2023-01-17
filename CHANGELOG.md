@@ -142,3 +142,19 @@ Internal build
 
 ## Bugfix
 * Fix a bug where Sequans.waitForURC would return true even when the URC was not received
+
+
+# 1.3.4
+
+## Features
+* Add a custom provisioning sketch for MQTT(S) and HTTP(S)
+* Reduce power consumption in low power from ~300uA to ~70uA
+* Add examples sketches for serial, GPIO and robust MQTT with connection loss
+
+## Changes
+* Improved MQTT URC handling
+* Introduce an adjustable timout for Lte.begin()
+
+## Bugfix
+* Fix a bug where the reset pin was floating in the sandbox application
+* Fix a bug where reading the response in the SequansController would wrongly return an buffer overflow
