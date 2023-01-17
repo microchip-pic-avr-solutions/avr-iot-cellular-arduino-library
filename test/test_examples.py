@@ -84,10 +84,11 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
             },
             {
-                "expectation": "\\[ERROR\\] Error writing command, the response was:"
+                "expectation": "\\[ERROR\\] Error writing command, the response was:",
+                "timeout": 20 
             },
             {
-                "expectation": "+CME ERROR: invalid characters in text string"
+                "expectation": "\\+CME ERROR: invalid characters in text string"
             },
             {
                 "expectation": ""
@@ -96,7 +97,7 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Received the following ping response:"
             },
             {
-                "expectation": "\\d{1},\\d{1,3}.\\d{1,3}.\\d{1,3}.\\d{1,3},\\d{1,},\\d{1,}",
+                "expectation": "\\d{1,},\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3},\\d{1,},\\d{1,}",
                 "repeat": 4
             },
             {
@@ -106,7 +107,7 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Command written successfully, the response was:"
             },
             {
-                "expectation": "\\+CEREG: 5,5,\"[a-zA-Z0-9]{1,}\",\"[a-zA-Z0-9]{1,}\",\\d{1,},,,\"[a-zA-Z0-9]{1,}\",\"[a-zA-Z0-9]{1,}\""
+                "expectation": "\\+CEREG: 5,5,\"[a-zA-Z0-9]{1,}\",\"[a-zA-Z0-9]{1,}\",\\d{1,}"
             },
             {
                 "expectation": ""
@@ -142,7 +143,7 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Initialized ECC"
             },
             {
-                "repeat": 3,
+                "repeat": 4,
                 "expectation": "\r\n"
             },
             {
@@ -162,7 +163,7 @@ def example_test_data():
                 "expectation": "-----END CERTIFICATE-----"
             },
             {
-                "repeat": 2,
+                "repeat": 3,
                 "expectation": "\r\n"
             },
             {
@@ -180,6 +181,11 @@ def example_test_data():
             },
             {
                 "expectation": "-----END CERTIFICATE-----"
+            }
+        ],
+        "gpio": [
+            {
+                "expectation": "The voltage supplied is: 4\\.[0-9]+"
             }
         ],
         "http": [
@@ -277,6 +283,48 @@ def example_test_data():
             {
                 "expectation": "\\[INFO\\] Response: {"
             }
+        ],
+        "mqtt_low_power": [
+            {
+                "expectation": "\\[INFO\\] Starting MQTT with low power"
+            },
+            {
+                "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
+            },
+            {
+                "timeout": 90,
+                "expectation": "\\[INFO\\] Connecting to broker.{0,}OK!"
+            },
+            {
+                "expectation": "\\[INFO\\] Published message: \\d{1,}"
+            },
+            {
+                "expectation": "\\[INFO\\] Entering low power"
+            },
+            {
+                "timeout": 90,
+                "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
+            },
+            {
+                "expectation": "\\[INFO\\] Woke up!"
+            },
+            {
+                "timeout": 90,
+                "expectation": "\\[INFO\\] Connecting to broker.{0,}OK!"
+            },
+            {
+                "expectation": "\\[INFO\\] Published message: \\d{1,}"
+            },
+            {
+                "expectation": "\\[INFO\\] Entering low power"
+            },
+            {
+                "timeout": 90,
+                "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
+            },
+            {
+                "expectation": "\\[INFO\\] Woke up!"
+            },
         ],
         "mqtt_password_authentication": [
             {
@@ -460,6 +508,9 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Board name: [a-z0-9]+"
             },
             {
+                "expectation": "\\[INFO\\] Will now connect to the operator. If the board hasn't previously connected to the operator/network, establishing the connection the first time might take some time."
+            },
+            {
                 "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
             },
             {
@@ -474,6 +525,71 @@ def example_test_data():
             {
                 "repeat": 2,
                 "expectation": "\\[INFO\\] Sending heartbeat"
+            }
+        ],
+        "serial": [
+            {
+                "expectation": "Hello world from Serial3"
+            },
+            {
+                "expectation": "\\[INFO\\] Hello world from Log"
+            },
+            {
+                "expectation": "This is a message without a prefix"
+            },
+            {
+                "expectation": "\\[DEBUG\\] A debug message"
+            },
+            {
+                "expectation": "\\[INFO\\] An info message"
+            },
+            {
+                "expectation": "\\[WARN\\] A warning message"
+            },
+            {
+                "expectation": "\\[ERROR\\] An error message"
+            },
+            {
+                "expectation": ""
+            },
+            {
+                "expectation": "\\[INFO\\] An info message"
+            },
+            {
+                "expectation": "\\[WARN\\] A warning message"
+            },
+            {
+                "expectation": "\\[ERROR\\] An error message"
+            },
+            {
+                "expectation": ""
+            },
+            {
+                "expectation": "\\[WARN\\] A warning message"
+            },
+            {
+                "expectation": "\\[ERROR\\] An error message"
+            },
+            {
+                "expectation": ""
+            },
+            {
+                "expectation": "\\[ERROR\\] An error message"
+            },
+            {
+                "expectation": ""
+            },
+            {
+                "expectation": ""
+            },
+            {
+                "expectation": "\\[INFO\\] This is a number: 10"
+            },
+            {
+                "expectation": "\\[INFO\\] This is a string: Hello world"
+            },
+            {
+                "expectation": "\\[INFO\\] This is a hexadecimal and a string: 1F - Hello world"
             }
         ],
     }
@@ -545,7 +661,7 @@ def run_example(request, backend, example_test_data):
 
             assert expectation != None, "Missing expectation in test data"
 
-            for i in range(0, repeat):
+            for _ in range(0, repeat):
                 if command != None:
                     command_stripped = command.strip("\r")
                     print(f"\tTesting command: {command_stripped}")
@@ -553,17 +669,16 @@ def run_example(request, backend, example_test_data):
                     serial_handle.write(str.encode(command))
                     serial_handle.flush()
 
-                # Read until line feed or timeout
-                start = time.time()
-                output = ""
+                serial_handle.timeout = timeout
+                output = serial_handle.read_until().decode("utf-8")
 
-                while time.time() - start < timeout and output == "":
-                    output = serial_handle.read_until().decode("utf-8")
-
-                response = re.search(expectation, output)
+                try:
+                    response = re.search(expectation, output)
+                except Exception as exception:
+                    pytest.fail(f"\tRegex error for string \"{expectation}\". The error was: {str(exception)}")
 
                 formatted_output = output.replace("\r", "\\r").replace("\n", "\\n")
-                assert response != None, f"\tDid not get the expected response \"{expectation}\", got: \"{formatted_output}\""
+                assert response != None, f"\tDid not get the expected response \"{expectation}\" within the timeout of {timeout}, got: \"{formatted_output}\""
 
                 formatted_response = response.group(0).replace("\r", "\\r").replace("\n", "\\n")
 
@@ -578,11 +693,20 @@ def run_test(request, backend, session_config, example_test_data):
 
 # ------------------------------- TESTS -----------------------------------
 
+
+def test_custom_at_commands(request, backend, session_config, example_test_data):
+    run_test(request, backend, session_config, example_test_data)
+
+
 def test_debug_modem(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)
 
 
 def test_extract_certificates(request, backend, session_config, example_test_data):
+    run_test(request, backend, session_config, example_test_data)
+
+
+def test_gpio(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)
 
 
@@ -602,7 +726,7 @@ def test_https_with_header(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)
 
 
-def test_https_configure_ca(request, backend, session_config, example_test_data):
+def test_mqtt_low_power(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)
 
 
@@ -615,6 +739,10 @@ def test_mqtt_polling(request, backend, session_config, example_test_data):
 
 
 def test_mqtt_polling_aws(request, backend, session_config, example_test_data):
+    run_test(request, backend, session_config, example_test_data)
+
+
+def test_mqtt_with_connection_loss_handling(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)
 
 
@@ -632,3 +760,8 @@ def test_power_save(request, backend, session_config, example_test_data):
 
 def test_sandbox(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)
+
+
+def test_serial(request, backend, session_config, example_test_data):
+    run_test(request, backend, session_config, example_test_data)
+

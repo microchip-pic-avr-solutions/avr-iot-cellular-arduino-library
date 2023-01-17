@@ -41,7 +41,7 @@ void setup() {
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
-    Log.info("Starting MQTT with low power\r\n");
+    Log.info("Starting MQTT with low power");
 
     // First we retrieve the topics we're going to publish to, here using the
     // ECC thingname with AWS
@@ -100,7 +100,7 @@ void loop() {
         delay(500);
     }
 
-    Log.raw(" OK!\r\n");
+    Log.raw(" OK!");
 #endif
 
     char message_to_publish[8] = {0};
