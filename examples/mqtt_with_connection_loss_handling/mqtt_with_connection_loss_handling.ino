@@ -99,12 +99,9 @@ void setup() {
     }
 
     Lte.onDisconnect(disconnectedFromNetwork);
+
     MqttClient.onConnectionStatusChange(connectedToBroker,
                                         disconnectedFromBroker);
-
-    SequansController.begin();
-
-    SequansController.writeCommand("at+cmee=2");
 }
 
 /**

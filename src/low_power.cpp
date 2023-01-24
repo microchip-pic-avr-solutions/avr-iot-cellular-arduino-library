@@ -723,11 +723,8 @@ void LowPowerClass::powerSave(void) {
 
             retrieved_period = true;
         }
-
-        // Retrieving the operator sleep time will call CEREG, which will
-        // trigger led ctrl, so we just disable it again.
-        // LedCtrl.off(Led::CELL, true);
     }
+
     if (!attemptToEnterPowerSaveModeForModem(30000)) {
         Log.error(
             "Failed to put cellular modem in sleep. Power save functionality "
@@ -750,8 +747,6 @@ void LowPowerClass::powerSave(void) {
         modem_is_in_power_save = false;
     }
 
-    // LedCtrl.on(Led::CELL, true);
-
     SequansController.setPowerSaveMode(0, NULL);
 }
 
@@ -761,7 +756,6 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
 
     Lte.end();
 
-    // TODO: somehow this prevents the modem to sleep...
     powerDownPeripherals(false);
 
     enablePIT();

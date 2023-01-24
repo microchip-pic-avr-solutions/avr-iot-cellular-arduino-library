@@ -47,7 +47,7 @@ void setup() {
     HttpResponse response;
     response = HttpClient.get(TIMEZONE_URI);
     if (response.status_code != HttpClient.STATUS_OK) {
-        Log.errorf("Error when performing a GET request on %s/%s. Got status "
+        Log.errorf("Error when performing a GET request on %s%s. Got status "
                    "code = %d. Exiting...\r\n",
                    TIMEZONE_URL,
                    TIMEZONE_URI,
