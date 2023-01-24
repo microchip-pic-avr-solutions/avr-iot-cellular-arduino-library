@@ -1,6 +1,6 @@
 /**
  * \file
- * \brief
+ * \brief  Configure the platform interfaces for cryptoauthlib
  *
  * \copyright (c) 2015-2020 Microchip Technology Inc. and its subsidiaries.
  *
@@ -24,39 +24,38 @@
  * THE AMOUNT OF FEES, IF ANY, THAT YOU HAVE PAID DIRECTLY TO MICROCHIP FOR
  * THIS SOFTWARE.
  */
+#ifndef ATCA_PLATFORM_H
+#define ATCA_PLATFORM_H
 
-
-#ifndef ATCA_CRYPTO_SW_ECDSA_H
-#define ATCA_CRYPTO_SW_ECDSA_H
-
-#include "atca_crypto_sw.h"
 #include <stddef.h>
-#include <stdint.h>
+#include <string.h>
 
-/** \defgroup atcac_ Software crypto methods (atcac_)
- *
- * \brief
- * These methods provide a software implementation of various crypto
- * algorithms
- *
-   @{ */
-
-#define ATCA_ECC_P256_FIELD_SIZE       (256 / 8)
-#define ATCA_ECC_P256_PRIVATE_KEY_SIZE (ATCA_ECC_P256_FIELD_SIZE)
-#define ATCA_ECC_P256_PUBLIC_KEY_SIZE  (ATCA_ECC_P256_FIELD_SIZE * 2)
-#define ATCA_ECC_P256_SIGNATURE_SIZE   (ATCA_ECC_P256_FIELD_SIZE * 2)
-
-#ifdef __cplusplus
-extern "C" {
+#if defined(ATCA_TESTS_ENABLED) || !defined(ATCA_PLATFORM_MALLOC)
+void*   hal_malloc(size_t size);
+void    hal_free(void* ptr);
+#else
+#define hal_malloc      ATCA_PLATFORM_MALLOC
+#define hal_free        ATCA_PLATFORM_FREE
 #endif
 
-int atcac_sw_ecdsa_verify_p256(const uint8_t msg[ATCA_ECC_P256_FIELD_SIZE],
-                               const uint8_t signature[ATCA_ECC_P256_SIGNATURE_SIZE],
-                               const uint8_t public_key[ATCA_ECC_P256_PUBLIC_KEY_SIZE]);
-
-#ifdef __cplusplus
-}
+#ifdef ATCA_PLATFORM_MEMSET_S
+#define hal_memset_s    ATCA_PLATFORM_MEMSET_S
+#else
+#ifndef memset_s
+#define hal_memset_s    atcab_memset_s
+#else
+#define hal_memset_s    memset_s
+#endif
 #endif
 
-/** @} */
+#ifdef ATCA_PLATFORM_STRCASESTR
+#define lib_strcasestr  ATCA_PLATFORM_STRCASESTR
+#else
+#ifndef strcasestr
+char *lib_strcasestr(const char *haystack, const char *needle);
+#else
+#define lib_strcasestr  strcasestr
 #endif
+#endif /* ATCA_PLATFORM_STRCASESTR */
+
+#endif /* ATCA_PLATFORM_H */
