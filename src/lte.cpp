@@ -121,7 +121,7 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
     SequansController.writeCommand(AT_ENABLE_CEREG_URC);
     SequansController.writeCommand(AT_CONNECT);
 
-    char response_buffer[48] = "";
+    char response_buffer[64] = "";
     char value_buffer[32]    = "";
 
     // Wait for CEREG URC before checking SIM

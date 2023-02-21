@@ -302,7 +302,9 @@ static void enablePIT(void) {
     temp = CLKCTRL.XOSC32KCTRLA;
     temp &= ~CLKCTRL_ENABLE_bm;
     _PROTECTED_WRITE(CLKCTRL.XOSC32KCTRLA, temp);
-    while (CLKCTRL.MCLKSTATUS & CLKCTRL_XOSC32KS_bm) {}
+    while (CLKCTRL.MCLKSTATUS & CLKCTRL_XOSC32KS_bm) {
+        __asm__ __volatile__("nop\n\t");
+    }
 
     // We want the external crystal to run in standby and in low power mode
     temp = CLKCTRL.XOSC32KCTRLA;
@@ -317,7 +319,7 @@ static void enablePIT(void) {
     _PROTECTED_WRITE(CLKCTRL.XOSC32KCTRLA, temp);
 
     // Wait for registers to synchronize
-    while (RTC.PITSTATUS) { delay(1); }
+    while (RTC.PITSTATUS) { __asm__ __volatile__("nop\n\t"); }
 
     RTC.CLKSEL |= RTC_CLKSEL_XOSC32K_gc;
     RTC.PITINTCTRL |= RTC_PI_bm;
@@ -326,7 +328,7 @@ static void enablePIT(void) {
     // The first PIT intterupt will not necessarily be at the period specified,
     // so we just wait until it has triggered and track the reminaing time from
     // there
-    while (!pit_triggered) { delay(1); }
+    while (!pit_triggered) { __asm__ __volatile__("nop\n\t"); }
     pit_triggered = false;
 }
 
@@ -441,9 +443,6 @@ static void restorePinState(void) {
 static void powerDownPeripherals(const bool keep_modem_active) {
 
     savePinState();
-
-    // Disable millis() timer
-    stop_millis();
 
     // For low power, the following configuration should be used.
     // If no comment is specified, the pin is set to input with input buffer
@@ -604,8 +603,6 @@ static void powerUpPeripherals() {
 
     restorePinState();
 
-    restart_millis();
-
     // ADC for analogRead
     init_ADC0();
 }
@@ -736,7 +733,14 @@ void LowPowerClass::powerSave(void) {
         SLPCTRL.CTRLA |= SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
 
         enableLDO();
+
+        // It's important that we stop the millis after enabling the LDO, as it
+        // uses delay() to wait for the LDO mode to settle
+        stop_millis();
+
         sleep_cpu();
+
+        restart_millis();
 
         // Will sleep here until we get the RING line activity and wake up
         disableLDO();
@@ -761,6 +765,10 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
     enablePIT();
     enableLDO();
 
+    // It's important that we stop the millis after enabling the LDO, as it uses
+    // delay() to wait for the LDO mode to settle
+    stop_millis();
+
     uint32_t remaining_time_seconds = power_down_time_seconds;
 
     while (remaining_time_seconds > 0) {
@@ -775,6 +783,8 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
             break;
         }
     }
+
+    restart_millis();
 
     disableLDO();
     disablePIT();
