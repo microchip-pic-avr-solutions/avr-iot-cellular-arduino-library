@@ -571,17 +571,20 @@ void SequansControllerClass::appendDataToTransmitBuffer(const uint8_t data) {
     // interrupt so that transmitting occurs and push out data before we append
     // the incoming data
     if (!isTxReady()) {
-        // Wait if the modem can't accept more data
-        while (VPORTC.IN & CTS_PIN_bm) { delay(1); }
 
-        // Enable data register empty interrupt so that the data gets pushed
-        // out
-        HWSERIALAT.CTRLA |= USART_DREIE_bm;
+        while (!isTxReady()) {
 
-        // Wait until some data is transmitted
-        while (!isTxReady()) {}
+            // Wait if the modem can't accept more data
+            while (VPORTC.IN & CTS_PIN_bm) { delay(1); }
 
-        // Disable data register empty interrupt again before filling up the
+            // Enable data register empty interrupt so that the data gets pushed
+            // out. We do this in the loop as the CTS interrupt might disable
+            // the interrupt logic, so we wait until that is not the case and
+            // then start the transmit logic
+            HWSERIALAT.CTRLA |= USART_DREIE_bm;
+        }
+
+        // Disable data register empty interrupt again before appending to the
         // buffer
         HWSERIALAT.CTRLA &= ~USART_DREIE_bm;
     }
