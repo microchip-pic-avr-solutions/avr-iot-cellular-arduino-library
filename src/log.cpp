@@ -90,6 +90,7 @@ void LogClass::infof(const char* format, ...) {
 
         va_start(ap, nFormat);
         vfprintf(&f, nFormat, ap);
+        va_end(ap);
     }
 }
 
@@ -116,6 +117,7 @@ void LogClass::debugf(const char* format, ...) {
         fdev_set_udata(&f, this->uart);
         va_start(ap, nFormat);
         vfprintf(&f, nFormat, ap);
+        va_end(ap);
     }
 }
 
@@ -131,6 +133,7 @@ void LogClass::rawf(const char* format, ...) {
     fdev_set_udata(&f, this->uart);
     va_start(ap, format);
     vfprintf(&f, format, ap);
+    va_end(ap);
 }
 
 void LogClass::error(const char str[]) {
@@ -155,6 +158,7 @@ void LogClass::errorf(const char* format, ...) {
         fdev_set_udata(&f, this->uart);
         va_start(ap, nFormat);
         vfprintf(&f, nFormat, ap);
+        va_end(ap);
     }
 }
 
@@ -180,6 +184,7 @@ void LogClass::warnf(const char* format, ...) {
         fdev_set_udata(&f, this->uart);
         va_start(ap, nFormat);
         vfprintf(&f, nFormat, ap);
+        va_end(ap);
     }
 }
 
