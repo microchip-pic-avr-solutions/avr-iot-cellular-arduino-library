@@ -452,53 +452,6 @@ static void askInputQuestion(const char* question,
     }
 }
 
-#define DEL_CHARACTER   127
-#define ENTER_CHARACTER 13
-
-#define INPUT_BUFFER_SIZE    256
-#define RESPONSE_BUFFER_SIZE 256
-
-void debugBridgeUpdate(void) {
-    static uint8_t character;
-    static char input_buffer[INPUT_BUFFER_SIZE];
-    static uint8_t input_buffer_index = 0;
-
-    if (SerialModule.available() > 0) {
-        character = SerialModule.read();
-
-        switch (character) {
-        case DEL_CHARACTER:
-            if (strlen(input_buffer) > 0) {
-                input_buffer[input_buffer_index--] = 0;
-            }
-            break;
-
-        case ENTER_CHARACTER:
-            input_buffer[input_buffer_index]     = '\r';
-            input_buffer[input_buffer_index + 1] = '\0';
-            SequansController.writeBytes((const uint8_t*)input_buffer,
-                                         strlen(input_buffer));
-
-            // Reset buffer
-            memset(input_buffer, 0, sizeof(input_buffer));
-            input_buffer_index = 0;
-
-            break;
-
-        default:
-            input_buffer[input_buffer_index++] = character;
-            break;
-        }
-
-        SerialModule.print((char)character);
-    }
-
-    if (SequansController.isRxReady()) {
-        // Send back data from modem to host
-        SerialModule.write(SequansController.readByte());
-    }
-}
-
 /**
  * @brief Asks the user to input a certificate/private key and saves that the
  * NVM for the Sequans modem at the given @p slot.
@@ -609,9 +562,11 @@ static bool requestAndSaveToNonVolatileMemory(const char* message,
     SequansController.writeBytes((uint8_t*)data, data_length, true);
 
     if (SequansController.readResponse() != ResponseResult::OK) {
-        SerialModule.println(is_certificate
-                                 ? "Error occurred whilst storing certificate"
-                                 : "Error occurred whilst storing private key");
+        SerialModule.println(
+            is_certificate
+                ? "Error occurred whilst storing certificate, please try again."
+                : "Error occurred whilst storing private key, please try "
+                  "again.");
         return false;
     } else {
         SerialModule.println("Done");
@@ -1159,47 +1114,31 @@ void provisionMqtt() {
 
     SerialModule.println("\r\n");
 
-    // ------------------------------------------------------------------------
-    //      Step 4: Choose whether to verify the domain using a certificate
-    //                          authority (CA)
-    // ------------------------------------------------------------------------
-
     uint8_t ca_index = DEFAULT_CA_SLOT;
 
-    bool verify_ca = askCloseEndedQuestion(
-        "Verify server certificate against "
-        "certificate authority (CA)? If you have problems connecting to\r\n"
-        "the server, you might consider turning this off or loading a CA "
-        "which can verify the server.");
+    // --------------------------------------------------------------------
+    //                      Step 4: Custom CA
+    // --------------------------------------------------------------------
 
-    SerialModule.println();
+    bool load_custom_ca = askCloseEndedQuestion(
+        "\r\nDo you want to load a custom certificate authority "
+        "certificate?");
 
-    if (verify_ca) {
+    if (load_custom_ca) {
+        ca_index = MQTT_CUSTOM_CA_SLOT;
 
-        // --------------------------------------------------------------------
-        //                      Step 4.5: Custom CA
-        // --------------------------------------------------------------------
+        SerialModule.println("\r\n");
 
-        bool load_custom_ca = askCloseEndedQuestion(
-            "\r\nDo you want to load a custom certificate authority "
-            "certificate?");
-
-        if (load_custom_ca) {
-            ca_index = MQTT_CUSTOM_CA_SLOT;
-
+        while (!requestAndSaveToNonVolatileMemory(
+            "Please paste in the CA certifiate and press enter. It "
+            "should "
+            "be on the follwing form:\r\n"
+            "-----BEGIN CERTIFICATE-----\r\n"
+            "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA==\r\n"
+            "-----END CERTIFICATE-----\r\n\r\n",
+            ca_index,
+            true)) {
             SerialModule.println("\r\n");
-
-            if (!requestAndSaveToNonVolatileMemory(
-                    "Please paste in the CA certifiate and press enter. It "
-                    "should "
-                    "be on the follwing form:\r\n"
-                    "-----BEGIN CERTIFICATE-----\r\n"
-                    "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA==\r\n"
-                    "-----END CERTIFICATE-----\r\n\r\n",
-                    ca_index,
-                    true)) {
-                return;
-            }
         }
     }
 
@@ -1222,7 +1161,7 @@ void provisionMqtt() {
                 AT_MQTT_SECURITY_PROFILE,
                 tls_version,
                 ciphers,
-                verify_ca ? 1 : 0,
+                1,
                 ca_index,
                 psk,
                 psk_identity);
@@ -1276,17 +1215,17 @@ void provisionMqtt() {
             //          broker after using the CSR
             // -----------------------------------------------------------------
 
-            if (!requestAndSaveToNonVolatileMemory(
-                    "Please paste in the public key certifiate provide by "
-                    "your broker after having signed the CSR\r\nand press "
-                    "enter. It should be on the follwing form:\r\n"
-                    "-----BEGIN CERTIFICATE-----\r\n"
-                    "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA=="
-                    "\r\n"
-                    "-----END CERTIFICATE-----\r\n\r\n",
-                    MQTT_PUBLIC_KEY_SLOT,
-                    true)) {
-                return;
+            while (!requestAndSaveToNonVolatileMemory(
+                "Please paste in the public key certifiate provide by "
+                "your broker after having signed the CSR\r\nand press "
+                "enter. It should be on the follwing form:\r\n"
+                "-----BEGIN CERTIFICATE-----\r\n"
+                "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA=="
+                "\r\n"
+                "-----END CERTIFICATE-----\r\n\r\n",
+                MQTT_PUBLIC_KEY_SLOT,
+                true)) {
+                SerialModule.println("\r\n");
             }
 
             // -----------------------------------------------------------------
@@ -1305,7 +1244,7 @@ void provisionMqtt() {
                     AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES_ECC,
                     tls_version,
                     ciphers,
-                    verify_ca ? 1 : 0,
+                    1,
                     ca_index,
                     MQTT_PUBLIC_KEY_SLOT,
                     MQTT_PRIVATE_KEY_SLOT,
@@ -1329,28 +1268,28 @@ void provisionMqtt() {
             //           Step 5: Load user's certificate and private key
             // -----------------------------------------------------------------
 
-            if (!requestAndSaveToNonVolatileMemory(
-                    "Please paste in the public key certifiate and press "
-                    "enter. It "
-                    "should be on the follwing form:\r\n"
-                    "-----BEGIN CERTIFICATE-----\r\n"
-                    "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA==\r\n"
-                    "-----END CERTIFICATE-----\r\n\r\n",
-                    MQTT_PUBLIC_KEY_SLOT,
-                    true)) {
-                return;
+            while (!requestAndSaveToNonVolatileMemory(
+                "Please paste in the public key certifiate and press "
+                "enter. It "
+                "should be on the follwing form:\r\n"
+                "-----BEGIN CERTIFICATE-----\r\n"
+                "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA==\r\n"
+                "-----END CERTIFICATE-----\r\n\r\n",
+                MQTT_PUBLIC_KEY_SLOT,
+                true)) {
+                SerialModule.println("\r\n");
             }
 
             SerialModule.println("\r\n");
-            if (!requestAndSaveToNonVolatileMemory(
-                    "Please paste in the private key and press enter. "
-                    "It should be on the following form:\r\n"
-                    "-----BEGIN RSA/EC PRIVATE KEY-----\r\n"
-                    "...\r\n"
-                    "-----END RSA/EC PRIVATE KEY-----\r\n\r\n",
-                    MQTT_PRIVATE_KEY_SLOT,
-                    false)) {
-                return;
+            while (!requestAndSaveToNonVolatileMemory(
+                "Please paste in the private key and press enter. "
+                "It should be on the following form:\r\n"
+                "-----BEGIN RSA/EC PRIVATE KEY-----\r\n"
+                "...\r\n"
+                "-----END RSA/EC PRIVATE KEY-----\r\n\r\n",
+                MQTT_PRIVATE_KEY_SLOT,
+                false)) {
+                SerialModule.println("\r\n");
             }
 
             // -----------------------------------------------------------------
@@ -1368,7 +1307,7 @@ void provisionMqtt() {
                     AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES,
                     tls_version,
                     ciphers,
-                    verify_ca ? 1 : 0,
+                    1,
                     ca_index,
                     MQTT_PUBLIC_KEY_SLOT,
                     MQTT_PRIVATE_KEY_SLOT,
@@ -1413,50 +1352,34 @@ void provisionHttp() {
     // uses 0 indexed, so just substract
     tls_version -= 1;
 
-    SerialModule.println("\r\n\r\n");
+    SerialModule.println("\r\n");
 
-    // ------------------------------------------------------------------------
-    //      Step 2: Choose whether to verify the domain using a certificate
-    //                          authority (CA)
-    // ------------------------------------------------------------------------
+    // --------------------------------------------------------------------
+    //                            Step 2: Custom CA
+    // --------------------------------------------------------------------
 
     uint8_t ca_index = DEFAULT_CA_SLOT;
 
-    bool verify_ca = askCloseEndedQuestion(
-        "Verify server certificate against "
-        "certificate authority (CA)? If you have problems connecting to\r\n"
-        "the server, you might consider turning this off or loading a CA "
-        "which can verify the server.");
+    bool load_custom_ca = askCloseEndedQuestion(
+        "\r\nDo you want to load a custom certificate authority "
+        "certificate?");
 
-    SerialModule.println();
+    if (load_custom_ca) {
+        ca_index = HTTP_CUSTOM_CA_SLOT;
 
-    if (verify_ca) {
+        SerialModule.println("\r\n");
 
-        // --------------------------------------------------------------------
-        //                      Step 2.5: Custom CA
-        // --------------------------------------------------------------------
-
-        bool load_custom_ca = askCloseEndedQuestion(
-            "\r\nDo you want to load a custom certificate authority "
-            "certificate?");
-
-        if (load_custom_ca) {
-            ca_index = HTTP_CUSTOM_CA_SLOT;
-
+        while (!requestAndSaveToNonVolatileMemory(
+            "Please paste in the CA certifiate and press enter. It "
+            "should "
+            "be on the follwing form:\r\n"
+            "-----BEGIN CERTIFICATE-----\r\n"
+            "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA=="
+            "\r\n"
+            "-----END CERTIFICATE-----\r\n\r\n",
+            ca_index,
+            true)) {
             SerialModule.println("\r\n");
-
-            if (!requestAndSaveToNonVolatileMemory(
-                    "Please paste in the CA certifiate and press enter. It "
-                    "should "
-                    "be on the follwing form:\r\n"
-                    "-----BEGIN CERTIFICATE-----\r\n"
-                    "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA=="
-                    "\r\n"
-                    "-----END CERTIFICATE-----\r\n\r\n",
-                    ca_index,
-                    true)) {
-                return;
-            }
         }
     }
 
@@ -1471,11 +1394,7 @@ void provisionHttp() {
 
     char command[strlen(AT_HTTPS_SECURITY_PROFILE) + 64] = "";
 
-    sprintf(command,
-            AT_HTTPS_SECURITY_PROFILE,
-            tls_version,
-            verify_ca ? 1 : 0,
-            ca_index);
+    sprintf(command, AT_HTTPS_SECURITY_PROFILE, tls_version, 1, ca_index);
 
     SequansController.writeBytes((uint8_t*)command, strlen(command), true);
 
@@ -1509,10 +1428,9 @@ void loop() {
         "What do you want to provision?\r\n"
         "1: MQTT\r\n"
         "2: HTTP\r\n"
-        "3: Jump to UART bridge \r\n"
         "Please choose (press enter when done): ",
         1,
-        3);
+        2);
 
     switch (provision_type) {
     case 1:
@@ -1524,13 +1442,6 @@ void loop() {
     case 2:
         SerialModule.println("\r\n");
         provisionHttp();
-        break;
-
-    case 3:
-
-        SerialModule.println("\r\n");
-        while (true) { debugBridgeUpdate(); }
-
         break;
     }
 }
