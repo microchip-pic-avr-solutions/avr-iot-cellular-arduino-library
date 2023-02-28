@@ -39,6 +39,13 @@ class SequansControllerClass {
      */
     SequansControllerClass(){};
 
+    /**
+     * @brief Appends a byte to the transmit buffer. If the transmit buffer is
+     * full, this function will push out data to the modem to make space in the
+     * transmit buffer.
+     */
+    void appendDataToTransmitBuffer(const uint8_t data);
+
   public:
     /**
      * @brief Singleton instance.

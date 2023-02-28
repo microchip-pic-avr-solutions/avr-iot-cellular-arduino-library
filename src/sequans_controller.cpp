@@ -565,41 +565,47 @@ bool SequansControllerClass::isTxReady(void) {
 
 bool SequansControllerClass::isRxReady(void) { return rx_num_elements > 0; }
 
+void SequansControllerClass::appendDataToTransmitBuffer(const uint8_t data) {
+
+    // If the transmit buffer is full, we enable the data register empty
+    // interrupt so that transmitting occurs and push out data before we append
+    // the incoming data
+    if (!isTxReady()) {
+        // Wait if the modem can't accept more data
+        while (VPORTC.IN & CTS_PIN_bm) { delay(1); }
+
+        // Enable data register empty interrupt so that the data gets pushed
+        // out
+        HWSERIALAT.CTRLA |= USART_DREIE_bm;
+
+        // Wait until some data is transmitted
+        while (!isTxReady()) {}
+
+        // Disable data register empty interrupt again before filling up the
+        // buffer
+        HWSERIALAT.CTRLA &= ~USART_DREIE_bm;
+    }
+
+    cli();
+    tx_head_index            = (tx_head_index + 1) & TX_BUFFER_MASK;
+    tx_buffer[tx_head_index] = data;
+    tx_num_elements++;
+    sei();
+}
+
 void SequansControllerClass::writeBytes(const uint8_t* data,
                                         const size_t buffer_size,
                                         const bool append_carriage_return) {
 
     for (size_t i = 0; i < buffer_size; i++) {
-
-        // If the transmit buffer is full, flush out first
-        if (!isTxReady()) {
-            while (VPORTC.IN & CTS_PIN_bm) { delay(1); }
-
-            // Enable data register empty interrupt so that the data gets pushed
-            // out
-            HWSERIALAT.CTRLA |= USART_DREIE_bm;
-
-            while (!isTxReady()) { delay(1); }
-
-            // Disable data register empty interrupt again before filling up the
-            // buffer
-            HWSERIALAT.CTRLA &= ~USART_DREIE_bm;
-        }
-
-        cli();
-        tx_head_index            = (tx_head_index + 1) & TX_BUFFER_MASK;
-        tx_buffer[tx_head_index] = data[i];
-        tx_num_elements++;
-
-        if (i == buffer_size - 1 && append_carriage_return) {
-            tx_head_index            = (tx_head_index + 1) & TX_BUFFER_MASK;
-            tx_buffer[tx_head_index] = '\r';
-            tx_num_elements++;
-        }
-
-        sei();
+        appendDataToTransmitBuffer(data[i]);
     }
 
+    if (append_carriage_return) {
+        appendDataToTransmitBuffer((uint8_t)'\r');
+    }
+
+    // Wait if the modem can't accept more data
     while (VPORTC.IN & CTS_PIN_bm) { delay(1); }
 
     // Enable data register empty interrupt so that the data gets pushed out
