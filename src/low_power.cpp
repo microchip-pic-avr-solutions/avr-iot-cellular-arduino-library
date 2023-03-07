@@ -643,32 +643,12 @@ static void disableLDO(void) {
     delay(100);
 }
 
-void LowPowerClass::configurePowerDown(void) {
-
-    // We need sequans controller to be initialized first before configuration.
-    // This is because we need to disable the PSM mode so that the modem don't
-    // do periodic power save, but we can shut it down completely.
-    if (!SequansController.isInitialized()) {
-        SequansController.begin();
-    }
-
-    // Disable EDRX and PSM
-    SequansController.writeCommand(AT_COMMAND_DISABLE_EDRX);
-    SequansController.writeCommand(AT_COMMAND_DISABLE_PSM);
-}
-
-void LowPowerClass::configurePeriodicPowerSave(
-    const PowerSaveModePeriodMultiplier power_save_mode_period_multiplier,
-    const uint8_t power_save_mode_period_value) {
-
-    // Reset in case there is a reconfiguration after sleep has been called
-    // previously
-    retrieved_period = false;
-
-    // We need sequans controller to be initialized first before configuration
-    if (!SequansController.isInitialized()) {
-        SequansController.begin();
-    }
+/**
+ * @brief Configures the Sequans modem for deep sleep by entering manufacturing
+ * mode and disabling wake up sources which the low power module does not use.
+ * If this is not done, the modem won't go to deep sleep.
+ */
+static void configureModemForDeepSleep(void) {
 
     // First we need to enter manufactoring mode to disable wake up sources
     SequansController.writeCommand(AT_COMMAND_ENTER_MANUFACTURING_MODE);
@@ -696,6 +676,38 @@ void LowPowerClass::configurePeriodicPowerSave(
     // Set device to sleep when RTS0 is pulled high. By default the modem will
     // sleep if RTS0, RTS1 and RTS2 are pulled high, so we want to change that
     SequansController.writeCommand(AT_COMMAND_SET_RTS0_HIGH_TRIGGERS_SLEEP);
+}
+
+void LowPowerClass::configurePowerDown(void) {
+
+    // We need sequans controller to be initialized first before configuration.
+    // This is because we need to disable the PSM mode so that the modem don't
+    // do periodic power save, but we can shut it down completely.
+    if (!SequansController.isInitialized()) {
+        SequansController.begin();
+    }
+
+    configureModemForDeepSleep();
+
+    // Disable EDRX and PSM
+    SequansController.writeCommand(AT_COMMAND_DISABLE_EDRX);
+    SequansController.writeCommand(AT_COMMAND_DISABLE_PSM);
+}
+
+void LowPowerClass::configurePeriodicPowerSave(
+    const PowerSaveModePeriodMultiplier power_save_mode_period_multiplier,
+    const uint8_t power_save_mode_period_value) {
+
+    // Reset in case there is a reconfiguration after sleep has been called
+    // previously
+    retrieved_period = false;
+
+    // We need sequans controller to be initialized first before configuration
+    if (!SequansController.isInitialized()) {
+        SequansController.begin();
+    }
+
+    configureModemForDeepSleep();
 
     // Disable EDRX as we use PSM
     SequansController.writeCommand(AT_COMMAND_DISABLE_EDRX);
