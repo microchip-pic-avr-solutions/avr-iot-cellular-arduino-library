@@ -1,11 +1,6 @@
 import pytest
-import argparse
-import textwrap
-import glob
 import os
-import json
 import serial
-import time
 import subprocess
 import re
 

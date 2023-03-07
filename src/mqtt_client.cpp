@@ -425,7 +425,8 @@ bool MqttClientClass::begin(const char* client_id,
                     MQTT_TLS_ECC_SECURITY_PROFILE_ID)) {
                 Log.error("Security profile not set up for MQTT TLS with ECC. "
                           "Run the 'provision' example Arduino sketch to set "
-                          "this up.");
+                          "this up for a custom broker or use the iotprovision "
+                          "tool to set this up for AWS.");
                 return false;
             }
 

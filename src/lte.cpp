@@ -126,6 +126,7 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
 
     // Wait for CEREG URC before checking SIM
     SequansController.waitForURC(CEREG_CALLBACK);
+    SequansController.registerCallback(CEREG_CALLBACK, connectionStatus, false);
 
     // We check that the SIM card is inserted and ready. Note that we can only
     // do this and get a meaningful response in CFUN=1 or CFUN=4.
@@ -156,8 +157,6 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
 
         return false;
     }
-
-    SequansController.registerCallback(CEREG_CALLBACK, connectionStatus, false);
 
     if (print_messages) {
         Log.infof("Connecting to operator");

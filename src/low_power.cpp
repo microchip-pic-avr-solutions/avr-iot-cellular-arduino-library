@@ -10,14 +10,27 @@
 #include <avr/io.h>
 #include <avr/sleep.h>
 
-#define AT_COMMAND_DISABLE_EDRX       "AT+SQNEDRX=0"
-#define AT_COMMAND_ENABLE_PSM         "AT+CPSMS=1,,,\"%s\",\"%s\""
-#define AT_COMMAND_DISABLE_PSM        "AT+CPSMS=0"
-#define AT_COMMAND_SET_RING_BEHAVIOUR "AT+SQNRICFG=1,2,1000"
-#define AT_COMMAND_CONNECTION_STATUS  "AT+CEREG?"
+#define AT_COMMAND_DISABLE_EDRX                 "AT+SQNEDRX=0"
+#define AT_COMMAND_ENABLE_PSM                   "AT+CPSMS=1,,,\"%s\",\"%s\""
+#define AT_COMMAND_DISABLE_PSM                  "AT+CPSMS=0"
+#define AT_COMMAND_SET_RING_BEHAVIOUR           "AT+SQNRICFG=1,2,1000"
+#define AT_COMMAND_CONNECTION_STATUS            "AT+CEREG?"
+#define AT_COMMAND_SET_RTS0_HIGH_TRIGGERS_SLEEP "AT+SQNIPSCFG=1,1000"
 
-// For use of the rest of library, for example low power
-#define RESPONSE_CONNECTION_STATUS_SIZE 70
+#define AT_COMMAND_ENTER_MANUFACTURING_MODE "AT+CFUN=5"
+#define AT_COMMAND_DISABLE_WAKE_ON_RTS1     "AT+SQNHWCFG=\"wakeRTS1\",\"disable\""
+#define AT_COMMAND_DISABLE_WAKE_ON_SIM0     "AT+SQNHWCFG=\"wakeSim0\",\"disable\""
+#define AT_COMMAND_DISABLE_WAKE_ON_WAKE0    "AT+SQNHWCFG=\"wake0\",\"disable\""
+#define AT_COMMAND_DISABLE_WAKE_ON_WAKE1    "AT+SQNHWCFG=\"wake1\",\"disable\""
+#define AT_COMMAND_DISABLE_WAKE_ON_WAKE2    "AT+SQNHWCFG=\"wake2\",\"disable\""
+#define AT_COMMAND_DISABLE_WAKE_ON_WAKE3    "AT+SQNHWCFG=\"wake3\",\"disable\""
+#define AT_COMMAND_DISABLE_WAKE_ON_WAKE4    "AT+SQNHWCFG=\"wake4\",\"disable\""
+#define AT_COMMAND_DISABLE_UART1            "AT+SQNHWCFG=\"uart1\",\"disable\""
+#define AT_COMMAND_DISABLE_UART2            "AT+SQNHWCFG=\"uart2\",\"disable\""
+
+#define AT_RESET "AT^RESET"
+
+#define RESPONSE_CONNECTION_STATUS_SIZE 96
 
 // Command without arguments: 18 bytes
 // Both arguments within the quotes are strings of 8 numbers: 8 * 2 = 16 bytes
@@ -55,7 +68,7 @@
 
 #ifdef __AVR_AVR128DB48__ // MINI
 
-#define RING_PORT   VPORTC
+#define RING_PORT   PORTC
 #define RING_PIN_bm PIN6_bm
 
 #define LOWQ_PIN               PIN_PB4
@@ -66,7 +79,7 @@
 
 #ifdef __AVR_AVR128DB64__ // Non-Mini
 
-#define RING_PORT   VPORTC
+#define RING_PORT   PORTC
 #define RING_PIN_bm PIN4_bm
 
 #define LOWQ_PIN               PIN_PB4
@@ -242,11 +255,10 @@ static uint32_t retrieveOperatorSleepTime(void) {
 
     // First we call CEREG in order to get the byte where the sleep time is
     // encoded
-    SequansController.clearReceiveBuffer();
-    SequansController.writeCommand(AT_COMMAND_CONNECTION_STATUS);
-
     char response[RESPONSE_CONNECTION_STATUS_SIZE] = "";
-    const ResponseResult response_result = SequansController.readResponse(
+    SequansController.clearReceiveBuffer();
+    const ResponseResult response_result = SequansController.writeCommand(
+        AT_COMMAND_CONNECTION_STATUS,
         response,
         RESPONSE_CONNECTION_STATUS_SIZE);
 
@@ -658,6 +670,33 @@ void LowPowerClass::configurePeriodicPowerSave(
         SequansController.begin();
     }
 
+    // First we need to enter manufactoring mode to disable wake up sources
+    SequansController.writeCommand(AT_COMMAND_ENTER_MANUFACTURING_MODE);
+
+    // Disable all the wake sources except RTS0 (which is on by default)
+    SequansController.writeCommand(AT_COMMAND_DISABLE_WAKE_ON_RTS1);
+    SequansController.writeCommand(AT_COMMAND_DISABLE_WAKE_ON_SIM0);
+    SequansController.writeCommand(AT_COMMAND_DISABLE_WAKE_ON_WAKE0);
+    SequansController.writeCommand(AT_COMMAND_DISABLE_WAKE_ON_WAKE1);
+    SequansController.writeCommand(AT_COMMAND_DISABLE_WAKE_ON_WAKE2);
+    SequansController.writeCommand(AT_COMMAND_DISABLE_WAKE_ON_WAKE3);
+    SequansController.writeCommand(AT_COMMAND_DISABLE_WAKE_ON_WAKE4);
+
+    // Disable the other UARTs on the modem in case the message buffers
+    // within these UARTs prevent the modem to sleep
+    SequansController.writeCommand(AT_COMMAND_DISABLE_UART1);
+    SequansController.writeCommand(AT_COMMAND_DISABLE_UART2);
+
+    // Now we need to issue a reset to get back into regular mode
+    SequansController.writeCommand(AT_RESET);
+
+    // Wait for the modem to boot again
+    SequansController.waitForURC("SYSSTART");
+
+    // Set device to sleep when RTS0 is pulled high. By default the modem will
+    // sleep if RTS0, RTS1 and RTS2 are pulled high, so we want to change that
+    SequansController.writeCommand(AT_COMMAND_SET_RTS0_HIGH_TRIGGERS_SLEEP);
+
     // Disable EDRX as we use PSM
     SequansController.writeCommand(AT_COMMAND_DISABLE_EDRX);
 
@@ -722,7 +761,7 @@ void LowPowerClass::powerSave(void) {
         }
     }
 
-    if (!attemptToEnterPowerSaveModeForModem(30000)) {
+    if (!attemptToEnterPowerSaveModeForModem(45000)) {
         Log.error(
             "Failed to put cellular modem in sleep. Power save functionality "
             "might not be available for your operator.");
