@@ -1,5 +1,5 @@
 {
-    "C_Cpp.errorSquiggles": "Enabled",
+    "C_Cpp.errorSquiggles": "enabled",
     "cSpell.words": [
         "atcab",
         "CEREG",
@@ -11,8 +11,9 @@
         "SQNHTTPSND"
     ],
     "C_Cpp.clang_format_fallbackStyle": "{ IndentWidth: 4, AllowShortLoopsOnASingleLine: true, AllowShortBlocksOnASingleLine: true, ColumnLimit: 80, BinPackParameters: false, BinPackArguments: false, AllowAllParametersOfDeclarationOnNextLine: false, AlignConsecutiveMacros: true, FixNamespaceComments: false, NamespaceIndentation: All, AlignConsecutiveAssignments: true, AlignEscapedNewlines: true, AlignOperands: Align, AlignTrailingComments: true, AllowAllParametersOfDeclarationOnNextLine: false, AllowAllArgumentsOnNextLine: false, PenaltyBreakAssignment: 50, PointerAlignment: Left, ReferenceAlignment: Left }",
+    "pytest.testing.cwd": "${workspaceFolder}/test",
     "python.testing.pytestArgs": [
-        "--port=COM7",
+        "--port=COM18",
         "--ignore=lib",
         "-s"
     ],

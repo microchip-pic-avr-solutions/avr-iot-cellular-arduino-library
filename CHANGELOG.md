@@ -140,7 +140,7 @@ Internal build
 * Security profile patch is removed as this is now taken care of by NTP synchronization
 * Add Mqtt.end() in MQTT examples to prevent the broker waiting after running the example
 
-## Bugfix
+## Bugfixes
 * Fix a bug where Sequans.waitForURC would return true even when the URC was not received
 
 
@@ -155,6 +155,17 @@ Internal build
 * Improved MQTT URC handling
 * Introduce an adjustable timout for Lte.begin()
 
-## Bugfix
+## Bugfixes
 * Fix a bug where the reset pin was floating in the sandbox application
 * Fix a bug where reading the response in the SequansController would wrongly return an buffer overflow
+
+
+# 1.3.5
+
+## Changes
+* A CA is now mandatory for provisioning
+* The library now uses the latest version of cryptoauthlib
+
+## Bugfixes
+* Fix a bug where the device would not go in deep sleep when using the low power modes
+* Fix a bug where a certificate would not be parsed correctly during provisioning
