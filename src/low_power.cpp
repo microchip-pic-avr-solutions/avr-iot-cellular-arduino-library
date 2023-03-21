@@ -4,11 +4,13 @@
 #include "log.h"
 #include "lte.h"
 #include "sequans_controller.h"
+#include "timeout_timer.h"
 
 #include <Arduino.h>
 #include <Wire.h>
 #include <avr/io.h>
 #include <avr/sleep.h>
+#include <util/delay.h>
 
 #define AT_COMMAND_DISABLE_EDRX                 "AT+SQNEDRX=0"
 #define AT_COMMAND_ENABLE_PSM                   "AT+CPSMS=1,,,\"%s\",\"%s\""
@@ -214,7 +216,7 @@ attemptToEnterPowerSaveModeForModem(const unsigned long waiting_time_ms) {
     SequansController.setPowerSaveMode(0, NULL);
 
     do {
-        delay(50);
+        _delay_ms(50);
         SequansController.clearReceiveBuffer();
     } while (SequansController.isRxReady());
 
@@ -223,11 +225,11 @@ attemptToEnterPowerSaveModeForModem(const unsigned long waiting_time_ms) {
     ring_line_activity = false;
 
     // Now we wait until the ring line to stabilize
+    const TimeoutTimer timeout_timer(waiting_time_ms);
     unsigned long last_time_active = millis();
-    const unsigned long start_time = millis();
 
     do {
-        delay(PSM_WAITING_TIME_DELTA_MS);
+        _delay_ms(PSM_WAITING_TIME_DELTA_MS);
 
         // Reset timer if there has been activity or the RING line is high
         if (ring_line_activity || RING_PORT.IN & RING_PIN_bm) {
@@ -239,7 +241,7 @@ attemptToEnterPowerSaveModeForModem(const unsigned long waiting_time_ms) {
             modem_is_in_power_save = true;
             return true;
         }
-    } while (millis() - start_time < waiting_time_ms);
+    } while (!timeout_timer.hasTimedOut());
 
     return false;
 }
@@ -314,6 +316,7 @@ static void enablePIT(void) {
     temp = CLKCTRL.XOSC32KCTRLA;
     temp &= ~CLKCTRL_ENABLE_bm;
     _PROTECTED_WRITE(CLKCTRL.XOSC32KCTRLA, temp);
+
     while (CLKCTRL.MCLKSTATUS & CLKCTRL_XOSC32KS_bm) {
         __asm__ __volatile__("nop\n\t");
     }
@@ -330,16 +333,21 @@ static void enablePIT(void) {
     temp |= CLKCTRL_ENABLE_bm;
     _PROTECTED_WRITE(CLKCTRL.XOSC32KCTRLA, temp);
 
+    RTC.CLKSEL |= RTC_CLKSEL_XOSC32K_gc;
+
     // Wait for registers to synchronize
     while (RTC.PITSTATUS) { __asm__ __volatile__("nop\n\t"); }
 
-    RTC.CLKSEL |= RTC_CLKSEL_XOSC32K_gc;
     RTC.PITINTCTRL |= RTC_PI_bm;
     RTC.PITCTRLA |= RTC_PERIOD_CYC32768_gc | RTC_PITEN_bm;
+
+    // Wait for registers to synchronize
+    while (RTC.PITSTATUS) { __asm__ __volatile__("nop\n\t"); }
 
     // The first PIT intterupt will not necessarily be at the period specified,
     // so we just wait until it has triggered and track the reminaing time from
     // there
+
     while (!pit_triggered) { __asm__ __volatile__("nop\n\t"); }
     pit_triggered = false;
 }
@@ -629,7 +637,7 @@ static void enableLDO(void) {
     digitalWrite(LOWQ_PIN, HIGH);
 
     // Wait a little to let LDO mode settle
-    delay(100);
+    _delay_ms(100);
 }
 
 /**
@@ -640,7 +648,7 @@ static void disableLDO(void) {
     digitalWrite(LOWQ_PIN, LOW);
 
     // Wait a little to let PWM mode settle
-    delay(100);
+    _delay_ms(100);
 }
 
 /**
@@ -785,8 +793,7 @@ void LowPowerClass::powerSave(void) {
 
         enableLDO();
 
-        // It's important that we stop the millis after enabling the LDO, as it
-        // uses delay() to wait for the LDO mode to settle
+        // Stop millis interrupt
         stop_millis();
 
         sleep_cpu();
@@ -816,8 +823,7 @@ void LowPowerClass::powerDown(const uint32_t power_down_time_seconds) {
     enablePIT();
     enableLDO();
 
-    // It's important that we stop the millis after enabling the LDO, as it uses
-    // delay() to wait for the LDO mode to settle
+    // Stop millis interrupt to prevent the timer waking up the core
     stop_millis();
 
     uint32_t remaining_time_seconds = power_down_time_seconds;

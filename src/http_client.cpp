@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <util/delay.h>
 
 // We only use profile 0 to keep things simple we also stick with spId 3
 // which we dedicate to HTTPS
@@ -123,7 +124,7 @@ static HttpResponse sendData(const char* endpoint,
 
         // Wait some before delivering the payload. The modem might hang if we
         // deliver it too quickly
-        delay(100);
+        _delay_ms(100);
 
         // Now we deliver the payload
         SequansController.writeBytes(data, data_length);

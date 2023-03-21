@@ -4,8 +4,10 @@
 #include "log.h"
 #include "mqtt_client.h"
 #include "sequans_controller.h"
+#include "timeout_timer.h"
 
 #include <Arduino.h>
+#include <util/delay.h>
 
 #define AT_CONNECT                    "AT+CFUN=1"
 #define AT_DISCONNECT                 "AT+CFUN=0"
@@ -100,7 +102,7 @@ static void timezoneCallback(__attribute__((unused)) char* buffer) {
 
 bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
 
-    const uint32_t start = millis();
+    const TimeoutTimer timeout_timer(timeout_ms);
 
     // If low power is utilized, sequans controller will already been
     // initialized, so don't reset it by calling begin again
@@ -111,7 +113,7 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
     // Disconnect before configuration if already connected
     SequansController.writeCommand(AT_DISCONNECT);
 
-    delay(100);
+    _delay_ms(100);
     SequansController.clearReceiveBuffer();
 
     SequansController.registerCallback(TIMEZONE_CALLBACK, timezoneCallback);
@@ -162,17 +164,16 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
         Log.infof("Connecting to operator");
     }
 
-    while (!isConnected() && millis() - start < timeout_ms) {
+    while (!isConnected() && !timeout_timer.hasTimedOut()) {
         LedCtrl.toggle(Led::CELL, true);
-        delay(500);
+        _delay_ms(500);
 
         if (print_messages) {
             Log.rawf(".");
         }
     }
 
-    if (millis() - start >= timeout_ms) {
-
+    if (!isConnected()) {
         Log.rawf(" Was not able to connect to the network within the timeout "
                  "of %d ms. Consider increasing the timeout or checking your "
                  "cellular coverage.\r\n",
@@ -223,26 +224,32 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
 
         // Not valid time, have to do sync. First we wait some to see if we get
         // the timezone URC
-        const unsigned long start = millis();
-        while (millis() - start < TIMEZONE_WAIT_MS && !got_timezone) {}
+        const TimeoutTimer timezone_timer(TIMEZONE_WAIT_MS);
+
+        while (!timezone_timer.hasTimedOut() && !got_timezone) {}
 
         if (!got_timezone) {
-            // Do manual sync with NTP server
 
+            // Do manual sync with NTP server
             if (print_messages) {
                 Log.info("Did not get time from operator, doing NTP sync. "
                          "This can take some time...");
             }
 
             // Will break from this when we get the NTP sync
-            while (true) {
+
+            const TimeoutTimer ntp_sync_timer(timeout_ms);
+            bool got_ntp_sync = false;
+
+            while (!ntp_sync_timer.hasTimedOut() && !got_ntp_sync) {
 
                 // We might be disconnected from the network whilst doing the
                 // NTP sync, so return if that is the case
                 if (!isConnected()) {
-                    Lte.end();
                     Log.warn(
                         "Got disconnected from network whilst doing NTP sync");
+                    SequansController.unregisterCallback(TIMEZONE_CALLBACK);
+                    Lte.end();
                     return false;
                 }
 
@@ -262,8 +269,18 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
 
                 if (buffer[NTP_STATUS_INDEX] == NTP_OK) {
                     Log.info("Got NTP sync!");
+                    got_ntp_sync = true;
                     break;
                 }
+            }
+
+            if (!got_ntp_sync) {
+                Log.warnf("Did not get NTP sync within timeout of %lu ms. "
+                          "Consider increasing timeout for Lte.begin()\r\n",
+                          timeout_ms);
+                SequansController.unregisterCallback(TIMEZONE_CALLBACK);
+                Lte.end();
+                return false;
             }
         }
     }
@@ -285,8 +302,9 @@ void LteClass::end(void) {
 
         // Wait for the CEREG URC after disconnect so that the modem doesn't
         // have any pending URCs and won't prevent going to sleep
-        uint32_t start = millis();
-        while (isConnected() && millis() - start < 2000) {}
+        const TimeoutTimer timeout_timer(2000);
+        while (isConnected() && !timeout_timer.hasTimedOut()) {}
+
         SequansController.unregisterCallback(CEREG_CALLBACK);
 
         SequansController.clearReceiveBuffer();

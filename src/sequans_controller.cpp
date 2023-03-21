@@ -1,16 +1,16 @@
 #include "sequans_controller.h"
 
 #include "log.h"
+#include "timeout_timer.h"
+
+#include <Arduino.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
+#include <cryptoauthlib.h>
+#include <pins_arduino.h>
 #include <stddef.h>
 #include <string.h>
 #include <util/delay.h>
-
-#include <cryptoauthlib.h>
-
-#include <Arduino.h>
-#include <pins_arduino.h>
 
 #ifdef __AVR_AVR128DB48__ // MINI
 
@@ -57,6 +57,7 @@
 // them
 #define COMMAND_RETRY_SLEEP_MS 500
 #define COMMAND_NUM_RETRIES    5
+#define CTS_WAIT_MS            1000
 
 #define READ_TIMEOUT_MS 2000
 
@@ -501,30 +502,37 @@ void SequansControllerClass::begin(void) {
     // Set reset low to reset the LTE modem
     pinConfigure(RESET_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
     digitalWrite(RESET_PIN, HIGH);
-    delay(10);
+
+    // Delay for some time to reset the modem
+    _delay_ms(10);
+
     digitalWrite(RESET_PIN, LOW);
 
     // SERIAL INTERFACE SETUP
 
     // LTE modules has set baud rate of 115200 for its UART0 interface
-    USART1.BAUD = (uint16_t)(((float)F_CPU * 64 /
-                              (16 * (float)SEQUANS_MODULE_BAUD_RATE)) +
-                             0.5);
+    HWSERIALAT.BAUD = (uint16_t)(((float)F_CPU * 64 /
+                                  (16 * (float)SEQUANS_MODULE_BAUD_RATE)) +
+                                 0.5);
 
     // Interrupt on receive completed
-    USART1.CTRLA = USART_RXCIE_bm | USART_DREIE_bm;
+    HWSERIALAT.CTRLA = USART_RXCIE_bm | USART_DREIE_bm;
 
-    USART1.CTRLB = USART_RXEN_bm | USART_TXEN_bm;
+    HWSERIALAT.CTRLB = USART_RXEN_bm | USART_TXEN_bm;
 
     // LTE module interface requires 8 data bits with one stop bit
-    USART1.CTRLC = USART_CMODE_ASYNCHRONOUS_gc | USART_SBMODE_1BIT_gc |
-                   USART_CHSIZE_8BIT_gc;
+    HWSERIALAT.CTRLC = USART_CMODE_ASYNCHRONOUS_gc | USART_SBMODE_1BIT_gc |
+                       USART_CHSIZE_8BIT_gc;
 
     rtsUpdate();
 
     // Wait for SYSSTART URC before we continue
+    // if (!waitForURC("SYSSTART")) {
     if (!waitForURC("SYSSTART")) {
         Log.error("Timed out waiting for cellular modem to start up\r\n");
+
+        // End the controller to deattach the interrupts
+        SequansController.end();
         return;
     }
 
@@ -536,9 +544,9 @@ void SequansControllerClass::begin(void) {
 bool SequansControllerClass::isInitialized(void) { return initialized; }
 
 void SequansControllerClass::end(void) {
-    USART1.CTRLA = 0;
-    USART1.CTRLB = 0;
-    USART1.CTRLC = 0;
+    HWSERIALAT.CTRLA = 0;
+    HWSERIALAT.CTRLB = 0;
+    HWSERIALAT.CTRLC = 0;
 
     pinConfigure(RESET_PIN, PIN_INPUT_DISABLE | PIN_DIR_INPUT);
 
@@ -565,23 +573,32 @@ bool SequansControllerClass::isTxReady(void) {
 
 bool SequansControllerClass::isRxReady(void) { return rx_num_elements > 0; }
 
-void SequansControllerClass::appendDataToTransmitBuffer(const uint8_t data) {
+bool SequansControllerClass::appendDataToTransmitBuffer(const uint8_t data) {
 
     // If the transmit buffer is full, we enable the data register empty
     // interrupt so that transmitting occurs and push out data before we append
     // the incoming data
     if (!isTxReady()) {
 
-        while (!isTxReady()) {
+        TimeoutTimer timeout_timer(1000);
+        while (!isTxReady() && !timeout_timer.hasTimedOut()) {
 
             // Wait if the modem can't accept more data
-            while (VPORTC.IN & CTS_PIN_bm) { delay(1); }
+            while (VPORTC.IN & CTS_PIN_bm && !timeout_timer.hasTimedOut()) {
+                _delay_ms(1);
+            }
 
-            // Enable data register empty interrupt so that the data gets pushed
-            // out. We do this in the loop as the CTS interrupt might disable
-            // the interrupt logic, so we wait until that is not the case and
-            // then start the transmit logic
-            HWSERIALAT.CTRLA |= USART_DREIE_bm;
+            if (!(VPORTC.IN & CTS_PIN_bm)) {
+                // Enable data register empty interrupt so that the data gets
+                // pushed out. We do this in the loop as the CTS interrupt might
+                // disable the interrupt logic, so we wait until that is not the
+                // case and then start the transmit logic
+                HWSERIALAT.CTRLA |= USART_DREIE_bm;
+            } else {
+                // If we time out and the modem still can't accept the data, we
+                // just return
+                return false;
+            }
         }
 
         // Disable data register empty interrupt again before appending to the
@@ -594,6 +611,8 @@ void SequansControllerClass::appendDataToTransmitBuffer(const uint8_t data) {
     tx_buffer[tx_head_index] = data;
     tx_num_elements++;
     sei();
+
+    return true;
 }
 
 void SequansControllerClass::writeBytes(const uint8_t* data,
@@ -601,18 +620,29 @@ void SequansControllerClass::writeBytes(const uint8_t* data,
                                         const bool append_carriage_return) {
 
     for (size_t i = 0; i < buffer_size; i++) {
-        appendDataToTransmitBuffer(data[i]);
+        if (!appendDataToTransmitBuffer(data[i])) {
+            return;
+        }
     }
 
     if (append_carriage_return) {
-        appendDataToTransmitBuffer((uint8_t)'\r');
+        if (!appendDataToTransmitBuffer((uint8_t)'\r')) {
+            return;
+        }
     }
 
-    // Wait if the modem can't accept more data
-    while (VPORTC.IN & CTS_PIN_bm) { delay(1); }
+    const TimeoutTimer timeout_timer(CTS_WAIT_MS);
 
-    // Enable data register empty interrupt so that the data gets pushed out
-    HWSERIALAT.CTRLA |= USART_DREIE_bm;
+    // Wait if the modem can't accept more data
+    while ((VPORTC.IN & CTS_PIN_bm) && !timeout_timer.hasTimedOut()) {
+        _delay_ms(1);
+    }
+
+    // Only enable the data register empty interrupt (so that the data gets
+    // pushed out) if the CTS line was logically low before the end of the timer
+    if (!(VPORTC.IN & CTS_PIN_bm)) {
+        HWSERIALAT.CTRLA |= USART_DREIE_bm;
+    }
 }
 
 int16_t SequansControllerClass::readByte(void) {
@@ -660,7 +690,7 @@ SequansControllerClass::writeCommand(const char* command,
         }
 
         if (response != ResponseResult::OK) {
-            delay(COMMAND_RETRY_SLEEP_MS);
+            _delay_ms(COMMAND_RETRY_SLEEP_MS);
         }
     } while (response != ResponseResult::OK &&
              retry_count++ < COMMAND_NUM_RETRIES);
@@ -696,23 +726,19 @@ SequansControllerClass::readResponse(char* out_buffer,
 
     size_t i = 0;
 
-    uint64_t start = millis();
-
     while (i < buffer_size) {
-        while (!isRxReady() && millis() - start < READ_TIMEOUT_MS) {
+        TimeoutTimer timeout_timer(READ_TIMEOUT_MS);
+        while (!isRxReady() && !timeout_timer.hasTimedOut()) {
             // We update the CTS here in case the CTS interrupt didn't catch the
             // falling flank
             ctsUpdate();
 
-            delay(1);
+            _delay_ms(1);
         }
 
-        if (millis() - start >= READ_TIMEOUT_MS) {
+        if (!isRxReady() && timeout_timer.hasTimedOut()) {
             return ResponseResult::TIMEOUT;
         }
-
-        // Reset timeout timer
-        start = millis();
 
         buffer[i++] = (char)readByte();
 
@@ -857,7 +883,19 @@ bool SequansControllerClass::registerCallback(const char* urc_identifier,
                                               void (*urc_callback)(char*),
                                               const bool clear_data) {
 
-    uint8_t urc_identifier_length = strlen(urc_identifier);
+    const uint8_t urc_identifier_length = strlen(urc_identifier);
+
+    // Doing -1 here as we need one byte for null termination
+    if (urc_identifier_length > (URC_IDENTIFIER_BUFFER_SIZE - 1)) {
+
+        Log.errorf("Attempted to register URC \"%s\" with length greater than "
+                   "the maximum length allowed for URCs (%d/%d)\r\n",
+                   urc_identifier,
+                   urc_identifier_length,
+                   URC_IDENTIFIER_BUFFER_SIZE - 1);
+
+        return false;
+    }
 
     // Check if we can override first
     for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
@@ -891,6 +929,19 @@ bool SequansControllerClass::registerCallback(const char* urc_identifier,
 void SequansControllerClass::unregisterCallback(const char* urc_identifier) {
     const uint8_t urc_identifier_length = strlen(urc_identifier);
 
+    // Doing -1 here as we need one byte for null termination
+    if (urc_identifier_length > (URC_IDENTIFIER_BUFFER_SIZE - 1)) {
+
+        Log.errorf(
+            "Attempted to de-register URC \"%s\" with length greater than "
+            "the maximum length allowed for URCs (%d/%d)\r\n",
+            urc_identifier,
+            strlen(urc_identifier),
+            URC_IDENTIFIER_BUFFER_SIZE - 1);
+
+        return;
+    }
+
     for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
         if (memcmp((const void*)urc_identifier,
                    (const void*)urcs[i].identifier,
@@ -920,19 +971,19 @@ bool SequansControllerClass::waitForURC(const char* urc_identifier,
         return false;
     }
 
-    const uint64_t start = millis();
+    TimeoutTimer timeout_timer(timeout_ms);
 
-    while (!got_wait_for_urc_callback && millis() - start < timeout_ms) {
+    while (!got_wait_for_urc_callback && !timeout_timer.hasTimedOut()) {
         // We update the CTS here in case the CTS interrupt didn't catch the
         // falling flank
         ctsUpdate();
 
-        delay(1);
+        _delay_ms(1);
     }
 
     unregisterCallback(urc_identifier);
 
-    if (millis() - start < timeout_ms) {
+    if (got_wait_for_urc_callback) {
         if (out_buffer != NULL) {
             memcpy(out_buffer, wait_for_urc_buffer, out_buffer_size);
         }
@@ -1005,7 +1056,7 @@ bool SequansControllerClass::waitForByte(const uint8_t byte,
                                          const uint32_t timeout) {
     int16_t read_byte = SequansController.readByte();
 
-    uint32_t start = millis();
+    TimeoutTimer timeout_timer(timeout);
 
     while (read_byte != byte) {
         read_byte = SequansController.readByte();
@@ -1014,7 +1065,7 @@ bool SequansControllerClass::waitForByte(const uint8_t byte,
         // falling flank
         ctsUpdate();
 
-        if (millis() - start >= timeout) {
+        if (timeout_timer.hasTimedOut()) {
             return false;
         }
     }

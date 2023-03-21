@@ -1,6 +1,8 @@
 #include "led_ctrl.h"
 #include "log.h"
 
+#include <util/delay.h>
+
 #ifdef __AVR_AVR128DB48__ // MINI
 
 #define LED_CELL_PIN  PIN_PA0
@@ -95,21 +97,21 @@ void LedCtrlClass::toggle(Led led, bool is_from_system_event) {
 void LedCtrlClass::startupCycle() {
     for (int i = int(Led::CELL); i <= int(Led::USER); i++) {
         this->on(Led(i));
-        delay(50);
+        _delay_ms(50);
     }
 
     for (int i = int(Led::CELL); i <= int(Led::USER); i++) {
         this->off(Led(i));
-        delay(50);
+        _delay_ms(50);
     }
 
     for (int i = int(Led::USER); i >= int(Led::CELL); i--) {
         this->on(Led(i));
-        delay(50);
+        _delay_ms(50);
     }
 
     for (int i = int(Led::USER); i >= int(Led::CELL); i--) {
         this->off(Led(i));
-        delay(50);
+        _delay_ms(50);
     }
 }

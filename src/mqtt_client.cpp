@@ -180,7 +180,6 @@ static void internalConnectedCallback(char* urc_data) {
         SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
                                      strlen(MQTT_DISCONNECT),
                                      true);
-        delay(10);
         SequansController.clearReceiveBuffer();
 
         if (disconnected_callback != NULL) {
@@ -195,7 +194,6 @@ static void internalDisconnectCallback(char* urc_data) {
     SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
                                  strlen(MQTT_DISCONNECT),
                                  true);
-    delay(10);
     SequansController.clearReceiveBuffer();
 
     if (disconnected_callback != NULL) {
@@ -402,8 +400,6 @@ bool MqttClientClass::begin(const char* client_id,
     SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
                                  strlen(MQTT_DISCONNECT),
                                  true);
-
-    delay(100);
     SequansController.clearReceiveBuffer();
 
     // -- Configuration --
@@ -531,15 +527,20 @@ bool MqttClientClass::end(void) {
     SequansController.unregisterCallback(MQTT_ON_CONNECT_URC);
     SequansController.unregisterCallback(MQTT_ON_DISCONNECT_URC);
 
-    SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
-                                 strlen(MQTT_DISCONNECT),
-                                 true);
-    delay(10);
-    SequansController.clearReceiveBuffer();
+    if (isConnected()) {
 
-    internalDisconnectCallback(NULL);
+        SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
+                                     strlen(MQTT_DISCONNECT),
+                                     true);
 
-    connected_to_broker = false;
+        SequansController.clearReceiveBuffer();
+
+        connected_to_broker = false;
+    }
+
+    if (disconnected_callback != NULL) {
+        disconnected_callback();
+    }
 
     return true;
 }
