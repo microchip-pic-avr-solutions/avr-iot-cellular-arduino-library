@@ -50,6 +50,7 @@
 #define ASCII_LINE_FEED       (0xA)
 #define ASCII_BACKSPACE       (0x8)
 #define ASCII_DELETE          (0x7F)
+#define ASCII_SPACE           (0x20)
 
 #define SerialModule Serial3
 
@@ -327,6 +328,10 @@ static bool readUntilNewLine(char* output_buffer,
         while (!SerialModule.available()) {}
 
         uint8_t input = SerialModule.read();
+
+        if (input == ASCII_SPACE) {
+            continue;
+        }
 
         if (input == ASCII_CARRIAGE_RETURN || input == ASCII_LINE_FEED) {
             break;
