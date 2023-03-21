@@ -1,4 +1,5 @@
 #include "http_client.h"
+#include "led_ctrl.h"
 #include "log.h"
 #include "security_profile.h"
 #include "sequans_controller.h"
@@ -83,6 +84,8 @@ static HttpResponse sendData(const char* endpoint,
                              const uint32_t header_length = 0,
                              const char* content_type     = "") {
 
+    LedCtrl.on(Led::CON, true);
+
     // The modem could hang if several HTTP requests are done quickly after each
     // other, this alleviates this
     SequansController.writeCommand("AT");
@@ -108,6 +111,7 @@ static HttpResponse sendData(const char* endpoint,
              content_type,
              header == NULL ? "" : (const char*)header);
 
+    LedCtrl.on(Led::DATA, true);
     SequansController.writeBytes((uint8_t*)command, command_length, true);
 
     // Only send the data payload if there is any
@@ -119,6 +123,9 @@ static HttpResponse sendData(const char* endpoint,
                       "payload. Is the "
                       "server online? If you're using HTTPS, you might need to "
                       "provision with a different CA certificate.");
+
+            LedCtrl.off(Led::CON, true);
+            LedCtrl.off(Led::DATA, true);
             return http_response;
         }
 
@@ -138,6 +145,8 @@ static HttpResponse sendData(const char* endpoint,
     if (!SequansController.waitForURC(HTTP_RING_URC,
                                       http_response_buffer,
                                       sizeof(http_response_buffer))) {
+        LedCtrl.off(Led::CON, true);
+        LedCtrl.off(Led::DATA, true);
         Log.warn("Did not get HTTP response before timeout\r\n");
         return http_response;
     }
@@ -166,6 +175,9 @@ static HttpResponse sendData(const char* endpoint,
         http_response.data_size = atoi(data_size_buffer);
     }
 
+    LedCtrl.off(Led::CON, true);
+    LedCtrl.off(Led::DATA, true);
+
     return http_response;
 }
 
@@ -182,6 +194,8 @@ static HttpResponse queryData(const char* endpoint,
                               const uint8_t method,
                               const uint8_t* header,
                               const uint32_t header_length) {
+
+    LedCtrl.on(Led::CON, true);
 
     // The modem could hang if several HTTP requests are done quickly after each
     // other, this alleviates this
@@ -203,6 +217,7 @@ static HttpResponse queryData(const char* endpoint,
              endpoint,
              header == NULL ? "" : (const char*)header);
 
+    LedCtrl.on(Led::DATA, true);
     SequansController.writeCommand(command);
 
     char http_response_buffer[HTTP_RESPONSE_MAX_LENGTH]                = "";
@@ -213,6 +228,9 @@ static HttpResponse queryData(const char* endpoint,
                                       http_response_buffer,
                                       sizeof(http_response_buffer))) {
         Log.warn("Did not get HTTP response before timeout\r\n");
+
+        LedCtrl.off(Led::DATA, true);
+        LedCtrl.off(Led::CON, true);
         return http_response;
     }
 
@@ -237,6 +255,9 @@ static HttpResponse queryData(const char* endpoint,
     if (got_data_size) {
         http_response.data_size = atoi(data_size_buffer);
     }
+
+    LedCtrl.off(Led::DATA, true);
+    LedCtrl.off(Led::CON, true);
 
     return http_response;
 }
