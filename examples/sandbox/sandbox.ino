@@ -81,15 +81,15 @@ ISR(TCA0_OVF_vect) {
 
 void sendHeartbeatInterrupt(void) {
     if (PORTD.INTFLAGS & PIN2_bm) {
-        event_flags |= SEND_HEARTBEAT_FLAG;
         PORTD.INTFLAGS = PIN2_bm;
+        event_flags |= SEND_HEARTBEAT_FLAG;
     }
 }
 
 void resetInterrupt(void) {
     if (PORTF.INTFLAGS & PIN6_bm) {
-        asm("jmp 0");
         PORTF.INTFLAGS = PIN6_bm;
+        asm("jmp 0");
     }
 }
 
