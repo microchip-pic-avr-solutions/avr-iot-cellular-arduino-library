@@ -151,6 +151,8 @@ static HttpResponse sendData(const char* endpoint,
         return http_response;
     }
 
+    LedCtrl.off(Led::DATA, true);
+
     // We pass in NULL as the start character here as the URC data will only
     // contain the payload, not the URC identifier
     bool got_response_code = SequansController.extractValueFromCommandResponse(
@@ -176,7 +178,6 @@ static HttpResponse sendData(const char* endpoint,
     }
 
     LedCtrl.off(Led::CON, true);
-    LedCtrl.off(Led::DATA, true);
 
     return http_response;
 }
@@ -233,6 +234,8 @@ static HttpResponse queryData(const char* endpoint,
         LedCtrl.off(Led::CON, true);
         return http_response;
     }
+
+    LedCtrl.off(Led::DATA, true);
 
     bool got_response_code = SequansController.extractValueFromCommandResponse(
         http_response_buffer,
