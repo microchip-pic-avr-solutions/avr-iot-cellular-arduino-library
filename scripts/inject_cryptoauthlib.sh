@@ -30,8 +30,8 @@ pushd "$SRC_PATH/cryptoauthlib" 1> /dev/null
     popd 1> /dev/null
 popd 1> /dev/null
 
-# Copy over certificate definitions
-cp -r "$CRYPTOAUTH_PATH/cert_def"* "$SRC_PATH/cryptoauthlib/"
+cp -r "$CRYPTOAUTH_PATH/cryptoauthlib/app/tng/"*.c  "$SRC_PATH/cryptoauthlib/"
+cp -r "$CRYPTOAUTH_PATH/cryptoauthlib/app/tng/"*.h  "$SRC_PATH/cryptoauthlib/"
 
 # Move everything to src since we can't add other include paths for 
 # Arduino, has to be top level in src

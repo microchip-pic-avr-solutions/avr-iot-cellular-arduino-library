@@ -60,6 +60,7 @@ ATCADeviceType atcab_get_device_type(void);
 uint8_t atcab_get_device_address(ATCADevice device);
 
 bool atcab_is_ca_device(ATCADeviceType dev_type);
+bool atcab_is_ca2_device(ATCADeviceType dev_type);
 bool atcab_is_ta_device(ATCADeviceType dev_type);
 
 #define atcab_get_addr(...)                     calib_get_addr(__VA_ARGS__)
@@ -103,6 +104,7 @@ ATCA_STATUS atcab_aes_gcm_decrypt_finish(atca_aes_gcm_ctx_t* ctx, const uint8_t*
 
 /* CheckMAC command */
 ATCA_STATUS atcab_checkmac(uint8_t mode, uint16_t key_id, const uint8_t* challenge, const uint8_t* response, const uint8_t* other_data);
+ATCA_STATUS atcab_checkmac_with_response_mac(uint8_t mode, const uint8_t* challenge, const uint8_t* response, const uint8_t* other_data, uint8_t *mac);
 
 /* Counter command */
 ATCA_STATUS atcab_counter(uint8_t mode, uint16_t counter_id, uint32_t* counter_value);
@@ -129,6 +131,9 @@ ATCA_STATUS atcab_ecdh_tempkey_ioenc(const uint8_t* public_key, uint8_t* pms, co
 // GenDig command functions
 ATCA_STATUS atcab_gendig(uint8_t zone, uint16_t key_id, const uint8_t* other_data, uint8_t other_data_size);
 
+// GenDivKey command functions
+ATCA_STATUS atcab_gendivkey(const uint8_t* other_data);
+
 // GenKey command functions
 ATCA_STATUS atcab_genkey_base(uint8_t mode, uint16_t key_id, const uint8_t* other_data, uint8_t* public_key);
 ATCA_STATUS atcab_genkey(uint16_t key_id, uint8_t* public_key);
@@ -141,6 +146,8 @@ ATCA_STATUS atcab_hmac(uint8_t mode, uint16_t key_id, uint8_t* digest);
 // Info command functions
 ATCA_STATUS atcab_info_base(uint8_t mode, uint16_t param2, uint8_t* out_data);
 ATCA_STATUS atcab_info(uint8_t* revision);
+ATCA_STATUS atcab_info_lock_status(uint16_t param2, uint8_t *is_locked);
+ATCA_STATUS atcab_info_chip_status(uint8_t* chip_status);
 ATCA_STATUS atcab_info_set_latch(bool state);
 ATCA_STATUS atcab_info_get_latch(bool* state);
 

@@ -308,10 +308,10 @@ void setup() {
 
     // Find the thing ID and set the publish and subscription topics
     uint8_t thing_name[128];
-    uint8_t thing_name_len = sizeof(thing_name);
+    size_t thing_name_len = sizeof(thing_name);
 
-    uint8_t err = ECC608.getThingName(thing_name, &thing_name_len);
-    if (err != ECC608.ERR_OK) {
+    ATCA_STATUS status = ECC608.getThingName(thing_name, &thing_name_len);
+    if (status != ATCA_SUCCESS) {
         Log.error("Could not retrieve thing name from the ECC");
         Log.error("Unable to initialize the MQTT topics. Stopping...");
         LedCtrl.on(Led::ERROR);

@@ -342,30 +342,35 @@ bool MqttClientClass::beginAWS() {
         return false;
     }
 
-    // Initialize the ECC
-    uint8_t status = ECC608.begin();
-    if (status != ECC608.ERR_OK) {
-        Log.error("Could not initialize ECC hardware");
+    ATCA_STATUS status = ECC608.begin();
+
+    if (status != ATCA_SUCCESS) {
+        Log.errorf("Could not initialize ECC hardware, cryptoauthlib error "
+                   "code: 0x%X\r\n",
+                   status);
         return false;
     }
 
     uint8_t thingName[128];
-    uint8_t thingNameLen = sizeof(thingName);
+    size_t thingNameLen = sizeof(thingName);
     uint8_t endpoint[128];
-    uint8_t endpointLen = sizeof(endpoint);
+    size_t endpointLen = sizeof(endpoint);
 
-    // Get the thingname
     status = ECC608.getThingName(thingName, &thingNameLen);
-    if (status != ECC608.ERR_OK) {
-        Log.error("Could not retrieve thing name from the ECC");
+
+    if (status != ATCA_SUCCESS) {
+        Log.errorf("Could not retrieve thing name from the ECC, cryptoauthlib "
+                   "error code: 0x%X\r\n",
+                   status);
         return false;
     }
 
-    // Get the endpoint
     status = ECC608.getEndpoint(endpoint, &endpointLen);
 
-    if (status != ECC608.ERR_OK) {
-        Log.error("Could not retrieve endpoint from the ECC");
+    if (status != ATCA_SUCCESS) {
+        Log.errorf("Could not retrieve endpoint from the ECC, cryptoauthlib "
+                   "error code: 0x%X\r\n",
+                   status);
         return false;
     }
 

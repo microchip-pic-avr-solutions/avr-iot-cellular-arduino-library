@@ -8,5 +8,6 @@ pushd "$SRC_PATH" 1> /dev/null
     rm -rf calib crypto hal host atcacert
     find . -name "atca_*" -exec rm -f {} +
     find . -name "cryptoauth*" -exec rm -f {} +
-    find . -name "cert_def*" -exec rm -f {} +
+    find . -name "tng*" -exec rm -f {} +
+    find . -name "tflxtls*" -exec rm -f {} +
 popd  1> /dev/null

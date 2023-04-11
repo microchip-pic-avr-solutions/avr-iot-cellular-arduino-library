@@ -27,11 +27,11 @@ bool initMQTTTopics() {
 
     // Find the thing ID and set the publish and subscription topics
     uint8_t thingName[128];
-    uint8_t thingNameLen = sizeof(thingName);
+    size_t thingNameLen = sizeof(thingName);
 
     // -- Get the thingname
-    uint8_t err = ECC608.getThingName(thingName, &thingNameLen);
-    if (err != ECC608.ERR_OK) {
+    ATCA_STATUS status = ECC608.getThingName(thingName, &thingNameLen);
+    if (status != ATCA_SUCCESS) {
         Log.error("Could not retrieve thingname from the ECC");
         return false;
     }

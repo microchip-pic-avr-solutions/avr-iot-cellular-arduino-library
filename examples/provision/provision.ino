@@ -737,10 +737,9 @@ static ATCA_STATUS constructCSR(char* pem, size_t* pem_size) {
     // Retrieve the thing name from the ECC and use that as the common name
     // field
     uint8_t common_name[128];
-    uint8_t common_name_length = sizeof(common_name);
+    size_t common_name_length = sizeof(common_name);
 
-    if (ECC608.getThingName(common_name, &common_name_length) !=
-        ECC608.ERR_OK) {
+    if (ECC608.getThingName(common_name, &common_name_length) != ATCA_SUCCES) {
         const char* default_identifier = "AVR-IoT Cellular Mini";
         common_name_length             = strlen(default_identifier);
         memcpy(common_name, default_identifier, common_name_length);

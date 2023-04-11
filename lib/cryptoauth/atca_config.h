@@ -1,11 +1,15 @@
-/* Auto-generated config file atca_config.h */
 #ifndef ATCA_CONFIG_H
 #define ATCA_CONFIG_H
 
+#define __DELAY_BACKWARD_COMPATIBLE__
+
+#include <util/delay.h>
+
+#define atca_delay_ms _delay_ms
+#define atca_delay_us _delay_us
+
 /* Included HALS */
 #define ATCA_HAL_I2C
-
-#define ATCA_ATECC608_SUPPORT
 
 /* \brief How long to wait after an initial wake failure for the POST to
  *         complete.
@@ -20,20 +24,15 @@
 
 /** Enable debug messages */
 // #define ATCA_PRINTF
-//
 
 /******************** Platform Configuration Section ***********************/
+
+#define ATCA_ATECC608_SUPPORT FEATURE_ENABLED
+#define ATCA_TFLEX_SUPPORT    FEATURE_ENABLED
 
 /** Define platform malloc/free */
 #define ATCA_PLATFORM_MALLOC malloc
 #define ATCA_PLATFORM_FREE   free
-
-#define __DELAY_BACKWARD_COMPATIBLE__
-
-#include <util/delay.h>
-
-#define atca_delay_ms _delay_ms
-#define atca_delay_us _delay_us
 
 /* API Configuration Options */
 #define ATCAB_AES_EN                      FEATURE_DISABLED
@@ -55,6 +54,7 @@
 #define ATCAB_AES_CBC_ENCRYPT_EN          FEATURE_DISABLED
 #define ATCAB_RANDOM_EN                   FEATURE_DISABLED
 #define ATCAB_READ_ENC_EN                 FEATURE_DISABLED
+#define ATCAB_WRITE_ENC_EN                FEATURE_DISABLED
 #define ATCAB_SECUREBOOT_EN               FEATURE_DISABLED
 #define ATCAB_SECUREBOOT_MAC_EN           FEATURE_DISABLED
 #define ATCAB_SELFTEST_EN                 FEATURE_DISABLED
@@ -72,12 +72,18 @@
 #define TALIB_AES_EN      FEATURE_DISABLED
 #define TALIB_SHA_HMAC_EN FEATURE_DISABLED
 
+#define CALIB_SHA104_EN FEATURE_DISABLED
+#define CALIB_SHA105_EN FEATURE_DISABLED
+#define CALIB_SHA204_EN FEATURE_DISABLED
+#define CALIB_SHA206_EN FEATURE_DISABLED
 #define CALIB_ECC108_EN FEATURE_DISABLED
 #define CALIB_ECC204_EN FEATURE_DISABLED
 #define CALIB_ECC508_EN FEATURE_DISABLED
+#define CALIB_TA010_EN  FEATURE_DISABLED
 #define CALIB_ECDH_ENC  FEATURE_DISABLED
-#define CALIB_SHA204_EN FEATURE_DISABLED
-#define CALIB_SHA206_EN FEATURE_DISABLED
+
+#define CALIB_WRITE_ENC_CA2_EN    FEATURE_DISABLED
+#define CALIB_WRITE_ENC_ECC204_EN FEATURE_DISABLED
 
 #define WPC_MSG_PR_EN FEATURE_DISABLED
 

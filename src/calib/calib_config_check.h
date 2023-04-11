@@ -55,11 +55,23 @@
 #define CALIB_ECC204_EN             DEFAULT_ENABLED
 #endif
 
+#ifdef ATCA_TA010_SUPPORT
+#define CALIB_TA010_EN              DEFAULT_ENABLED
+#endif
+
+#ifdef ATCA_SHA104_SUPPORT
+#define CALIB_SHA104_EN             DEFAULT_ENABLED
+#endif
+
+#ifdef ATCA_SHA105_SUPPORT
+#define CALIB_SHA105_EN             DEFAULT_ENABLED
+#endif
+
 /* Helper macros */
 #define CALIB_FULL_FEATURE          (CALIB_SHA204_EN || CALIB_ECC108_EN || CALIB_ECC508_EN || CALIB_ECC608_EN)
-#define CALIB_ECC_SUPPORT           (CALIB_ECC108_EN || CALIB_ECC508_EN || CALIB_ECC608_EN || CALIB_ECC204_EN)
-#define CALIB_ECC204_ONLY           (CALIB_ECC204_EN && !(CALIB_FULL_FEATURE || CALIB_SHA206_EN))
-#define CALIB_SHA206_ONLY           (CALIB_SHA206_EN && !(CALIB_FULL_FEATURE || CALIB_ECC204_EN))
+#define CALIB_ECC_SUPPORT           (CALIB_ECC108_EN || CALIB_ECC508_EN || CALIB_ECC608_EN || CALIB_ECC204_EN || CALIB_TA010_EN)
+#define CALIB_CA2_SUPPORT           (CALIB_ECC204_EN || CALIB_TA010_EN || CALIB_SHA104_EN || CALIB_SHA105_EN)
+#define CALIB_SHA206_ONLY           (CALIB_SHA206_EN && !(CALIB_FULL_FEATURE || ATCA_CA2_SUPPORT))
 
                       /**** AES command ****/
 
@@ -107,7 +119,7 @@
   * Supported API's: calib_checkmac 
  **/
 #ifndef CALIB_CHECKMAC_EN
-#define CALIB_CHECKMAC_EN           (ATCAB_CHECKMAC_EN && CALIB_FULL_FEATURE)
+#define CALIB_CHECKMAC_EN           (ATCAB_CHECKMAC_EN && (CALIB_FULL_FEATURE || CALIB_SHA105_EN))
 #endif
 
                       /***** COUNTER command *****/
@@ -119,7 +131,19 @@
   * Supported API's: calib_counter
  **/
 #ifndef CALIB_COUNTER_EN
-#define CALIB_COUNTER_EN            (ATCAB_COUNTER_EN && CALIB_ECC_SUPPORT)
+#define CALIB_COUNTER_EN            (ATCAB_COUNTER_EN && (CALIB_ECC_SUPPORT || CALIB_SHA104_EN || CALIB_SHA105_EN))
+#endif
+
+                      /***** DELETE command *****/
+
+/** \def CALIB_DELETE
+  * 
+  * Enable CALIB_DELETE to clear all of the Data zone slots and set all bytes of each slot to 0xFF
+  * 
+  * Supported API's: calib_delete
+ **/
+#ifndef CALIB_DELETE_EN
+#define CALIB_DELETE_EN             (DEFAULT_DISABLED)
 #endif
 
                       /*****  DERIVEKEY command ******/
@@ -185,7 +209,20 @@
   * Supported API's: calib_gendig
  **/
 #ifndef CALIB_GENDIG_EN
-#define CALIB_GENDIG_EN             (ATCAB_GENDIG_EN && CALIB_FULL_FEATURE)
+#define CALIB_GENDIG_EN             (ATCAB_GENDIG_EN && (CALIB_FULL_FEATURE || CALIB_SHA105_EN))
+#endif
+
+                      /******  GENDIVKEY command  ******/
+
+/** \def CALIB_GENDIVKEY
+  *  
+  * Enable CALIB_GENDIVKEY to generate the equivalent diversified key as that programmed into thhe
+  * client side device
+  * 
+  * Supported API's: calib_sha105_gendivkey
+ **/
+#ifndef CALIB_GENDIVKEY_EN
+#define CALIB_GENDIVKEY_EN          (ATCAB_GENDIG_EN && CALIB_SHA105_EN)
 #endif
 
                       /******  GENKEY COMMAND  ******/
@@ -264,14 +301,14 @@
 #define CALIB_LOCK_EN               (ATCAB_LOCK_EN && CALIB_FULL_FEATURE)
 #endif
 
-/** \def CALIB_LOCK_ECC204_EN
+/** \def CALIB_LOCK_CA2_EN
   * 
-  * Enable CALIB_LOCK_ECC204_EN which enables the lock command for the ecc204 device
+  * Enable CALIB_LOCK_CA2_EN which enables the lock command for the ecc204 and ta010 devices
   * 
   * Supported API's: calib_lock
  **/
-#ifndef CALIB_LOCK_ECC204_EN
-#define CALIB_LOCK_ECC204_EN        (ATCAB_LOCK_EN && CALIB_ECC204_EN)
+#ifndef CALIB_LOCK_CA2_EN
+#define CALIB_LOCK_CA2_EN         (ATCAB_LOCK_EN && ATCA_CA2_SUPPORT)
 #endif
 
                       /******  MAC command  ******/
@@ -284,7 +321,7 @@
   * Supported API's: calib_mac
  **/
 #ifndef CALIB_MAC_EN
-#define CALIB_MAC_EN                (ATCAB_MAC_EN && (CALIB_FULL_FEATURE || CALIB_SHA206_EN))
+#define CALIB_MAC_EN                (ATCAB_MAC_EN && (CALIB_FULL_FEATURE || CALIB_SHA206_EN || CALIB_SHA104_EN))
 #endif
 
                       /****** NONCE command ******/
@@ -299,7 +336,7 @@
  * Supported API's: calib_nonce_base
  **/
 #ifndef CALIB_NONCE_EN
-#define CALIB_NONCE_EN              (ATCAB_NONCE_EN && (CALIB_FULL_FEATURE || CALIB_ECC204_EN))
+#define CALIB_NONCE_EN              (ATCAB_NONCE_EN && (CALIB_FULL_FEATURE || CALIB_CA2_SUPPORT))
 #endif
 
                       /****  PRIVWRITE COMMAND  ****/
@@ -356,10 +393,10 @@
   * 
   * Supported API's: calib_read_zone
   * 
-  * Supported ECC204 specific API's: calib_ecc204_read_zone
+  * Supported ECC204 specific API's: calib_ca2_read_zone
  **/
-#ifndef CALIB_READ_ECC204_EN
-#define CALIB_READ_ECC204_EN          (ATCAB_READ_EN && CALIB_ECC204_EN)
+#ifndef CALIB_READ_CA2_EN
+#define CALIB_READ_CA2_EN          (ATCAB_READ_EN && CALIB_CA2_SUPPORT)
 #endif
 
 /** \def CALIB_READ_ENC
@@ -426,7 +463,7 @@
   * Supported API's: calib_selftest 
  **/
 #ifndef CALIB_SELFTEST_EN
-#define CALIB_SELFTEST_EN             (ATCAB_SELFTEST_EN && (CALIB_ECC608_EN || CALIB_ECC204_EN))
+#define CALIB_SELFTEST_EN             (ATCAB_SELFTEST_EN && (CALIB_ECC608_EN || CALIB_CA2_SUPPORT))
 #endif
 
                       /****** SHA command ******/
@@ -439,7 +476,7 @@
   * Supported API's: calib_sha_base
  **/
 #ifndef CALIB_SHA_EN
-#define CALIB_SHA_EN                  (ATCAB_SHA_EN && (CALIB_FULL_FEATURE || CALIB_ECC204_EN))
+#define CALIB_SHA_EN                  (ATCAB_SHA_EN && (CALIB_FULL_FEATURE || CALIB_CA2_SUPPORT))
 #endif
 
 /** \def CALIB_SHA_HMAC_EN
@@ -481,15 +518,15 @@
 #define CALIB_SIGN_EN                 (ATCAB_SIGN_EN && (CALIB_ECC108_EN || CALIB_ECC508_EN || CALIB_ECC608_EN))
 #endif
 
-/** \def CALIB_SIGN_ECC204_EN
+/** \def CALIB_SIGN_CA2_EN
   *  
-  * Enable CALIB_SIGN_ECC204_EN to generate a signature using the ECDSA algorithm
+  * Enable CALIB_SIGN_CA2_EN to generate a signature using the ECDSA algorithm
   * 
   * Supported API's: calib_sign_base
   * 
 **/ 
-#ifndef CALIB_SIGN_ECC204_EN
-#define CALIB_SIGN_ECC204_EN          (ATCAB_SIGN_EN && CALIB_ECC204_EN)
+#ifndef CALIB_SIGN_CA2_EN
+#define CALIB_SIGN_CA2_EN          (ATCAB_SIGN_EN && (CALIB_ECC204_EN || CALIB_TA010_EN))
 #endif
 
 /** \def CALIB_SIGN_MODE_ENCODING
@@ -603,7 +640,7 @@
   * 
   * Supported API's: calib_write
   * 
-  * Supported ECC204 specific API's: calib_ecc204_write           
+  * Supported ECC204 specific API's: calib_ca2_write           
  **/
 #ifndef CALIB_WRITE_EN
 #define CALIB_WRITE_EN              (ATCAB_WRITE_EN && (CALIB_FULL_FEATURE || CALIB_SHA206_EN))
@@ -625,8 +662,6 @@
   * Performs an encrypted write of a 32 byte block into given slot
   * 
   * Supported API's: calib_write_enc
-  * 
-  * Supported ECC204 specific API's: calib_ecc204_write_enc
  **/
 #ifndef CALIB_WRITE_ENC_EN
 #define CALIB_WRITE_ENC_EN          (ATCAB_WRITE_ENC_EN && CALIB_FULL_FEATURE)
@@ -639,22 +674,11 @@
   * 
   * Supported API's: calib_write
   * 
-  * Supported ECC204 specific API's: calib_ecc204_write           
+  * Supported ECC204 specific API's: calib_ca2_write           
  **/
-#ifndef CALIB_WRITE_ECC204_EN
-#define CALIB_WRITE_ECC204_EN       (ATCAB_WRITE_EN && CALIB_ECC204_EN)
+#ifndef CALIB_WRITE_CA2_EN
+#define CALIB_WRITE_CA2_EN       (ATCAB_WRITE_EN && CALIB_CA2_SUPPORT)
 #endif 
-
-/** \def ATCAB_WRITE_EN
-  * 
-  * Enable CALIB_WRITE_ENC_ECC204_EN to enable encrypted writes to the ECC204 device - only
-  * used for provisioning activities
-  * 
- **/
-#ifndef CALIB_WRITE_ENC_ECC204_EN
-#define CALIB_WRITE_ENC_ECC204_EN   (ATCAB_WRITE_ENC_EN && CALIB_WRITE_ECC204_EN && CALIB_NONCE_EN)
-#endif
-
 
 /* Check host side configuration for missing components */
 

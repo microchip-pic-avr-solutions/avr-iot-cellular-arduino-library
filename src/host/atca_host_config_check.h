@@ -133,6 +133,19 @@
 #define ATCAH_CHECK_MAC (DEFAULT_ENABLED)
 #endif
 
+/** \def ATCAH_GEN_OUTPUT_RESP_MAC
+  * 
+  * Requires: ATCAH_GEN_OUTPUT_RESP_MAC
+  *           ATCAC_SW_SHA2_256
+  * 
+  * Supported API's: atcah_gen_output_resp_mac
+  * 
+  * Enable ATCAH_GEN_OUTPUT_RESP_MAC to generate output response mac
+ **/
+#ifndef ATCAH_GEN_OUTPUT_RESP_MAC
+#define ATCAH_GEN_OUTPUT_RESP_MAC   (DEFAULT_ENABLED)
+#endif
+
  /** \def ATCAH_HMAC
   * 
   * Requires: ATCAH_HMAC
@@ -158,6 +171,19 @@
  **/
 #ifndef ATCAH_GENDIG
 #define ATCAH_GENDIG (DEFAULT_ENABLED)
+#endif
+
+ /** \def ATCAH_GENDIVKEY
+  * 
+  * Requires: ATCAH_GENDIVKEY
+  *           ATCAC_SW_SHA2_256
+  * 
+  * Supported API's: atcah_gendivkey
+  * 
+  * Enable ATCAH_GENDIVKEY to generate the diversified key
+ **/
+#ifndef ATCAH_GENDIVKEY
+#define ATCAH_GENDIVKEY (DEFAULT_ENABLED)
 #endif
 
  /** \def ATCAH_GEN_MAC
@@ -313,6 +339,19 @@
  **/
 #ifndef ATCAH_GEN_SESSION_KEY
 #define ATCAH_GEN_SESSION_KEY (DEFAULT_ENABLED)
+#endif
+
+/** \def ATCAH_DELETE_MAC
+  * 
+  * Requires: ATCAH_DELETE_MAC
+  *           ATCAC_SW_SHA2_256
+  * 
+  * Supported API's: atcah_delete_mac
+  * 
+  * Enable ATCAH_DELETE_MAC to calculate the mac
+ **/
+#ifndef ATCAH_DELETE_MAC
+#define ATCAH_DELETE_MAC  (CALIB_DELETE_EN)
 #endif
 
 /* ATCA CRYPTO REQUIREMENTS  */
