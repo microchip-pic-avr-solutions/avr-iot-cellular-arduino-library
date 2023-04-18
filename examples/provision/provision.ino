@@ -739,7 +739,9 @@ static ATCA_STATUS constructCSR(char* pem, size_t* pem_size) {
     uint8_t common_name[128];
     size_t common_name_length = sizeof(common_name);
 
-    if (ECC608.getThingName(common_name, &common_name_length) != ATCA_SUCCES) {
+    if (ECC608.readProvisionItem(AWS_THINGNAME,
+                                 common_name,
+                                 &common_name_length) != ATCA_SUCCES) {
         const char* default_identifier = "AVR-IoT Cellular Mini";
         common_name_length             = strlen(default_identifier);
         memcpy(common_name, default_identifier, common_name_length);

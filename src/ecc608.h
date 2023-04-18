@@ -9,6 +9,20 @@
 #include "cryptoauthlib/lib/atcacert/atcacert.h"
 #include "cryptoauthlib/lib/cryptoauthlib.h"
 
+enum EccDataType {
+    EMPTY                 = 0,
+    AWS_THINGNAME         = 1,
+    AWS_ENDPOINT          = 2,
+    AZURE_ID_SCOPE        = 3,
+    AZURE_IOT_HUB_NAME    = 4,
+    AZURE_DEVICE_ID       = 5,
+    GOOGLE_PROJECT_ID     = 6,
+    GOOGLE_PROJECT_REGION = 7,
+    GOOGLE_REGISTRY_ID    = 8,
+    GOOGLE_DEVICE_ID      = 9,
+    NUM_TYPES // Placeholder, keep this last
+};
+
 class ECC608Class {
 
   private:
@@ -32,8 +46,6 @@ class ECC608Class {
         return instance;
     }
 
-    // TODO: add read provision item as public here
-
     /**
      * @brief Initializes the ECC.
      *
@@ -42,28 +54,26 @@ class ECC608Class {
     ATCA_STATUS begin();
 
     /**
-     * @brief Retrieves the AWS endpoint stored in the ECC.
+     * @brief Extract item with given type from ECC slot.
      *
-     * @param endpoint [out] Buffer to place the endpoint.
-     * @param size [in, out] Size of buffer. Will be overwritten with the
-     * endpoint length.
+     * This code traverses the list until matching type is found,
+     * assuming there is only one item of each type in the slot.
+     * Notice: A \0 terminator is added to the returned item for
+     *         easier string processing. This is not included in returned
+     *         length, but there must be space for it in the buffer.
      *
-     * @return The enumerations of cryptoauthlib's #ATCA_STATUS. #ATCA_SUCCESS
-     * on success.
+     * @param type [in] Type of requested item.
+     * @param buffer [out] Buffer to store item in.
+     * @param length [in, out] Pointer to length of buffer. Set to actual item
+     * length on return..
+     *
+     * @return ATCA_STATUS error code. If the item is not found ATCA_INVALID_ID
+     * will be returned.
      */
-    ATCA_STATUS getEndpoint(uint8_t* endpoint, size_t* size);
-
-    /**
-     * @brief Retrieves the thing name stored in the ECC.
-     *
-     * @param thing_name [out] Buffer to place the thing name.
-     * @param size [in, out] size of buffer. Will be overwritten with the
-     * thing name length.
-     *
-     * @return The enumerations of cryptoauthlib's #ATCA_STATUS. #ATCA_SUCCESS
-     * on success.
-     */
-    ATCA_STATUS getThingName(uint8_t* thing_name, size_t* size);
+    ATCA_STATUS
+    readProvisionItem(const enum EccDataType type,
+                      uint8_t* buffer,
+                      size_t* size);
 
     /**
      * @brief Get the size of the root certificate (not base64 encoded. The size

@@ -25,7 +25,8 @@ bool initMQTTTopics() {
     size_t thingNameLen = sizeof(thingName);
 
     // -- Get the thingname
-    ATCA_STATUS status = ECC608.getThingName(thingName, &thingNameLen);
+    ATCA_STATUS status =
+        ECC608.readProvisionItem(AWS_THINGNAME, thingName, &thingNameLen);
     if (status != ATCA_SUCCESS) {
         Log.error("Could not retrieve thingname from the ECC");
         return false;

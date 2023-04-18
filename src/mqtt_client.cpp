@@ -356,7 +356,7 @@ bool MqttClientClass::beginAWS() {
     uint8_t endpoint[128];
     size_t endpointLen = sizeof(endpoint);
 
-    status = ECC608.getThingName(thingName, &thingNameLen);
+    status = ECC608.readProvisionItem(AWS_THINGNAME, thingName, &thingNameLen);
 
     if (status != ATCA_SUCCESS) {
         Log.errorf("Could not retrieve thing name from the ECC, cryptoauthlib "
@@ -365,7 +365,7 @@ bool MqttClientClass::beginAWS() {
         return false;
     }
 
-    status = ECC608.getEndpoint(endpoint, &endpointLen);
+    status = ECC608.readProvisionItem(AWS_ENDPOINT, endpoint, &endpointLen);
 
     if (status != ATCA_SUCCESS) {
         Log.errorf("Could not retrieve endpoint from the ECC, cryptoauthlib "

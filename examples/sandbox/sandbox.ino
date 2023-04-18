@@ -310,7 +310,8 @@ void setup() {
     uint8_t thing_name[128];
     size_t thing_name_len = sizeof(thing_name);
 
-    ATCA_STATUS status = ECC608.getThingName(thing_name, &thing_name_len);
+    ATCA_STATUS status =
+        ECC608.readProvisionItem(AWS_THINGNAME, thing_name, &thing_name_len);
     if (status != ATCA_SUCCESS) {
         Log.error("Could not retrieve thing name from the ECC");
         Log.error("Unable to initialize the MQTT topics. Stopping...");

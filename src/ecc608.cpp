@@ -29,39 +29,32 @@ struct DataHeader {
     uint16_t type : 7; // Type of current item, see provision_data.h
 };
 
-enum EccDataType {
-    EMPTY                 = 0,
-    AWS_THINGNAME         = 1,
-    AWS_ENDPOINT          = 2,
-    AZURE_ID_SCOPE        = 3,
-    AZURE_IOT_HUB_NAME    = 4,
-    AZURE_DEVICE_ID       = 5,
-    GOOGLE_PROJECT_ID     = 6,
-    GOOGLE_PROJECT_REGION = 7,
-    GOOGLE_REGISTRY_ID    = 8,
-    GOOGLE_DEVICE_ID      = 9,
-    NUM_TYPES // Placeholder, keep this last
-};
+ECC608Class ECC608 = ECC608Class::instance();
 
-/**
- * @brief Extract item with given type from ECC slot.
- *
- * This code traverses the list until matching type is found,
- * assuming there is only one item of each type in the slot.
- * Notice: A \0 terminator is added to the returned item for
- *         easier string processing. This is not included in returned
- *         length, but there must be space for it in the buffer.
- *
- * @param type [in] Type of requested item
- * @param buffer [out] Buffer to store item in
- * @param length [in, out] Pointer to length of buffer. Set to actual item
- * length on return.
- *
- * @return ATCA_STATUS error code. If the item is not found ATCA_INVALID_ID will
- * be returned.
- */
-static ATCA_STATUS
-readProvisionItem(const enum EccDataType type, uint8_t* buffer, size_t* size) {
+ATCA_STATUS ECC608Class::begin() {
+    if (initialized) {
+        return ATCA_SUCCESS;
+    } else {
+        initialized = true;
+    }
+
+    static ATCAIfaceCfg ECCConfig = {ATCA_I2C_IFACE,
+                                     ATECC608B,
+                                     {
+                                         0x58,  // 7 bit address of ECC
+                                         2,     // Bus number
+                                         100000 // Baud rate
+                                     },
+                                     1560,
+                                     20,
+                                     NULL};
+
+    return atcab_init(&ECCConfig);
+}
+
+ATCA_STATUS ECC608Class::readProvisionItem(const enum EccDataType type,
+                                           uint8_t* buffer,
+                                           size_t* size) {
 
     ATCA_STATUS atca_status = ATCA_SUCCESS;
 
@@ -129,37 +122,6 @@ readProvisionItem(const enum EccDataType type, uint8_t* buffer, size_t* size) {
     *size = 0;
 
     return ATCA_INVALID_ID;
-}
-
-ECC608Class ECC608 = ECC608Class::instance();
-
-ATCA_STATUS ECC608Class::begin() {
-    if (initialized) {
-        return ATCA_SUCCESS;
-    } else {
-        initialized = true;
-    }
-
-    static ATCAIfaceCfg ECCConfig = {ATCA_I2C_IFACE,
-                                     ATECC608B,
-                                     {
-                                         0x58,  // 7 bit address of ECC
-                                         2,     // Bus number
-                                         100000 // Baud rate
-                                     },
-                                     1560,
-                                     20,
-                                     NULL};
-
-    return atcab_init(&ECCConfig);
-}
-
-ATCA_STATUS ECC608Class::getEndpoint(uint8_t* endpoint, size_t* size) {
-    return readProvisionItem(AWS_ENDPOINT, endpoint, size);
-}
-
-ATCA_STATUS ECC608Class::getThingName(uint8_t* thing_name, size_t* size) {
-    return readProvisionItem(AWS_THINGNAME, thing_name, size);
 }
 
 int ECC608Class::getRootCertificateSize(size_t* size) {
