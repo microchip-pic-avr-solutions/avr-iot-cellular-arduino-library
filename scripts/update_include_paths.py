@@ -3,20 +3,6 @@ import re
 import argparse
 
 
-def get_path_relative_to_root(root_path: Path, file_path: Path):
-    """Returns the relative path of the file path to the root 
-       path, appended with the root path.
-
-    Args:
-        root_path (Path): Root path directory
-        file_path (Path): File path in the root directory
-
-    Returns:
-        Path: The full path to the file relative to the root path 
-    """
-    return Path((root_path / file_path.relative_to(root_path)).as_posix())
-
-
 def get_include_paths_relative_to_root(root_path: Path):
     """Fetches every .h file in a directory to build a list of include paths.
 
@@ -30,7 +16,7 @@ def get_include_paths_relative_to_root(root_path: Path):
     include_paths = []
 
     for path in root_path.rglob("*.h"):
-        include_paths.append(get_path_relative_to_root(root_path, path))
+        include_paths.append(Path((Path(root_path.name) / path.relative_to(root_path)).as_posix()))
 
     return include_paths
 
@@ -55,15 +41,18 @@ def find_matching_root_include_path(include_path: str, include_paths_relative_to
     return None
 
 
-def get_update_line(line: str, include_paths_relative_to_root):
+def get_update_line(line: str, include_paths_relative_to_root, source_overrides, destination_overrides):
     """Given a line in a file, replaces a #include <...> or #include "..." with
        a path relative to the root folder given in the include paths relative 
-       to root list. 
+       to root list. If the item found is in the source overrides, it will be 
+       replaced with the corresponding item in destination overrides
 
     Args:
         line (str): The line in the file 
         include_paths_relative_to_root (list[Path]): List of the include paths 
                                                      relative to the root.
+        source_overrides (list[str]): List of source include path overrides.
+        destination_overrides (list[str]): List of destination include path overrides. 
 
     Returns:
         str: The updated line if "#include" was found.
@@ -75,14 +64,18 @@ def get_update_line(line: str, include_paths_relative_to_root):
     if r is not None and r.group(1).endswith(".h"):
         include_path = r.group(1)
 
-        include_path_relative_to_root = find_matching_root_include_path(
-            include_path,
-            include_paths_relative_to_root
-        )
+        if include_path in source_overrides:
+            index = source_overrides.index(include_path)
+            return line.replace(include_path, destination_overrides[index])
+        else:
+            include_path_relative_to_root = find_matching_root_include_path(
+                include_path,
+                include_paths_relative_to_root
+            )
 
-        # If the match was not found, the include is likely a system header
-        if include_path_relative_to_root is not None:
-            return line.replace(include_path, include_path_relative_to_root.as_posix())
+            # If the match was not found, the include is likely a system header
+            if include_path_relative_to_root is not None:
+                return line.replace(include_path, include_path_relative_to_root.as_posix())
 
     return line
 
@@ -97,8 +90,15 @@ if __name__ == "__main__":
     parser.add_argument("input_directory")
     parser.add_argument("output_directory")
     parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("-s", "--source-overrides", action="append",
+                        help="List of source overrides, the source and destination needs to be passed in pairs with the -s and -d flags. This overrides e.g. foo.h with bar/foo.h if -s foo.h and -d bar/foo.h are passed", default=[])
+    parser.add_argument("-d", "--destination-overrides", action="append",
+                        help="List of destination overrides, the source and destination needs to be passed in pairs with the -s and -d flags. This overrides e.g. foo.h with bar/foo.h if -s foo.h and -d bar/foo.h are passed", default=[])
 
     args = parser.parse_args()
+
+    if len(args.source_overrides) != len(args.destination_overrides):
+        print("Error, source and destination overrides need to be passed in pairs when using the -s and -d flags")
 
     root_path = Path(args.input_directory)
     output_root_path = Path(args.output_directory)
@@ -131,7 +131,8 @@ if __name__ == "__main__":
             with open(output_path, "w") as output_file:
 
                 for line in input_file:
-                    updated_line = get_update_line(line, include_paths_relative_to_root)
+                    updated_line = get_update_line(line, include_paths_relative_to_root,
+                                                   args.source_overrides, args.destination_overrides)
 
                     if args.verbose:
                         if line != updated_line:

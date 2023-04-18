@@ -18,9 +18,10 @@ fi
 
 echo "Injecting... "
 
-# Fix the include paths so that all are relative to src since Arduino doesn't 
-# allow us to add extra include paths for the compiler
-python "$SCRIPTPATH/update_include_paths.py" "$CRYPTOAUTH_PATH/cryptoauthlib" "$TEMPDIR_PATH"
+mkdir -p "$TEMPDIR_PATH/cryptoauthlib/app"
+
+cp -r "$CRYPTOAUTH_PATH/cryptoauthlib/lib" "$TEMPDIR_PATH/cryptoauthlib/" 
+cp -r "$CRYPTOAUTH_PATH/cryptoauthlib/app/tng" "$TEMPDIR_PATH/cryptoauthlib/app/" 
 
 # Prevent removing items if the temporary directory was not created, just to be 
 # safe and not removing files from the project
@@ -29,7 +30,7 @@ if [ ! -d "$TEMPDIR_PATH" ]; then
     exit 1
 else 
     # Remove everything we don't need, so we are only left with .h files
-    pushd "$TEMPDIR_PATH/lib" 1> /dev/null 
+    pushd "$TEMPDIR_PATH/cryptoauthlib/lib" 1> /dev/null 
         rm -rf mbedtls pkcs11 openssl wolfssl jwt cmake CMakeLists.txt
 
         pushd hal 1> /dev/null 
@@ -38,15 +39,13 @@ else
     popd 1> /dev/null
 fi
 
-# Make the destination folders
-mkdir "$SRC_PATH/cryptoauthlib"
-mkdir "$SRC_PATH/cryptoauthlib/app"
+# Fix the include paths so that all are relative to src since Arduino doesn't 
+# allow us to add extra include paths for the compiler
+python "$SCRIPTPATH/update_include_paths.py" "$TEMPDIR_PATH/cryptoauthlib" "$SRC_PATH/cryptoauthlib" -s "atca_config.h" -d "cryptoauthlib/atca_config.h"
 
-# Copy sources
-cp -r "$TEMPDIR_PATH/lib" "$SRC_PATH/cryptoauthlib/"
-cp -r "$TEMPDIR_PATH/app/tng"  "$SRC_PATH/cryptoauthlib/app/"
+# Copy over the config
 cp -r "$CRYPTOAUTH_PATH/atca_config.h" "$SRC_PATH/cryptoauthlib/"
 
-rm -r "$TEMPDIR_PATH"
+rm -rf "$TEMPDIR_PATH"
 
 echo "Done!"
