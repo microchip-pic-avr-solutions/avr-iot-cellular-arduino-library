@@ -1,13 +1,6 @@
 #!/bin/bash
 
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
-CRYPTOAUTH_PATH=$SCRIPTPATH/../lib/cryptoauth
 SRC_PATH=$SCRIPTPATH/../src
 
-pushd "$SRC_PATH" 1> /dev/null
-    rm -rf calib crypto hal host atcacert
-    find . -name "atca_*" -exec rm -f {} +
-    find . -name "cryptoauth*" -exec rm -f {} +
-    find . -name "tng*" -exec rm -f {} +
-    find . -name "tflxtls*" -exec rm -f {} +
-popd  1> /dev/null
+rm -r "$SRC_PATH/cryptoauthlib"

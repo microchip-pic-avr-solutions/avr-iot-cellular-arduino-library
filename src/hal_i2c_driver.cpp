@@ -5,7 +5,7 @@
  * for i2c communication, but we have to provide the implementation for them.
  * Thus we have to have these functions here.
  */
-#include "cryptoauthlib.h"
+#include "cryptoauthlib/lib/cryptoauthlib.h"
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -26,7 +26,7 @@
 #endif
 #endif
 
-ATCA_STATUS hal_i2c_init(ATCAIface iface, ATCAIfaceCfg *cfg) {
+ATCA_STATUS hal_i2c_init(ATCAIface iface, ATCAIfaceCfg* cfg) {
     WIRE.swap(WIRE_MUX);
     WIRE.setClock(cfg->atcai2c.baud);
     WIRE.begin();
@@ -38,7 +38,7 @@ ATCA_STATUS hal_i2c_post_init(ATCAIface iface) { return ATCA_SUCCESS; }
 
 ATCA_STATUS hal_i2c_send(ATCAIface iface,
                          uint8_t word_address,
-                         uint8_t *txdata,
+                         uint8_t* txdata,
                          int txlength) {
 
     WIRE.beginTransmission(word_address);
@@ -67,8 +67,8 @@ ATCA_STATUS hal_i2c_send(ATCAIface iface,
 
 ATCA_STATUS hal_i2c_receive(ATCAIface iface,
                             uint8_t word_address,
-                            uint8_t *rxdata,
-                            uint16_t *rxlength) {
+                            uint8_t* rxdata,
+                            uint16_t* rxlength) {
 
     *rxlength = WIRE.requestFrom(word_address, (size_t)(*rxlength));
 
@@ -88,11 +88,11 @@ ATCA_STATUS hal_i2c_receive(ATCAIface iface,
 }
 
 ATCA_STATUS
-hal_i2c_control(ATCAIface iface, uint8_t option, void *param, size_t paramlen) {
+hal_i2c_control(ATCAIface iface, uint8_t option, void* param, size_t paramlen) {
     return ATCA_UNIMPLEMENTED;
 }
 
-ATCA_STATUS hal_i2c_release(void *hal_data) {
+ATCA_STATUS hal_i2c_release(void* hal_data) {
     WIRE.end();
     return ATCA_SUCCESS;
 }

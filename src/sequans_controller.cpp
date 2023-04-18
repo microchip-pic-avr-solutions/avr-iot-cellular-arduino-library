@@ -6,7 +6,6 @@
 #include <Arduino.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
-#include <cryptoauthlib.h>
 #include <pins_arduino.h>
 #include <stddef.h>
 #include <string.h>
