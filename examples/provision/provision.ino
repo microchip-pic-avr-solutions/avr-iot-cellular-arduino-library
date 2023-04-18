@@ -4,19 +4,17 @@
  * to the board.
  */
 
-#include <cryptoauthlib.h>
-
-#include <atcacert/atcacert_client.h>
-#include <atcacert/atcacert_def.h>
-
 #include <avr/pgmspace.h>
 
 #include "ecc608.h"
 #include "led_ctrl.h"
 #include "log.h"
+#include "security_profile.h"
 #include "sequans_controller.h"
 
-#include "security_profile.h"
+#include "cryptoauthlib/lib/atcacert/atcacert_client.h"
+#include "cryptoauthlib/lib/atcacert/atcacert_def.h"
+#include "cryptoauthlib/lib/cryptoauthlib.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -741,7 +739,7 @@ static ATCA_STATUS constructCSR(char* pem, size_t* pem_size) {
 
     if (ECC608.readProvisionItem(AWS_THINGNAME,
                                  common_name,
-                                 &common_name_length) != ATCA_SUCCES) {
+                                 &common_name_length) != ATCA_SUCCESS) {
         const char* default_identifier = "AVR-IoT Cellular Mini";
         common_name_length             = strlen(default_identifier);
         memcpy(common_name, default_identifier, common_name_length);
