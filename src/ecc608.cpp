@@ -1,6 +1,6 @@
 #include "ecc608.h"
 
-#include "tng_atcacert_client.h"
+#include "cryptoauthlib/app/tng/tng_atcacert_client.h"
 
 #define SLOT_NUM 8 // ECC slot number used for provisioning data
 

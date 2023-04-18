@@ -6,7 +6,6 @@
 #include "security_profile.h"
 #include "sequans_controller.h"
 
-#include <cryptoauthlib.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -309,6 +308,7 @@ static bool generateSigningCommand(char* data, char* command_buffer) {
     }
 
     // Sign digest with ECC's primary private key
+    // TODO: move this to ECC class
     ATCA_STATUS result = atcab_sign(0, message_to_sign, (uint8_t*)digest);
 
     if (result != ATCA_SUCCESS) {

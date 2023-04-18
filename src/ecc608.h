@@ -6,8 +6,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "atcacert/atcacert.h"
-#include "cryptoauthlib.h"
+#include "cryptoauthlib/lib/atcacert/atcacert.h"
+#include "cryptoauthlib/lib/cryptoauthlib.h"
 
 class ECC608Class {
 
@@ -31,6 +31,8 @@ class ECC608Class {
         static ECC608Class instance;
         return instance;
     }
+
+    // TODO: add read provision item as public here
 
     /**
      * @brief Initializes the ECC.

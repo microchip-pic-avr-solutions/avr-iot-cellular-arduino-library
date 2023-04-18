@@ -1,3 +1,11 @@
+"""
+This file replaces the include paths of a C/C++ project with the full path up to
+the root of the project. This script exists due to not being able to add include
+search paths in Arduino, so for e.g. cryptoauthlib, we need to modify all the
+include paths to be relative to the src folder (which is the only search include 
+path in Arduino).
+"""
+
 from pathlib import Path
 import re
 import argparse
