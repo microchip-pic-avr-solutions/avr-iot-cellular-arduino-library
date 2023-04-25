@@ -35,7 +35,7 @@ void setup() {
 
     // In order to configure a pin as an input, for example the button SW0 at
     // PD2, we can do the following:
-    pinConfigure(PIN_PD2, PIN_DIR_INPUT);
+    pinConfigure(PIN_PD2, PIN_DIR_INPUT | PIN_PULLUP_ON);
 
     // Then we can e.g. attach an interrupt to the button when it is pressed (on
     // the falling edge). If we want to have an interrupt when the button is

@@ -284,7 +284,7 @@ void setup() {
     LedCtrl.startupCycle();
 
     // Set PD2 as input (button)
-    pinConfigure(PIN_PD2, PIN_DIR_INPUT);
+    pinConfigure(PIN_PD2, PIN_DIR_INPUT | PIN_PULLUP_ON);
     attachInterrupt(PIN_PD2, sendHeartbeatInterrupt, FALLING);
 
     // Set PF6 as input (reset button)

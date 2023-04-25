@@ -32,7 +32,7 @@ void setup() {
     LedCtrl.startupCycle();
 
     // Attach interrupt callback to detect if SW0 was pressed during sleep
-    pinConfigure(SW0, PIN_DIR_INPUT);
+    pinConfigure(SW0, PIN_DIR_INPUT | PIN_PULLUP_ON);
     attachInterrupt(SW0, button_pressed_callback, FALLING);
 
     // Now we configure the low power module for power down configuration, where
