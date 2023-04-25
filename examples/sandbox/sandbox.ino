@@ -3,7 +3,7 @@
  * experience
  */
 
-#define SANDBOX_VERSION "1.3.5"
+#define SANDBOX_VERSION "1.3.6"
 
 #include <ArduinoJson.h>
 #include <ecc608.h>
