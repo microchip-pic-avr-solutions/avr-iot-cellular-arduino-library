@@ -409,7 +409,10 @@ bool MqttClientClass::begin(const char* client_id,
     // instantly. We just want to close the current connection if there are any.
     // If there aren't, this will return an error from the modem, but that is
     // fine as it just means that there aren't any connections active.
-    SequansController.readResponse(NULL, 0);
+    //
+    // We do this with writeBytes instead of writeCommand to not issue the
+    // retries of the command if it fails.
+    SequansController.readResponse();
 
     SequansController.clearReceiveBuffer();
 
@@ -540,10 +543,7 @@ bool MqttClientClass::end(void) {
 
     if (isConnected()) {
 
-        SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
-                                     strlen(MQTT_DISCONNECT),
-                                     true);
-
+        SequansController.writeCommand(MQTT_DISCONNECT);
         SequansController.clearReceiveBuffer();
 
         connected_to_broker = false;
