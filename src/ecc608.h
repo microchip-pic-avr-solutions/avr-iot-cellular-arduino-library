@@ -9,7 +9,7 @@
 #include "cryptoauthlib/lib/atcacert/atcacert.h"
 #include "cryptoauthlib/lib/cryptoauthlib.h"
 
-enum EccDataType {
+enum ecc_data_types {
     EMPTY                 = 0,
     AWS_THINGNAME         = 1,
     AWS_ENDPOINT          = 2,
@@ -71,9 +71,39 @@ class ECC608Class {
      * will be returned.
      */
     ATCA_STATUS
-    readProvisionItem(const enum EccDataType type,
+    readProvisionItem(const enum ecc_data_types type,
                       uint8_t* buffer,
                       size_t* size);
+
+    /**
+     * @brief Retrieves the AWS thing name from the ECC608.
+     *
+     * @param thing_name [out] Buffer to store thing name in.
+     * @param size [in, out] Pointer to length of buffer. Set to the length of
+     * the thing name on return.
+     *
+     * @return ATCA_STATUS error code. If the thing name is not found
+     * ATCA_INVALID_ID will be returned.
+     */
+    __attribute__((deprecated(
+        "getThingName is deprecated, please use readProvisionItem "
+        "with AWS_THINGNAME passed as the type instead"))) ATCA_STATUS
+    getThingName(uint8_t* thing_name, uint8_t* size);
+
+    /**
+     * @brief Retrives the AWS endpoint from the ECC608.
+     *
+     * @param endpoint [out] Buffer to store endpoint in.
+     * @param size [in, out] Pointer to length of buffer. Set to the length of
+     * the endpoint on return.
+     *
+     * @return ATCA_STATUS error code. If the thing name is not found
+     * ATCA_INVALID_ID will be returned.
+     */
+    __attribute__((
+        deprecated("getEndpoint is deprecated, please use readProvisionItem "
+                   "with AWS_ENDPOINT passed as the type instead"))) ATCA_STATUS
+    getEndpoint(uint8_t* endpoint, uint8_t* size);
 
     /**
      * @brief Get the size of the root certificate (not base64 encoded. The size

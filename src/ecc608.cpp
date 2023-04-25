@@ -52,7 +52,7 @@ ATCA_STATUS ECC608Class::begin() {
     return atcab_init(&ECCConfig);
 }
 
-ATCA_STATUS ECC608Class::readProvisionItem(const enum EccDataType type,
+ATCA_STATUS ECC608Class::readProvisionItem(const enum ecc_data_types type,
                                            uint8_t* buffer,
                                            size_t* size) {
 
@@ -122,6 +122,28 @@ ATCA_STATUS ECC608Class::readProvisionItem(const enum EccDataType type,
     *size = 0;
 
     return ATCA_INVALID_ID;
+}
+
+ATCA_STATUS ECC608Class::getThingName(uint8_t* thing_name, uint8_t* size) {
+    // Need this to bridge the compatibility between using size_t and uint8_t.
+    // This function will be deprecated later.
+    size_t thing_name_size = *size;
+    const ATCA_STATUS result =
+        readProvisionItem(AWS_THINGNAME, thing_name, &thing_name_size);
+    *size = thing_name_size;
+
+    return result;
+}
+
+ATCA_STATUS ECC608Class::getEndpoint(uint8_t* endpoint, uint8_t* size) {
+    // Need this to bridge the compatibility between using size_t and uint8_t.
+    // This function will be deprecated later.
+    size_t endpoint_size = *size;
+    const ATCA_STATUS result =
+        readProvisionItem(AWS_ENDPOINT, endpoint, &endpoint_size);
+    *size = endpoint_size;
+
+    return result;
 }
 
 int ECC608Class::getRootCertificateSize(size_t* size) {
