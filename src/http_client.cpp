@@ -13,15 +13,15 @@
 
 // We only use profile 0 to keep things simple we also stick with spId 3
 // which we dedicate to HTTPS
-#define HTTP_CONFIGURE "AT+SQNHTTPCFG=0,\"%s\",%u,0,\"\",\"\",%u,120,1,3"
+#define HTTP_CONFIGURE "AT+SQNHTTPCFG=0,\"%s\",%u,0,\"\",\"\",%u,120,,3"
 
-// Command without any data in it (with quotation marks): 36 bytes
-// Max length of doman name: 127 bytes
+// Command without any data in it (with quotation marks): 35 bytes
+// Max length of domain name: 127 bytes
 // Max length of port number: 5 bytes (0-65535)
 // TLS enabled: 1 byte
 // Termination: 1 byte
-// This results in 36 + 127 + 5 + 1 + 1 = 170
-#define HTTP_CONFIGURE_SIZE 170
+// This results in 35 + 127 + 5 + 1 + 1 = 169
+#define HTTP_CONFIGURE_SIZE 169
 
 #define HTTPS_SECURITY_PROFILE_NUMBER 3
 
@@ -75,14 +75,17 @@ HttpClientClass HttpClient = HttpClientClass::instance();
  * @param method POST(0) or PUT(1).
  * @param header Optional header.
  * @param header_length Length of header.
+ * @param timeout_ms Timeout in milliseconds for the transmission.
  */
-static HttpResponse sendData(const char* endpoint,
-                             const uint8_t* data,
-                             const uint32_t data_length,
-                             const uint8_t method,
-                             const uint8_t* header        = NULL,
-                             const uint32_t header_length = 0,
-                             const char* content_type     = "") {
+static HttpResponse
+sendData(const char* endpoint,
+         const uint8_t* data,
+         const uint32_t data_length,
+         const uint8_t method,
+         const uint8_t* header        = NULL,
+         const uint32_t header_length = 0,
+         const char* content_type     = "",
+         const uint32_t timeout_ms    = HTTP_DEFAULT_TIMEOUT_MS) {
 
     LedCtrl.on(Led::CON, true);
 
@@ -102,17 +105,33 @@ static HttpResponse sendData(const char* endpoint,
     char command[command_length + 1];
 
     // Append +1 for NULL termination
-    snprintf(command,
-             command_length + 1,
-             HTTP_SEND,
-             method,
-             endpoint,
-             (unsigned long)data_length,
-             content_type,
-             header == NULL ? "" : (const char*)header);
+    int bytes_written = snprintf(command,
+                                 command_length,
+                                 HTTP_SEND,
+                                 method,
+                                 endpoint,
+                                 (unsigned long)data_length,
+                                 content_type,
+                                 header == NULL ? "" : (const char*)header);
+    if (bytes_written < 0) {
+        Log.errorf(
+            "Failed to write HTTP send command, snprintf returned %d\r\n",
+            bytes_written);
+        return HttpResponse{0, 0};
+    }
+
+    if (bytes_written >= (int)command_length) {
+        Log.errorf("Failed to write HTTP send command, snprintf returned %d "
+                   "but command length is %d\r\n",
+                   bytes_written,
+                   command_length);
+        return HttpResponse{0, 0};
+    }
+
+    command[bytes_written + 1] = '\0';
 
     LedCtrl.on(Led::DATA, true);
-    SequansController.writeBytes((uint8_t*)command, command_length, true);
+    SequansController.writeBytes((uint8_t*)command, bytes_written, true);
 
     // Only send the data payload if there is any
     if (data_length > 0) {
@@ -134,7 +153,7 @@ static HttpResponse sendData(const char* endpoint,
         _delay_ms(100);
 
         // Now we deliver the payload
-        SequansController.writeBytes(data, data_length);
+        SequansController.writeBytes(data, data_length, true);
     }
 
     char http_response_buffer[HTTP_RESPONSE_MAX_LENGTH]                = "";
@@ -144,7 +163,8 @@ static HttpResponse sendData(const char* endpoint,
     // Now we wait for the URC
     if (!SequansController.waitForURC(HTTP_RING_URC,
                                       http_response_buffer,
-                                      sizeof(http_response_buffer))) {
+                                      sizeof(http_response_buffer),
+                                      timeout_ms)) {
         LedCtrl.off(Led::CON, true);
         LedCtrl.off(Led::DATA, true);
         Log.warn("Did not get HTTP response before timeout\r\n");
@@ -190,11 +210,13 @@ static HttpResponse sendData(const char* endpoint,
  * @param method GET(0), HEAD(1) or DELETE(2).
  * @param header Optional header.
  * @param header_length Length of header.
+ * @param timeout_ms Timeout in milliseconds for the query.
  */
 static HttpResponse queryData(const char* endpoint,
                               const uint8_t method,
                               const uint8_t* header,
-                              const uint32_t header_length) {
+                              const uint32_t header_length,
+                              const uint32_t timeout_ms) {
 
     LedCtrl.on(Led::CON, true);
 
@@ -211,12 +233,29 @@ static HttpResponse queryData(const char* endpoint,
     // Append +1 for NULL termination
     char command[command_length + 1];
 
-    snprintf(command,
-             command_length + 1,
-             HTTP_QUERY,
-             method,
-             endpoint,
-             header == NULL ? "" : (const char*)header);
+    int bytes_written = snprintf(command,
+                                 command_length,
+                                 HTTP_QUERY,
+                                 method,
+                                 endpoint,
+                                 header == NULL ? "" : (const char*)header);
+
+    if (bytes_written < 0) {
+        Log.errorf(
+            "Failed to write HTTP query command, snprintf returned %d\r\n",
+            bytes_written);
+        return HttpResponse{0, 0};
+    }
+
+    if (bytes_written >= (int)command_length) {
+        Log.errorf("Failed to write HTTP query command, snprintf returned %d "
+                   "but command length is %d\r\n",
+                   bytes_written,
+                   command_length);
+        return HttpResponse{0, 0};
+    }
+
+    command[bytes_written + 1] = '\0';
 
     LedCtrl.on(Led::DATA, true);
     SequansController.writeCommand(command);
@@ -227,7 +266,8 @@ static HttpResponse queryData(const char* endpoint,
 
     if (!SequansController.waitForURC(HTTP_RING_URC,
                                       http_response_buffer,
-                                      sizeof(http_response_buffer))) {
+                                      sizeof(http_response_buffer),
+                                      timeout_ms)) {
         Log.warn("Did not get HTTP response before timeout\r\n");
 
         LedCtrl.off(Led::DATA, true);
@@ -288,7 +328,8 @@ HttpResponse HttpClientClass::post(const char* endpoint,
                                    const uint32_t data_length,
                                    const uint8_t* header_buffer,
                                    const uint32_t header_length,
-                                   const ContentType content_type) {
+                                   const ContentType content_type,
+                                   const uint32_t timeout_ms) {
 
     // The content type within the Sequans modem is classified by a single
     // character (+1 for NULL termination)
@@ -332,63 +373,80 @@ HttpResponse HttpClientClass::post(const char* endpoint,
                     HTTP_POST_METHOD,
                     header_buffer,
                     header_length,
-                    content_type_buffer);
+                    content_type_buffer,
+                    timeout_ms);
 }
 
 HttpResponse HttpClientClass::post(const char* endpoint,
                                    const char* data,
                                    const char* header,
-                                   const ContentType content_type) {
+                                   const ContentType content_type,
+                                   const uint32_t timeout_ms) {
     return post(endpoint,
                 (uint8_t*)data,
                 strlen(data),
                 (uint8_t*)header,
                 header == NULL ? 0 : strlen(header),
-                content_type);
+                content_type,
+                timeout_ms);
 }
 
 HttpResponse HttpClientClass::put(const char* endpoint,
                                   const uint8_t* data_buffer,
                                   const uint32_t data_length,
                                   const uint8_t* header_buffer,
-                                  const uint32_t header_length) {
+                                  const uint32_t header_length,
+                                  const uint32_t timeout_ms) {
     return sendData(endpoint,
                     data_buffer,
                     data_length,
                     HTTP_PUT_METHOD,
                     header_buffer,
-                    header_length);
+                    header_length,
+                    "",
+                    timeout_ms);
 }
 
 HttpResponse HttpClientClass::put(const char* endpoint,
                                   const char* message,
-                                  const char* header) {
+                                  const char* header,
+                                  const uint32_t timeout_ms) {
     return put(endpoint,
                (uint8_t*)message,
                strlen(message),
                (uint8_t*)header,
-               header == NULL ? 0 : strlen(header));
+               header == NULL ? 0 : strlen(header),
+               timeout_ms);
 }
 
-HttpResponse HttpClientClass::get(const char* endpoint, const char* header) {
+HttpResponse HttpClientClass::get(const char* endpoint,
+                                  const char* header,
+                                  const uint32_t timeout_ms) {
     return queryData(endpoint,
                      HTTP_GET_METHOD,
                      (uint8_t*)header,
-                     strlen(header));
+                     strlen(header),
+                     timeout_ms);
 }
 
-HttpResponse HttpClientClass::head(const char* endpoint, const char* header) {
+HttpResponse HttpClientClass::head(const char* endpoint,
+                                   const char* header,
+                                   const uint32_t timeout_ms) {
     return queryData(endpoint,
                      HTTP_HEAD_METHOD,
                      (uint8_t*)header,
-                     strlen(header));
+                     strlen(header),
+                     timeout_ms);
 }
 
-HttpResponse HttpClientClass::del(const char* endpoint, const char* header) {
+HttpResponse HttpClientClass::del(const char* endpoint,
+                                  const char* header,
+                                  const uint32_t timeout_ms) {
     return queryData(endpoint,
                      HTTP_DELETE_METHOD,
                      (uint8_t*)header,
-                     strlen(header));
+                     strlen(header),
+                     timeout_ms);
 }
 
 int16_t HttpClientClass::readBody(char* buffer, const uint32_t buffer_size) {

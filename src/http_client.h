@@ -8,6 +8,8 @@
 #include <Arduino.h>
 #include <stdint.h>
 
+#define HTTP_DEFAULT_TIMEOUT_MS (30000U)
+
 typedef struct {
     uint16_t status_code;
     uint32_t data_size;
@@ -63,13 +65,15 @@ class HttpClientClass {
      * bearers)
      * @param header_length Length of the optinal header line.
      * @param content_type HTTP content type of the post request.
+     * @param timeout_ms Timeout in milliseconds to wait for the POST request.
      */
     HttpResponse post(const char* endpoint,
                       const uint8_t* data_buffer,
                       const uint32_t data_length,
                       const uint8_t* header_buffer   = NULL,
                       const uint32_t header_length   = 0,
-                      const ContentType content_type = CONTENT_TYPE_TEXT_PLAIN);
+                      const ContentType content_type = CONTENT_TYPE_TEXT_PLAIN,
+                      const uint32_t timeout_ms      = HTTP_DEFAULT_TIMEOUT_MS);
 
     /**
      * @brief Issues a post to the host configured. Will block until operation
@@ -81,11 +85,13 @@ class HttpClientClass {
      * @param header Optional header line (e.g. for authorization
      * bearers).
      * @param content_type HTTP content type of the post request.
+     * @param timeout_ms Timeout in milliseconds to wait for the POST request.
      */
     HttpResponse post(const char* endpoint,
                       const char* data,
                       const char* header             = NULL,
-                      const ContentType content_type = CONTENT_TYPE_TEXT_PLAIN);
+                      const ContentType content_type = CONTENT_TYPE_TEXT_PLAIN,
+                      const uint32_t timeout_ms      = HTTP_DEFAULT_TIMEOUT_MS);
 
     /**
      * @brief Issues a put to the host configured. Will block until operation is
@@ -98,12 +104,14 @@ class HttpClientClass {
      * @param header_buffer Optional header line (e.g. for authorization
      * bearers)
      * @param header_length Length of the optinal header line.
+     * @param timeout_ms Timeout in milliseconds to wait for the PUT request.
      */
     HttpResponse put(const char* endpoint,
                      const uint8_t* data_buffer,
                      const uint32_t data_length,
                      const uint8_t* header_buffer = NULL,
-                     const uint32_t header_length = 0);
+                     const uint32_t header_length = 0,
+                     const uint32_t timeout_ms    = HTTP_DEFAULT_TIMEOUT_MS);
 
     /**
      * @brief Issues a put to the host configured. Will block until operation is
@@ -114,9 +122,12 @@ class HttpClientClass {
      * @param data The data payload.
      * @param header Optional header line (e.g. for authorization
      * bearers).
+     * @param timeout_ms Timeout in milliseconds to wait for the PUT request.
      */
-    HttpResponse
-    put(const char* endpoint, const char* data, const char* header = NULL);
+    HttpResponse put(const char* endpoint,
+                     const char* data,
+                     const char* header        = NULL,
+                     const uint32_t timeout_ms = HTTP_DEFAULT_TIMEOUT_MS);
 
     /**
      * @brief Issues a get from the host configured. Will block until operation
@@ -127,8 +138,11 @@ class HttpClientClass {
      * after the domain.
      * @param header Optional header line (e.g. for authorization
      * bearers).
+     * @param timeout_ms Timeout in milliseconds to wait for the GET request.
      */
-    HttpResponse get(const char* endpoint, const char* header = NULL);
+    HttpResponse get(const char* endpoint,
+                     const char* header        = NULL,
+                     const uint32_t timeout_ms = HTTP_DEFAULT_TIMEOUT_MS);
 
     /**
      * @brief Issues a head from the host configured. Will block until operation
@@ -138,8 +152,11 @@ class HttpClientClass {
      * after the domain.
      * @param header Optional header line (e.g. for authorization
      * bearers).
+     * @param timeout_ms Timeout in milliseconds to wait for the HEAD request.
      */
-    HttpResponse head(const char* endpoint, const char* header = NULL);
+    HttpResponse head(const char* endpoint,
+                      const char* header        = NULL,
+                      const uint32_t timeout_ms = HTTP_DEFAULT_TIMEOUT_MS);
 
     /**
      * @brief Issues a delete from the host configured. Will block until
@@ -149,8 +166,11 @@ class HttpClientClass {
      * after the domain.
      * @param header Optional header line (e.g. for authorization
      * bearers).
+     * @param timeout_ms Timeout in milliseconds to wait for the DELETE request.
      */
-    HttpResponse del(const char* endpoint, const char* header = NULL);
+    HttpResponse del(const char* endpoint,
+                     const char* header        = NULL,
+                     const uint32_t timeout_ms = HTTP_DEFAULT_TIMEOUT_MS);
 
     /**
      * @brief Reads the body of a response after a HTTP call. Note that the
