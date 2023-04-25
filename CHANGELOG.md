@@ -169,3 +169,22 @@ Internal build
 ## Bugfixes
 * Fix a bug where the device would not go in deep sleep when using the low power modes
 * Fix a bug where a certificate would not be parsed correctly during provisioning
+
+
+# 1.3.6
+
+## Features
+* Add timeout parameter for HTTP(S)
+
+## Changes
+* LEDs toggle during HTTP queries (if the LED controller is not set to manual mode)
+* Correct the certificates extacted from `extract_certificates.ino` so that they have the correct authority key identifier 
+* Cryptoauthlib is now in its own folder in `src` to make the source folder more structured 
+
+## Bugfixes
+* Fix a bug where the device would not enter deep sleep due to the use of millis()
+* Fix a bug where the interrupt flag for the reset button was cleared after the device was reset in `sandbox.ino`
+* Fix a bug where pull-ups weren't enabled for some instances of SW0 and SW1 in the examples
+
+## Deprecation notice
+* This release deprecates the use of `ECC608.getThingName(buffer, &size)` and `ECC608.getEndpoint(buffer, &size)`. Use `ECC608.readProvisionItem(type, buffer, &size)` instead. The `type` is an enum of `ecc_data_types` found in `ecc608.h`. To e.g. read the AWS thing name, use: `ECC608.readProvisionItem(AWS_THINGNAME, buffer, &size)`.
