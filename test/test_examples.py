@@ -80,7 +80,7 @@ def example_test_data():
             },
             {
                 "expectation": "\\[ERROR\\] Error writing command, the response was:",
-                "timeout": 20 
+                "timeout": 20
             },
             {
                 "expectation": "\\+CME ERROR: invalid characters in text string"
@@ -142,7 +142,27 @@ def example_test_data():
                 "expectation": "\r\n"
             },
             {
-                "expectation": "\\[INFO\\] Printing signing certificate..."
+                "expectation": "\\[INFO\\] Printing root certificate..."
+            },
+            {
+                "expectation": "\r\n"
+            },
+            {
+                "expectation": "-----BEGIN CERTIFICATE-----"
+            },
+            {
+                "repeat": 11,
+                "expectation": "([^\\n]+)"
+            },
+            {
+                "expectation": "-----END CERTIFICATE-----"
+            },
+            {
+                "repeat": 3,
+                "expectation": "\r\n"
+            },
+            {
+                "expectation": "\\[INFO\\] Printing signer certificate..."
             },
             {
                 "expectation": "\r\n"
@@ -759,4 +779,3 @@ def test_sandbox(request, backend, session_config, example_test_data):
 
 def test_serial(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)
-

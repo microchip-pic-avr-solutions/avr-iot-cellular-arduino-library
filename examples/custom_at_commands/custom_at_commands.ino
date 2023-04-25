@@ -83,7 +83,7 @@ void setup() {
     // was written successfully. We do it this way for this example as we want
     // to utilise notifications and the ping command is blocking. This is thus
     // purely an example.
-    const char* command = "AT+PING=\"www.google.com\"";
+    const char* command = "AT+PING=\"www.microchip.com\"";
     SequansController.writeBytes((uint8_t*)command, strlen(command), true);
 
     // The default ping will retrieve four responses, so wait for them

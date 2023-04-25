@@ -30,7 +30,10 @@ void setup() {
     if (atca_status != ATCA_SUCCESS) {
         Log.errorf("Failed to initialize ECC608, status code: 0x%X\r\n",
                    atca_status);
+        return;
     }
+
+    Log.info("Initialized ECC\r\n");
 
     // Extract the max size of the certificates first
 
