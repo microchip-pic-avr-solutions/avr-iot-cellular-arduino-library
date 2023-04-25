@@ -327,7 +327,7 @@ static bool readUntilNewLine(char* output_buffer,
 
         uint8_t input = SerialModule.read();
 
-        if (input == ASCII_SPACE) {
+        if (input == ASCII_SPACE && index == 0) {
             continue;
         }
 
@@ -561,8 +561,9 @@ static bool requestAndSaveToNonVolatileMemory(const char* message,
 
     SequansController.writeBytes((uint8_t*)command, strlen(command), true);
 
-    SequansController.waitForByte('>', 1000);
-    SequansController.writeBytes((uint8_t*)data, data_length, true);
+    if (SequansController.waitForByte('>', 1000)) {
+        SequansController.writeBytes((uint8_t*)data, data_length, true);
+    }
 
     if (SequansController.readResponse() != ResponseResult::OK) {
         SerialModule.println(
@@ -1394,6 +1395,7 @@ void provisionHttp() {
     // --------------------------------------------------------------------
 
     SerialModule.println();
+
     SerialModule.print("--- Provisioning...");
 
     char command[strlen(AT_HTTPS_SECURITY_PROFILE) + 64] = "";

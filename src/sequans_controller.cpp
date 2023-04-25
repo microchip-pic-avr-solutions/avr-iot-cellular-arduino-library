@@ -587,13 +587,13 @@ bool SequansControllerClass::appendDataToTransmitBuffer(const uint8_t data) {
                 _delay_ms(1);
             }
 
-            if (!(VPORTC.IN & CTS_PIN_bm)) {
+            if (!(VPORTC.IN & CTS_PIN_bm) && !timeout_timer.hasTimedOut()) {
                 // Enable data register empty interrupt so that the data gets
                 // pushed out. We do this in the loop as the CTS interrupt might
                 // disable the interrupt logic, so we wait until that is not the
                 // case and then start the transmit logic
                 HWSERIALAT.CTRLA |= USART_DREIE_bm;
-            } else {
+            } else if (timeout_timer.hasTimedOut()) {
                 // If we time out and the modem still can't accept the data, we
                 // just return
                 return false;
