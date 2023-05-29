@@ -541,13 +541,13 @@ bool MqttClientClass::end(void) {
     SequansController.unregisterCallback(MQTT_ON_CONNECT_URC);
     SequansController.unregisterCallback(MQTT_ON_DISCONNECT_URC);
 
-    if (isConnected()) {
+    if (Lte.isConnected() && isConnected()) {
 
         SequansController.writeCommand(MQTT_DISCONNECT);
         SequansController.clearReceiveBuffer();
-
-        connected_to_broker = false;
     }
+
+    connected_to_broker = false;
 
     if (disconnected_callback != NULL) {
         disconnected_callback();
