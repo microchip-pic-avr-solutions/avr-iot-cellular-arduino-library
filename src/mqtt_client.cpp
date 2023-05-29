@@ -176,11 +176,6 @@ static void internalConnectedCallback(char* urc_data) {
         connected_to_broker = false;
         LedCtrl.off(Led::CON, true);
 
-        SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
-                                     strlen(MQTT_DISCONNECT),
-                                     true);
-        SequansController.clearReceiveBuffer();
-
         if (disconnected_callback != NULL) {
             disconnected_callback();
         }
@@ -189,11 +184,7 @@ static void internalConnectedCallback(char* urc_data) {
 
 static void internalDisconnectCallback(char* urc_data) {
     connected_to_broker = false;
-
-    SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
-                                 strlen(MQTT_DISCONNECT),
-                                 true);
-    SequansController.clearReceiveBuffer();
+    LedCtrl.off(Led::CON, true);
 
     if (disconnected_callback != NULL) {
         disconnected_callback();
