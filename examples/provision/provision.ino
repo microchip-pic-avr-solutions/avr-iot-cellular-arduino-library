@@ -549,7 +549,7 @@ static bool requestAndSaveToNonVolatileMemory(const char* message,
     if (is_certificate) {
         // First erase the existing certifiate at the slot (if any)
         sprintf(command, AT_ERASE_CERTIFICATE, slot);
-        SequansController.writeBytes(command, strlen(command), true);
+        SequansController.writeBytes((uint8_t*)command, strlen(command), true);
 
         // Dummy read of response, we don't care about the response as the modem
         // will return an error if there's no certificate to erase and OK if it
@@ -559,7 +559,7 @@ static bool requestAndSaveToNonVolatileMemory(const char* message,
         sprintf(command, AT_WRITE_CERTIFICATE, slot, data_length);
     } else {
         sprintf(command, AT_ERASE_PRIVATE_KEY, slot);
-        SequansController.writeBytes(command, strlen(command), true);
+        SequansController.writeBytes((uint8_t*)command, strlen(command), true);
 
         // Dummy read of response, we don't care about the response as the modem
         // will return an error if there's no certificate to erase and OK if it
