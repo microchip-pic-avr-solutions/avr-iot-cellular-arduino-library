@@ -36,12 +36,12 @@ void setup() {
     Log.info("Configured to HTTP");
 
     HttpResponse response = HttpClient.get("/get");
-    Log.infof("GET - status code: %u, data size: %u\r\n",
+    Log.infof("GET - HTTP status code: %u, data size: %u\r\n",
               response.status_code,
               response.data_size);
 
     response = HttpClient.post("/post", "{\"hello\": \"world\"}");
-    Log.infof("POST - status code: %u, data size: %u\r\n",
+    Log.infof("POST - HTTP status code: %u, data size: %u\r\n",
               response.status_code,
               response.data_size);
 

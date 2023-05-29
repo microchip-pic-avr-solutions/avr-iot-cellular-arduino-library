@@ -38,7 +38,7 @@ void setup() {
     // HttpClient.post("<endpoint>", "<data>", "Authorization: Bearer");
     HttpResponse response = HttpClient.get("/get", "Authorization: Bearer");
 
-    Log.infof("GET - status code: %u, data size: %u\r\n",
+    Log.infof("GET - HTTP status code: %u, data size: %u\r\n",
               response.status_code,
               response.data_size);
 

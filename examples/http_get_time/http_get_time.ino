@@ -47,18 +47,19 @@ void setup() {
     HttpResponse response;
     response = HttpClient.get(TIMEZONE_URI);
     if (response.status_code != HttpClient.STATUS_OK) {
-        Log.errorf("Error when performing a GET request on %s%s. Got status "
-                   "code = %d. Exiting...\r\n",
-                   TIMEZONE_URL,
-                   TIMEZONE_URI,
-                   response.status_code);
+        Log.errorf(
+            "Error when performing a GET request on %s%s. Got HTTP status"
+            "code = %d. Exiting...\r\n",
+            TIMEZONE_URL,
+            TIMEZONE_URI,
+            response.status_code);
         return;
     }
 
-    Log.infof(
-        "Successfully performed GET request. Status Code = %d, Size = %d\r\n",
-        response.status_code,
-        response.data_size);
+    Log.infof("Successfully performed GET request. HTTP status Code = %d, Size "
+              "= %d\r\n",
+              response.status_code,
+              response.data_size);
 
     String body = HttpClient.readBody(512);
 

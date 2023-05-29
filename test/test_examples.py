@@ -220,10 +220,10 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Configured to HTTP"
             },
             {
-                "expectation": "\\[INFO\\] GET - status code: 200, data size: (\\d{1,})"
+                "expectation": "\\[INFO\\] GET - HTTP status code: 200, data size: (\\d{1,})"
             },
             {
-                "expectation": "\\[INFO\\] POST - status code: 200, data size: (\\d{1,})"
+                "expectation": "\\[INFO\\] POST - HTTP status code: 200, data size: (\\d{1,})"
             },
             {
                 "expectation": "\\[INFO\\] Body: {"
@@ -246,7 +246,7 @@ def example_test_data():
                 "expectation": "\\[INFO\\] --- Configured to HTTP ---"
             },
             {
-                "expectation": "\\[INFO\\] Successfully performed GET request. Status Code = 200, Size = (\\d{1,})"
+                "expectation": "\\[INFO\\] Successfully performed GET request. HTTP status code = 200, Size = (\\d{1,})"
             },
             {
                 "expectation": "\\[INFO\\] Got the time \\(unixtime\\) (\\d{10})"
@@ -269,10 +269,10 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Configured to HTTPS"
             },
             {
-                "expectation": "\\[INFO\\] GET - status code: 200, data size: (\\d{1,})"
+                "expectation": "\\[INFO\\] GET - HTTP status code: 200, data size: (\\d{1,})"
             },
             {
-                "expectation": "\\[INFO\\] POST - status code: 200, data size: (\\d{1,})"
+                "expectation": "\\[INFO\\] POST - HTTP status code: 200, data size: (\\d{1,})"
             },
             {
                 "expectation": "\\[INFO\\] Body: {"
@@ -293,7 +293,7 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Performing GET with header..."
             },
             {
-                "expectation": "\\[INFO\\] GET - status code: 200, data size: (\\d{1,})"
+                "expectation": "\\[INFO\\] GET - HTTP status code: 200, data size: (\\d{1,})"
             },
             {
                 "expectation": "\\[INFO\\] Response: {"
