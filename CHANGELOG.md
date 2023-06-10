@@ -188,3 +188,9 @@ Internal build
 
 ## Deprecation notice
 * This release deprecates the use of `ECC608.getThingName(buffer, &size)` and `ECC608.getEndpoint(buffer, &size)`. Use `ECC608.readProvisionItem(type, buffer, &size)` instead. The `type` is an enum of `ecc_data_types` found in `ecc608.h`. To e.g. read the AWS thing name, use: `ECC608.readProvisionItem(AWS_THINGNAME, buffer, &size)`.
+
+
+# 1.3.7
+
+## Bugfixes
+* Fix a bug where a disconnect from the network whilst being connected to a MQTT broker would cause the board to not respond 
