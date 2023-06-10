@@ -56,7 +56,7 @@ void setup() {
         return;
     }
 
-    Log.infof("Successfully performed GET request. HTTP status Code = %d, Size "
+    Log.infof("Successfully performed GET request. HTTP status code = %d, Size "
               "= %d\r\n",
               response.status_code,
               response.data_size);
