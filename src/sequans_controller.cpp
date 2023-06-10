@@ -863,13 +863,10 @@ bool SequansControllerClass::extractValueFromCommandResponse(
         *first_carriage_return = 0;
     }
 
-    size_t value_length = strlen(start_value_ptr);
     // We compare inclusive for value length as we want to take the null
     // termination into consideration. So the buffer size has be
     // value_length + 1
-    if (value_length >= buffer_size) {
-        Log.error("Buffer too small for value when extracting value for "
-                  "command response, increase the buffer size");
+    if (strlen(start_value_ptr) >= buffer_size) {
         return false;
     }
 
