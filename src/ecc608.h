@@ -49,7 +49,7 @@ class ECC608Class {
     /**
      * @brief Initializes the ECC.
      *
-     * @return The enumerations of #ATCA_STATUS. #ATCA_SUCCESS on success.
+     * @return The enumerations of ATCA_STATUS. ATCA_SUCCESS on success.
      */
     ATCA_STATUS begin();
 
@@ -65,7 +65,7 @@ class ECC608Class {
      * @param type [in] Type of requested item.
      * @param buffer [out] Buffer to store item in.
      * @param length [in, out] Pointer to length of buffer. Set to actual item
-     * length on return..
+     * length on return.
      *
      * @return ATCA_STATUS error code. If the item is not found ATCA_INVALID_ID
      * will be returned.
@@ -74,6 +74,29 @@ class ECC608Class {
     readProvisionItem(const enum ecc_data_types type,
                       uint8_t* buffer,
                       size_t* size);
+
+    /**
+     * @brief Writes provision data to the ECC. Note that this function will
+     * overwrite the current data and takes in arrays of the given provisining
+     * types and their respective data and sizes. The data written is read back
+     * to verify the content.
+     *
+     * @param number_of_provision_items [in] Items to write, this has to match
+     * the number of elements in the @p types, @p data and @p data_size arrays.
+     * @param types [in] Array of types of provisioning items.
+     * @param data [in] Array of the data for each provisioning item.
+     * @param data_sizes [in] Array of the data sizes for each provisioning
+     * item.
+     *
+     * @return ATCA_STATUS error code. Will return ATCA_INVALID_LENGTH if the
+     * size of the data in total is greater than the slot size. If the read back
+     * data does not match the written content, ATCA_ASSERT_FAILURE will be
+     * returned.
+     */
+    ATCA_STATUS writeProvisionData(const size_t number_of_provision_items,
+                                   const enum ecc_data_types* types,
+                                   const uint8_t** data,
+                                   const size_t* data_sizes);
 
     /**
      * @brief Retrieves the AWS thing name from the ECC608.

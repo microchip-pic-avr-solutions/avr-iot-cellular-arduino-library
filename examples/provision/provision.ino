@@ -19,6 +19,8 @@
 #include <stdint.h>
 #include <string.h>
 
+enum class Service : uint8_t { AzureIoTHub = 1, Other };
+
 #define MQTT_TLS                         (1)
 #define MQTT_TLS_PUBLIC_PRIVATE_KEY_PAIR (2)
 
@@ -28,17 +30,24 @@
 #define MQTT_PUBLIC_KEY_SLOT  (17)
 #define MQTT_PRIVATE_KEY_SLOT (17)
 
-#define AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES_ECC \
-    "AT+SQNSPCFG=1,%u,\"%s\",%u,%u,%u,%u,\"%s\",\"%s\",1"
-#define AT_MQTT_SECURITY_PROFILE "AT+SQNSPCFG=2,%u,\"%s\",%u,%u,,,\"%s\",\"%s\""
-#define AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES \
-    "AT+SQNSPCFG=2,%u,\"%s\",%u,%u,%u,%u,\"%s\",\"%s\""
-#define AT_HTTPS_SECURITY_PROFILE "AT+SQNSPCFG=3,%u,\"\",%u,%u"
+static const char AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES_ECC[] PROGMEM =
+    "AT+SQNSPCFG=1,%u,\"%s\",%u,%u,%u,%u,\"%s\",\"%s\",1";
+static const char AT_MQTT_SECURITY_PROFILE[] PROGMEM =
+    "AT+SQNSPCFG=2,%u,\"%s\",%u,%u,,,\"%s\",\"%s\"";
+static const char AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES[] PROGMEM =
+    "AT+SQNSPCFG=2,%u,\"%s\",%u,%u,%u,%u,\"%s\",\"%s\"";
 
-#define AT_WRITE_CERTIFICATE "AT+SQNSNVW=\"certificate\",%u,%u"
-#define AT_ERASE_CERTIFICATE "AT+SQNSNVW=\"certificate\",%u,0"
-#define AT_WRITE_PRIVATE_KEY "AT+SQNSNVW=\"privatekey\",%u,%u"
-#define AT_ERASE_PRIVATE_KEY "AT+SQNSNVW=\"privatekey\",%u,0"
+static const char AT_HTTPS_SECURITY_PROFILE[] PROGMEM =
+    "AT+SQNSPCFG=3,%u,\"\",%u,%u";
+
+static const char AT_WRITE_CERTIFICATE[] PROGMEM =
+    "AT+SQNSNVW=\"certificate\",%u,%u";
+static const char AT_ERASE_CERTIFICATE[] PROGMEM =
+    "AT+SQNSNVW=\"certificate\",%u,0";
+static const char AT_WRITE_PRIVATE_KEY[] PROGMEM =
+    "AT+SQNSNVW=\"privatekey\",%u,%u";
+static const char AT_ERASE_PRIVATE_KEY[] PROGMEM =
+    "AT+SQNSNVW=\"privatekey\",%u,0";
 
 #define NUMBER_OF_CIPHERS      (64)
 #define CIPHER_VALUE_LENGTH    (6)
@@ -230,19 +239,6 @@ PGM_P const cipher_text_values[NUMBER_OF_CIPHERS] PROGMEM = {
 // The following are all ASN1 templates
 
 // clang-format off
-const uint8_t csr_template_start[] = {
-    0x30, 0x82, 0x00, 0x00,                             // Start sequence for 
-                                                        // certificate request
-    
-    0x30, 0x82, 0x00, 0x00,                             // Start of data section
-    0x02, 0x01, 0x00,                                   // Version number
-
-    0x30, 0x81, 0x00                                    // Start of subject 
-                                                        // information 
-                                                        // (country code, 
-                                                        // organization etc.)
-};
-
 const uint8_t country_code_template[] = {
     0x31, 0x00,                                         // Start set
     0x30, 0x00,                                         // Start sequence
@@ -345,6 +341,10 @@ static bool readUntilNewLine(char* output_buffer,
             continue;
         }
 
+        if (output_buffer == nullptr || output_buffer_length == 0) {
+            continue;
+        }
+
         SerialModule.print((char)input);
 
         // - 1 here since we need space for null termination
@@ -366,15 +366,15 @@ static bool readUntilNewLine(char* output_buffer,
  *
  * @return true if yes, false if no.
  */
-static bool askCloseEndedQuestion(const char* question) {
+static bool askCloseEndedQuestion(const __FlashStringHelper* question) {
     while (true) {
         SerialModule.println(question);
-        SerialModule.print("Please choose (y/n). Press enter when done: ");
+        SerialModule.print(F("Please choose (y/n). Press enter when done: "));
 
         char input[2] = "";
 
         if (!readUntilNewLine(input, sizeof(input))) {
-            SerialModule.println("\r\nInput too long!");
+            SerialModule.println(F("\r\nInput too long!"));
             continue;
         }
         switch (input[0]) {
@@ -391,7 +391,7 @@ static bool askCloseEndedQuestion(const char* question) {
             return false;
 
         default:
-            SerialModule.print("\r\nNot supported choice made: ");
+            SerialModule.print(F("\r\nNot supported choice made: "));
             SerialModule.println(input);
             break;
         }
@@ -402,12 +402,14 @@ static bool askCloseEndedQuestion(const char* question) {
  * @brief Ask a question where a list of alternatives are given. Note that there
  * cannot be a hole in the values ranging from @p min_value from @p max_value.
  *
+ * @param question The question to ask, this is specified as a string stored in
+ * program memory.
  * @param min_value Minimum value for the choices presented.
  * @param max_value Maximum value for the choices presented.
  *
  * @return The choice picked.
  */
-static uint8_t askNumberedQuestion(const char* question,
+static uint8_t askNumberedQuestion(const __FlashStringHelper* question,
                                    const uint8_t min_value,
                                    const uint8_t max_value) {
     while (true) {
@@ -416,7 +418,7 @@ static uint8_t askNumberedQuestion(const char* question,
         char input[4] = "";
 
         if (!readUntilNewLine(input, sizeof(input))) {
-            SerialModule.println("\r\nInput too long!\r\n");
+            SerialModule.println(F("\r\nInput too long!\r\n"));
             continue;
         }
 
@@ -425,9 +427,8 @@ static uint8_t askNumberedQuestion(const char* question,
         if (input_number >= min_value && input_number <= max_value) {
             return input_number;
         } else {
-            SerialModule.print("\r\nNot supported choice made: ");
+            SerialModule.print(F("\r\nNot supported choice made: "));
             SerialModule.println(input);
-            SerialModule.println();
         }
     }
 }
@@ -439,7 +440,7 @@ static uint8_t askNumberedQuestion(const char* question,
  * @param output_buffer Where the input from the user is placed.
  * @param output_buffer_size The max size of the input - 1 for NULL termination.
  */
-static void askInputQuestion(const char* question,
+static void askInputQuestion(const __FlashStringHelper* question,
                              char* output_buffer,
                              const size_t output_buffer_size) {
 
@@ -447,7 +448,7 @@ static void askInputQuestion(const char* question,
         SerialModule.print(question);
 
         if (!readUntilNewLine(output_buffer, output_buffer_size)) {
-            SerialModule.println("\r\nInput too long!\r\n");
+            SerialModule.println(F("\r\nInput too long!\r\n"));
             continue;
         } else {
             return;
@@ -456,18 +457,110 @@ static void askInputQuestion(const char* question,
 }
 
 /**
- * @brief Asks the user to input a certificate/private key and saves that the
- * NVM for the Sequans modem at the given @p slot.
+ * @brief Writes a certificate to the Sequans modem.
+ *
+ * @param slot [in] The slot to write the certificate to.
+ * @param certificate_data [in] The certificate data.
+ *
+ * @return ResponseResult::OK if the certificate was written successfully.
+ */
+static ResponseResult writeCertificate(const uint8_t slot,
+                                       const char* certificate_data) {
+
+    // Command is maximum of the the actual command, slot number (which can be
+    // two digits) and we set a maximum of 5 digits for the certificate size
+    // plus 1 for null termination
+    char command[strlen_P(AT_WRITE_CERTIFICATE) + 2 + 5 + 1] = "";
+
+    SequansController.clearReceiveBuffer();
+
+    // First erase the existing certifiate at the slot (if any)
+    snprintf_P(command, sizeof(command), AT_ERASE_CERTIFICATE, slot);
+    SequansController.writeBytes((uint8_t*)command, strlen(command), true);
+
+    // Dummy read of response, we don't care about the response as the modem
+    // will return an error if there's no certificate to erase and OK if it
+    // was ereased
+    SequansController.readResponse();
+
+    const size_t certificate_length = strlen(certificate_data);
+
+    snprintf_P(command,
+               sizeof(command),
+               AT_WRITE_CERTIFICATE,
+               slot,
+               certificate_length);
+
+    SequansController.writeBytes((uint8_t*)command, strlen(command), true);
+
+    if (SequansController.waitForByte('>', 1000)) {
+        SequansController.writeBytes((uint8_t*)certificate_data,
+                                     certificate_length,
+                                     true);
+    }
+
+    return SequansController.readResponse();
+}
+
+/**
+ * @brief Writes a private key to the Sequans modem.
+ *
+ * @param slot [in] The slot to write the private key to.
+ * @param private_key_data  [in] The private key data.
+ *
+ * @return ResponseResult::OK if the private key was written successfully.
+ */
+static ResponseResult writePrivateKey(const uint8_t slot,
+                                      const char* private_key_data) {
+    // Command is maximum of the the actual command, slot number (which can be
+    // two digits) and we set a maximum of 5 digits for the private size
+    // plus 1 for null termination
+    char command[strlen_P(AT_WRITE_PRIVATE_KEY) + 2 + 5 + 1] = "";
+
+    SequansController.clearReceiveBuffer();
+
+    // First erase the existing certifiate at the slot (if any)
+    snprintf_P(command, sizeof(command), AT_ERASE_PRIVATE_KEY, slot);
+    SequansController.writeBytes((uint8_t*)command, strlen(command), true);
+
+    // Dummy read of response, we don't care about the response as the modem
+    // will return an error if there's no certificate to erase and OK if it
+    // was ereased
+    SequansController.readResponse();
+
+    const size_t private_key_length = strlen(private_key_data);
+
+    snprintf_P(command,
+               sizeof(command),
+               AT_WRITE_PRIVATE_KEY,
+               slot,
+               private_key_length);
+
+    SequansController.writeBytes((uint8_t*)command, strlen(command), true);
+
+    if (SequansController.waitForByte('>', 1000)) {
+        SequansController.writeBytes((uint8_t*)private_key_data,
+                                     private_key_length,
+                                     true);
+    }
+
+    return SequansController.readResponse();
+}
+
+/**
+ * @brief Asks the user to input a certificate/private key and saves that
+ * the NVM for the Sequans modem at the given @p slot.
  *
  * @param message Inital message presented to the user.
  * @param slot Slot to save the ceritficate/private key in.
- * @param is_certificate Whether to save to certificate or private key space.
+ * @param is_certificate Whether to save to certificate or private key
+ * space.
  *
  * @return true If write was successful.
  */
-static bool requestAndSaveToNonVolatileMemory(const char* message,
-                                              const uint8_t slot,
-                                              const bool is_certificate) {
+static bool requestAndSaveToNVM(const __FlashStringHelper* message,
+                                const uint8_t slot,
+                                const bool is_certificate) {
 
     bool got_data = false;
     char data[4096];
@@ -489,7 +582,7 @@ static bool requestAndSaveToNonVolatileMemory(const char* message,
             char line[65] = "";
 
             if (!readUntilNewLine(line, sizeof(line))) {
-                SerialModule.println("\r\nLine input too long!");
+                SerialModule.println(F("\r\nLine input too long!"));
                 return false;
             }
 
@@ -502,11 +595,11 @@ static bool requestAndSaveToNonVolatileMemory(const char* message,
 
                 SerialModule.print(
                     is_certificate
-                        ? "\r\nCertificate longer than allowed size of "
-                        : "\r\nPrivate key longer than allowed size of ");
+                        ? F("\r\nCertificate longer than allowed size of ")
+                        : F("\r\nPrivate key longer than allowed size of "));
 
                 SerialModule.print(sizeof(data));
-                SerialModule.println(" bytes.\r\n");
+                SerialModule.println(F(" bytes.\r\n"));
 
                 // Flush out the rest of the input. We do this timer based since
                 // just checking available won't catch if there is a light delay
@@ -529,8 +622,7 @@ static bool requestAndSaveToNonVolatileMemory(const char* message,
                 got_data = true;
                 break;
             } else {
-                // Append carriage return as the readString will not inlucde
-                // this character, but only to every line except the last
+                // Append carriage return to every line except the last
                 data[index++] = '\n';
             }
         }
@@ -538,52 +630,26 @@ static bool requestAndSaveToNonVolatileMemory(const char* message,
 
     data[index] = '\0';
 
-    const size_t data_length = strlen(data);
-    char command[48]         = "";
+    SerialModule.print(is_certificate ? F("Writing certificate... ")
+                                      : F("Writing private key... "));
 
-    SerialModule.print(is_certificate ? "Writing certificate... "
-                                      : "Writing private key... ");
-
-    SequansController.clearReceiveBuffer();
+    ResponseResult result = ResponseResult::OK;
 
     if (is_certificate) {
-        // First erase the existing certifiate at the slot (if any)
-        sprintf(command, AT_ERASE_CERTIFICATE, slot);
-        SequansController.writeBytes((uint8_t*)command, strlen(command), true);
-
-        // Dummy read of response, we don't care about the response as the modem
-        // will return an error if there's no certificate to erase and OK if it
-        // was ereased
-        SequansController.readResponse();
-
-        sprintf(command, AT_WRITE_CERTIFICATE, slot, data_length);
+        result = writeCertificate(slot, data);
     } else {
-        sprintf(command, AT_ERASE_PRIVATE_KEY, slot);
-        SequansController.writeBytes((uint8_t*)command, strlen(command), true);
-
-        // Dummy read of response, we don't care about the response as the modem
-        // will return an error if there's no certificate to erase and OK if it
-        // was ereased
-        SequansController.readResponse();
-
-        sprintf(command, AT_WRITE_PRIVATE_KEY, slot, data_length);
+        result = writePrivateKey(slot, data);
     }
 
-    SequansController.writeBytes((uint8_t*)command, strlen(command), true);
-
-    if (SequansController.waitForByte('>', 1000)) {
-        SequansController.writeBytes((uint8_t*)data, data_length, true);
-    }
-
-    if (SequansController.readResponse() != ResponseResult::OK) {
-        SerialModule.println(
-            is_certificate
-                ? "Error occurred whilst storing certificate, please try again."
-                : "Error occurred whilst storing private key, please try "
-                  "again.");
+    if (result != ResponseResult::OK) {
+        SerialModule.print(
+            is_certificate ? F("Error occurred whilst storing certificate.")
+                           : F("Error occurred whilst storing private key."));
+        SerialModule.printf(F(" Error code: %X\r\n"),
+                            static_cast<uint8_t>(result));
         return false;
     } else {
-        SerialModule.println("Done");
+        SerialModule.println(F("Done"));
     }
 
     return true;
@@ -636,7 +702,7 @@ size_t buildASN1Entry(const uint8_t* entry_template,
  *
  * @return The size of the whole entry.
  */
-size_t buildASN1EntryFromUserInput(const char* question,
+size_t buildASN1EntryFromUserInput(const __FlashStringHelper* question,
                                    const size_t max_input_length,
                                    const bool capitalize,
                                    const uint8_t* entry_template,
@@ -709,7 +775,7 @@ static ATCA_STATUS constructCSR(char* pem, size_t* pem_size) {
 
     uint8_t country_code_entry[sizeof(country_code_template) + 2];
     const size_t country_code_entry_length = buildASN1EntryFromUserInput(
-        "Input country code (e.g. US). Press enter when done: ",
+        F("Input country code (e.g. US). Press enter when done: "),
         2,
         true,
         country_code_template,
@@ -723,7 +789,7 @@ static ATCA_STATUS constructCSR(char* pem, size_t* pem_size) {
                                      32];
     const size_t state_or_province_name_entry_length =
         buildASN1EntryFromUserInput(
-            "Input state or province name. Press enter when done: ",
+            F("Input state or province name. Press enter when done: "),
             32,
             false,
             state_or_province_name_template,
@@ -734,7 +800,7 @@ static ATCA_STATUS constructCSR(char* pem, size_t* pem_size) {
 
     uint8_t locality_name_entry[sizeof(locality_name_template) + 32];
     const size_t locality_name_entry_length = buildASN1EntryFromUserInput(
-        "Input locality name (e.g. city). Press enter when done: ",
+        F("Input locality name (e.g. city). Press enter when done: "),
         32,
         false,
         locality_name_template,
@@ -902,45 +968,349 @@ static ATCA_STATUS constructCSR(char* pem, size_t* pem_size) {
     return (ATCA_STATUS)atcacert_create_csr_pem(&csr_definition, pem, pem_size);
 }
 
-void provisionMqtt() {
+// -----------------------------------------------------------------------------
+//                                  Azure
+// -----------------------------------------------------------------------------
 
-    SerialModule.println("\r\n\r\n--- MQTT Provisioning ---");
+#define DIGI_CERT_GLOBAL_ROOT_G2 (1)
+#define BALTIMORE_CYBER_TRUST    (2)
+
+const char digi_cert_global_root_g2[] PROGMEM =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh\n"
+    "MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\n"
+    "d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH\n"
+    "MjAeFw0xMzA4MDExMjAwMDBaFw0zODAxMTUxMjAwMDBaMGExCzAJBgNVBAYTAlVT\n"
+    "MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j\n"
+    "b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IEcyMIIBIjANBgkqhkiG\n"
+    "9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuzfNNNx7a8myaJCtSnX/RrohCgiN9RlUyfuI\n"
+    "2/Ou8jqJkTx65qsGGmvPrC3oXgkkRLpimn7Wo6h+4FR1IAWsULecYxpsMNzaHxmx\n"
+    "1x7e/dfgy5SDN67sH0NO3Xss0r0upS/kqbitOtSZpLYl6ZtrAGCSYP9PIUkY92eQ\n"
+    "q2EGnI/yuum06ZIya7XzV+hdG82MHauVBJVJ8zUtluNJbd134/tJS7SsVQepj5Wz\n"
+    "tCO7TG1F8PapspUwtP1MVYwnSlcUfIKdzXOS0xZKBgyMUNGPHgm+F6HmIcr9g+UQ\n"
+    "vIOlCsRnKPZzFBQ9RnbDhxSJITRNrw9FDKZJobq7nMWxM4MphQIDAQABo0IwQDAP\n"
+    "BgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBhjAdBgNVHQ4EFgQUTiJUIBiV\n"
+    "5uNu5g/6+rkS7QYXjzkwDQYJKoZIhvcNAQELBQADggEBAGBnKJRvDkhj6zHd6mcY\n"
+    "1Yl9PMWLSn/pvtsrF9+wX3N3KjITOYFnQoQj8kVnNeyIv/iPsGEMNKSuIEyExtv4\n"
+    "NeF22d+mQrvHRAiGfzZ0JFrabA0UWTW98kndth/Jsw1HKj2ZL7tcu7XUIOGZX1NG\n"
+    "Fdtom/DzMNU+MeKNhJ7jitralj41E6Vf8PlwUHBHQRFXGU7Aj64GxJUTFy8bJZ91\n"
+    "8rGOmaFvE7FBcf6IKshPECBV1/MUReXgRPTqh5Uykw7+U0b6LJ3/iyK5S9kJRaTe\n"
+    "pLiaWN0bfVKfjllDiIGknibVb63dDcY3fe0Dkhvld1927jyNxF1WW6LZZm6zNTfl\n"
+    "MrY=\n"
+    "-----END CERTIFICATE-----";
+
+const char baltimore_cyber_trust[] PROGMEM =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIDdzCCAl+gAwIBAgIEAgAAuTANBgkqhkiG9w0BAQUFADBaMQswCQYDVQQGEwJJ\n"
+    "RTESMBAGA1UEChMJQmFsdGltb3JlMRMwEQYDVQQLEwpDeWJlclRydXN0MSIwIAYD\n"
+    "VQQDExlCYWx0aW1vcmUgQ3liZXJUcnVzdCBSb290MB4XDTAwMDUxMjE4NDYwMFoX\n"
+    "DTI1MDUxMjIzNTkwMFowWjELMAkGA1UEBhMCSUUxEjAQBgNVBAoTCUJhbHRpbW9y\n"
+    "ZTETMBEGA1UECxMKQ3liZXJUcnVzdDEiMCAGA1UEAxMZQmFsdGltb3JlIEN5YmVy\n"
+    "VHJ1c3QgUm9vdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKMEuyKr\n"
+    "mD1X6CZymrV51Cni4eiVgLGw41uOKymaZN+hXe2wCQVt2yguzmKiYv60iNoS6zjr\n"
+    "IZ3AQSsBUnuId9Mcj8e6uYi1agnnc+gRQKfRzMpijS3ljwumUNKoUMMo6vWrJYeK\n"
+    "mpYcqWe4PwzV9/lSEy/CG9VwcPCPwBLKBsua4dnKM3p31vjsufFoREJIE9LAwqSu\n"
+    "XmD+tqYF/LTdB1kC1FkYmGP1pWPgkAx9XbIGevOF6uvUA65ehD5f/xXtabz5OTZy\n"
+    "dc93Uk3zyZAsuT3lySNTPx8kmCFcB5kpvcY67Oduhjprl3RjM71oGDHweI12v/ye\n"
+    "jl0qhqdNkNwnGjkCAwEAAaNFMEMwHQYDVR0OBBYEFOWdWTCCR1jMrPoIVDaGezq1\n"
+    "BE3wMBIGA1UdEwEB/wQIMAYBAf8CAQMwDgYDVR0PAQH/BAQDAgEGMA0GCSqGSIb3\n"
+    "DQEBBQUAA4IBAQCFDF2O5G9RaEIFoN27TyclhAO992T9Ldcw46QQF+vaKSm2eT92\n"
+    "9hkTI7gQCvlYpNRhcL0EYWoSihfVCr3FvDB81ukMJY2GQE/szKN+OMY3EU/t3Wgx\n"
+    "jkzSswF07r51XgdIGn9w/xZchMB5hbgF/X++ZRGjD8ACtPhSNzkE1akxehi/oCr0\n"
+    "Epn3o0WC4zxe9Z2etciefC7IpJ5OCBRLbf1wbWsaY71k5h+3zvDyny67G7fyUIhz\n"
+    "ksLi4xaNmjICq44Y3ekQEe5+NauQrz4wlHrQMz2nZQ/1/I6eYs9HRCwBXbsdtTLS\n"
+    "R9I4LtD+gdwyah617jzV/OeBHRnDJELqYzmp\n"
+    "-----END CERTIFICATE-----";
+
+void azureIoTHubMqttProvision() {
+
+    SerialModule.println();
+
+    // ------------------------------------------------------------------------
+    //                  Step 1: Choosing IoT Hub root CA
+    // ------------------------------------------------------------------------
+
+    //  We use the default root certificates:
+    // - DigiCert Global Root G2
+    // - Baltimore CyberTrust Root
+
+    const uint8_t ca_type = askNumberedQuestion(
+        F("\r\nWhich root CA do you want to use? If unsure, double check in "
+          "your "
+          "Azure IoT Hub.\r\n"
+          "1: DigiCert Global Root G2\r\n"
+          "2: Baltimore CyberTrust Root\r\n"
+          "Please choose (press enter when done): "),
+        1,
+        2);
+
+    SerialModule.println("\r\n");
+
+    // Force a scope here to make sure the CA buffer is popped from the stack
+    {
+        // The maximum of the two certificates is 1294 bytes
+        char ca_buffer[1300] = "";
+
+        switch (ca_type) {
+        case DIGI_CERT_GLOBAL_ROOT_G2:
+            strcpy_P(ca_buffer, digi_cert_global_root_g2);
+            break;
+        case BALTIMORE_CYBER_TRUST:
+            strcpy_P(ca_buffer, baltimore_cyber_trust);
+            break;
+
+        default:
+            break;
+        }
+
+        ResponseResult result = writeCertificate(MQTT_CUSTOM_CA_SLOT,
+                                                 ca_buffer);
+
+        if (result != ResponseResult::OK) {
+            SerialModule.printf(F("Error occurred whilst storing CA "
+                                  "certificate, error code: %X."),
+                                static_cast<uint8_t>(result));
+            return;
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    //     Step 2: Store the IoT Hub hostname and the device ID in the ECC
+    // ------------------------------------------------------------------------
+
+    char hostname[128] = "";
+    askInputQuestion(
+        F("Input Azure IoT Hub hostname, it should be on the form: "
+          "<your-iot-hub-name>.azure-devices.net\r\nPress enter when done: "),
+        hostname,
+        sizeof(hostname) - 1);
+
+    SerialModule.println("\r\n");
+
+    ATCA_STATUS atca_status = ATCA_SUCCESS;
+
+    if ((atca_status = ECC608.begin()) != ATCA_SUCCESS) {
+        SerialModule.printf(F("Failed to initialize the ECC608 to store the "
+                              "Azure IoT hostname, error code: %X.\r\n"),
+                            atca_status);
+        return;
+    }
+
+    // The device ID is the common name field of the device certificate, which
+    // consists of the serial number, so we don't need to query that
+
+    // The serial number is 9 bytes
+    uint8_t serial_number[9];
+
+    if ((atca_status = atcab_read_serial_number(serial_number)) !=
+        ATCA_SUCCESS) {
+        SerialModule.printf(F("Failed to read the serial number from the "
+                              "ECC, error code: %X\r\n"),
+                            atca_status);
+        return;
+    }
+
+    // Common name in the device certificate is given by snXXXXXXXXXXXXXXXXXX,
+    // where every pair of XX is the hexidecimal of the serial number digits
+    //
+    // We add 2 here to have place for the "sn" and 1 for NULL termination.
+    char common_name[18 + 2 + 1] = "";
+
+    snprintf(common_name,
+             sizeof(common_name),
+             "sn%02X%02X%02X%02X%02X%02X%02X%02X%02X",
+             serial_number[0],
+             serial_number[1],
+             serial_number[2],
+             serial_number[3],
+             serial_number[4],
+             serial_number[5],
+             serial_number[6],
+             serial_number[7],
+             serial_number[8]);
+
+    const enum ecc_data_types types[2] = {AZURE_IOT_HUB_NAME, AZURE_DEVICE_ID};
+    const char* provision_data[2]      = {hostname, common_name};
+    const size_t provision_data_sizes[2] = {strlen(hostname),
+                                            strlen(common_name)};
+
+    atca_status = ECC608.writeProvisionData(2,
+                                            types,
+                                            (const uint8_t**)provision_data,
+                                            provision_data_sizes);
+
+    if (atca_status != ATCA_SUCCESS) {
+        SerialModule.printf(
+            F("Failed to write the provision data to the ECC608, "
+              "error code: %X\r\n"),
+            atca_status);
+        return;
+    }
+
+    // ------------------------------------------------------------------------
+    //                  Step 3: Writing security profile
+    // ------------------------------------------------------------------------
+
+    // We use TLS 1.2 for Azure IoT Hub and automatically detect ciphers.
+
+    char command[strlen_P(AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES) + 16] =
+        "";
+
+    snprintf_P(command,
+               sizeof(command),
+               AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES,
+               2,
+               "",
+               1,
+               MQTT_CUSTOM_CA_SLOT,
+               MQTT_PUBLIC_KEY_SLOT,
+               MQTT_PRIVATE_KEY_SLOT,
+               "",
+               "");
+
+    // ------------------------------------------------------------------------
+    //              Step 4: Write device certificate to modem
+    // ------------------------------------------------------------------------
+
+    // We need to generate the SHA256 sum of the device certificate for the user
+    // to input into Azure IoT Hub as well as storing the device certificate in
+    // the modem
+
+    // The SHA256 is 64 hexidecimal characters + NULL termination
+    char device_certificate_sha256[64 + 1] = "";
+
+    {
+        size_t device_certificate_size = 0;
+
+        int atcacert_status = ATCACERT_E_SUCCESS;
+
+        if ((atcacert_status = ECC608.getDeviceCertificateSize(
+                 &device_certificate_size)) != ATCACERT_E_SUCCESS) {
+            SerialModule.printf(F("Failed to get the size of the device "
+                                  "certificate, error code: %X.\r\n"),
+                                atcacert_status);
+            return;
+        }
+
+        uint8_t device_certificate[device_certificate_size];
+
+        if ((atcacert_status = ECC608.getDeviceCertificate(
+                 device_certificate,
+                 &device_certificate_size)) != ATCACERT_E_SUCCESS) {
+            SerialModule.printf(F("Failed to get the device certificate, "
+                                  "error code: %X.\r\n"),
+                                atcacert_status);
+            return;
+        }
+
+        ResponseResult result = writeCertificate(MQTT_PUBLIC_KEY_SLOT,
+                                                 (char*)device_certificate);
+
+        if (result != ResponseResult::OK) {
+            SerialModule.printf(F("Failed to write device certificate to "
+                                  "modem, error code: %X.\r\n"),
+                                static_cast<uint8_t>(result));
+            return;
+        }
+
+        // Now lets generate the SHA 256 sum. The result is 32 bytes which is
+        // then converted to 64 bytes of hexadecimals
+        uint8_t result[32];
+        atcab_hw_sha2_256(device_certificate, device_certificate_size, result);
+
+        if ((atca_status = atcab_hw_sha2_256(device_certificate,
+                                             device_certificate_size,
+                                             result)) != ATCA_SUCCESS) {
+            SerialModule.printf(
+                F("Failed to generate SHA256 thumbprint of device "
+                  "certificate, error code: %X.\r\n"),
+                atca_status);
+            return;
+        }
+
+        // Convert to hexadecimals
+        const char hex_conversion[] = "0123456789abcdef";
+
+        for (uint8_t i = 0; i < sizeof(result); i++) {
+            device_certificate_sha256[i * 2] =
+                hex_conversion[(result[i] >> 4) & 0x0F];
+            device_certificate_sha256[i * 2 + 1] =
+                hex_conversion[result[i] & 0x0F];
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    //         Step 5: Print out Azure IoT Hub instructions for user
+    // ------------------------------------------------------------------------
+
+    // The user needs to use the common name of the device certificate as the
+    // Azure IoT Hub device ID and the SHA256 sum of the device certificate as
+    // the thumbprints
+
+    SerialModule.printf(
+        F("The provisioning is now complete on the device part. "
+          "Please follow the instructions\r\nbelow to complete the "
+          "provisioning on the Azure IoT Hub side:\r\n"
+          "1. Go to the Azure IoT Hub portal and select your "
+          "IoT Hub\r\n"
+          "2. Select \"Devices\" in the menu to the left "
+          "and then click \"Add Device\"\r\n"
+          "3. Input the following as the device ID (this is the common name "
+          "of "
+          "the ECC device certificate): %s\r\n"
+          "4. Input the following as the primary and secondary thumbprint "
+          "(this "
+          "is the SHA256 sum of the device certificate): %s\r\n"),
+        common_name,
+        device_certificate_sha256);
+
+    // Dummy question to make sure user reads the instructions
+    askInputQuestion(F("\r\nPress enter to return to the main menu"),
+                     nullptr,
+                     0);
+}
+
+// -----------------------------------------------------------------------------
+//                          Other MQTT services
+// -----------------------------------------------------------------------------
+
+void otherServiceMqttProvision() {
+
+    SerialModule.println();
 
     // ------------------------------------------------------------------------
     //              Step 1: Choosing authentication method
     // ------------------------------------------------------------------------
 
-    SerialModule.println();
-
     const uint8_t method = askNumberedQuestion(
-        "Which method do you want to use?\r\n"
-        "1: MQTT TLS unauthenticated or with username and password\r\n"
-        "2: MQTT TLS with public and private key pair certificates\r\n"
-        "Please choose (press enter when done): ",
+        F("\r\nWhich method do you want to use?\r\n"
+          "1: MQTT TLS unauthenticated or with username and password\r\n"
+          "2: MQTT TLS with public and private key pair certificates\r\n"
+          "Please choose (press enter when done): "),
         1,
         2);
 
-    SerialModule.println("\r\n\r\n");
+    SerialModule.println("\r\n");
 
     // ------------------------------------------------------------------------
     //                      Step 2: Choosing TLS version
     // ------------------------------------------------------------------------
 
     uint8_t tls_version = askNumberedQuestion(
-        "Which TLS version do you want to use?\r\n"
-        "1: TLS 1\r\n"
-        "2: TLS 1.1\r\n"
-        "3: TLS 1.2 (default)\r\n"
-        "4: TLS 1.3\r\n"
-        "Please choose (press enter when done): ",
+        F("Which TLS version do you want to use?\r\n"
+          "1: TLS 1\r\n"
+          "2: TLS 1.1\r\n"
+          "3: TLS 1.2 (default)\r\n"
+          "4: TLS 1.3\r\n"
+          "Please choose (press enter when done): "),
         1,
         4);
 
     // We present the choices for TLS 1 indexed for the user, but the modem uses
-    // 0 indexed, so just substract
+    // 0 indexed
     tls_version -= 1;
 
-    SerialModule.println("\r\n\r\n");
+    SerialModule.println("\r\n");
 
     // ------------------------------------------------------------------------
     //                      Step 3: Choosing ciphers
@@ -967,10 +1337,10 @@ void provisionMqtt() {
         }
 
         SerialModule.println(
-            "Which cipher(s) do you want to use? Leave blank for the "
-            "cipher to be chosen automatically.\r\nSelect "
-            "multiple ciphers by comma between the indices (e.g. 1,2,3 for "
-            "the first three ciphers)");
+            F("Which cipher(s) do you want to use? Leave blank for the "
+              "cipher to be chosen automatically.\r\nSelect "
+              "multiple ciphers by comma between the indices (e.g. 1,2,3 for "
+              "the first three ciphers)"));
 
         char line[164] = "";
 
@@ -998,13 +1368,13 @@ void provisionMqtt() {
         }
 
         SerialModule.print(
-            "\r\nPlease choose. Press enter when done (leave blank "
-            "for cipher to be chosen automatically): ");
+            F("\r\nPlease choose. Press enter when done (leave blank "
+              "for cipher to be chosen automatically): "));
 
         char cipher_input[128] = "";
 
         if (!readUntilNewLine(cipher_input, sizeof(cipher_input))) {
-            SerialModule.println("\r\nInput too long!");
+            SerialModule.println(F("\r\nInput too long!"));
             continue;
         }
 
@@ -1028,7 +1398,7 @@ void provisionMqtt() {
                     // Choices in the serial input are 1 indexed, so do -1
                     ciphers_chosen[cipher_index - 1] = true;
                 } else {
-                    SerialModule.print("\r\nUnknown cipher selected: ");
+                    SerialModule.print(F("\r\nUnknown cipher selected: "));
                     SerialModule.println(ptr);
                     has_chosen_ciphers = false;
                     break;
@@ -1040,9 +1410,9 @@ void provisionMqtt() {
     }
 
     if (chose_automatic_cipher_selection) {
-        SerialModule.println("\r\n\r\nCipher will be detected automatically");
+        SerialModule.println(F("\r\nCipher will be detected automatically"));
     } else {
-        SerialModule.println("\r\n\r\nCiphers chosen:");
+        SerialModule.println(F("\r\nCiphers chosen:"));
 
         // First just record how many ciphers that were chosen
         for (uint8_t i = 0; i < NUMBER_OF_CIPHERS; i++) {
@@ -1098,15 +1468,15 @@ void provisionMqtt() {
         // --------------------------------------------------------------------
         if (has_chosen_psk_cipher) {
 
-            SerialModule.println("\r\nYou have chosen a pre-shared key (PSK) "
-                                 "cipher\r\n");
+            SerialModule.println(F("\r\nYou have chosen a pre-shared key (PSK) "
+                                   "cipher\r\n"));
 
             while (true) {
                 SerialModule.print(
-                    "Please input the PSK (press enter when done): ");
+                    F("Please input the PSK (press enter when done): "));
 
                 if (!readUntilNewLine(psk, sizeof(psk))) {
-                    SerialModule.println("\r\nInput too long!");
+                    SerialModule.println(F("\r\nInput too long!"));
                 } else {
                     break;
                 }
@@ -1115,11 +1485,11 @@ void provisionMqtt() {
             SerialModule.println();
 
             while (true) {
-                SerialModule.print("Please input the PSK identity (press "
-                                   "enter when done): ");
+                SerialModule.print(F("Please input the PSK identity (press "
+                                     "enter when done): "));
 
                 if (!readUntilNewLine(psk_identity, sizeof(psk_identity))) {
-                    SerialModule.println("\r\nInput too long!");
+                    SerialModule.println(F("\r\nInput too long!"));
                 } else {
                     break;
                 }
@@ -1136,21 +1506,21 @@ void provisionMqtt() {
     // --------------------------------------------------------------------
 
     bool load_custom_ca = askCloseEndedQuestion(
-        "\r\nDo you want to load a custom certificate authority "
-        "certificate?");
+        F("Do you want to load a custom certificate authority "
+          "certificate?"));
 
     if (load_custom_ca) {
         ca_index = MQTT_CUSTOM_CA_SLOT;
 
         SerialModule.println("\r\n");
 
-        while (!requestAndSaveToNonVolatileMemory(
-            "Please paste in the CA certifiate and press enter. It "
-            "should "
-            "be on the follwing form:\r\n"
-            "-----BEGIN CERTIFICATE-----\r\n"
-            "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA==\r\n"
-            "-----END CERTIFICATE-----\r\n\r\n",
+        while (!requestAndSaveToNVM(
+            F("Please paste in the CA certifiate and press enter. It "
+              "should "
+              "be on the follwing form:\r\n"
+              "-----BEGIN CERTIFICATE-----\r\n"
+              "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA==\r\n"
+              "-----END CERTIFICATE-----\r\n\r\n"),
             ca_index,
             true)) {
             SerialModule.println("\r\n");
@@ -1167,35 +1537,36 @@ void provisionMqtt() {
 
         // For regular TLS without public and private key pair we're done now,
         // just need to write the command
-        SerialModule.print("Provisioning...");
+        SerialModule.print(F("Provisioning..."));
 
-        char command[strlen(AT_MQTT_SECURITY_PROFILE) + sizeof(ciphers) +
+        char command[strlen_P(AT_MQTT_SECURITY_PROFILE) + sizeof(ciphers) +
                      sizeof(psk) + sizeof(psk_identity) + 64] = "";
 
-        sprintf(command,
-                AT_MQTT_SECURITY_PROFILE,
-                tls_version,
-                ciphers,
-                1,
-                ca_index,
-                psk,
-                psk_identity);
+        snprintf_P(command,
+                   sizeof(command),
+                   AT_MQTT_SECURITY_PROFILE,
+                   tls_version,
+                   ciphers,
+                   1,
+                   ca_index,
+                   psk,
+                   psk_identity);
 
         SequansController.writeBytes((uint8_t*)command, strlen(command), true);
 
         // Wait for URC confirming the security profile
         if (!SequansController.waitForURC("SQNSPCFG", NULL, 0, 4000)) {
-            SerialModule.print("Error whilst doing the provisioning");
+            SerialModule.print(F("Error whilst doing the provisioning"));
         } else {
-            SerialModule.print(" Done!");
+            SerialModule.print(F(" Done!"));
         }
 
     } else {
 
         bool use_ecc = askCloseEndedQuestion(
-            "Do you want to utilize the ECC cryptography chip rather than "
-            "storing the certificates in the non-volatile memory of the "
-            "modem?");
+            F("Do you want to utilize the ECC cryptography chip rather than "
+              "storing the certificates in the non-volatile memory of the "
+              "modem?"));
 
         SerialModule.println("\r\n");
 
@@ -1213,14 +1584,14 @@ void provisionMqtt() {
             ATCA_STATUS status = constructCSR(pem, &pem_size);
 
             if (status != ATCA_SUCCESS) {
-                SerialModule.print("Failed to create CSR, error code: ");
+                SerialModule.print(F("Failed to create CSR, error code: "));
                 SerialModule.println(status);
                 return;
             }
 
             SerialModule.println(
-                "\r\n\r\nPlease use the following CSR and sign it "
-                "with your MQTT broker:\r\n");
+                F("\r\n\r\nPlease use the following CSR and sign it "
+                  "with your MQTT broker:\r\n"));
 
             SerialModule.println(pem);
             SerialModule.println("\r\n");
@@ -1230,14 +1601,14 @@ void provisionMqtt() {
             //          broker after using the CSR
             // -----------------------------------------------------------------
 
-            while (!requestAndSaveToNonVolatileMemory(
-                "Please paste in the public key certifiate provide by "
-                "your broker after having signed the CSR\r\nand press "
-                "enter. It should be on the follwing form:\r\n"
-                "-----BEGIN CERTIFICATE-----\r\n"
-                "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA=="
-                "\r\n"
-                "-----END CERTIFICATE-----\r\n\r\n",
+            while (!requestAndSaveToNVM(
+                F("Please paste in the public key certifiate provide by "
+                  "your broker after having signed the CSR\r\nand press "
+                  "enter. It should be on the follwing form:\r\n"
+                  "-----BEGIN CERTIFICATE-----\r\n"
+                  "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA=="
+                  "\r\n"
+                  "-----END CERTIFICATE-----\r\n\r\n"),
                 MQTT_PUBLIC_KEY_SLOT,
                 true)) {
                 SerialModule.println("\r\n");
@@ -1248,23 +1619,24 @@ void provisionMqtt() {
             // -----------------------------------------------------------------
 
             SerialModule.println();
-            SerialModule.print("--- Provisioning...");
+            SerialModule.print(F("--- Provisioning..."));
 
-            char
-                command[strlen(AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES_ECC) +
-                        sizeof(ciphers) + sizeof(psk) + sizeof(psk_identity) +
-                        64] = "";
+            char command[strlen_P(
+                             AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES_ECC) +
+                         sizeof(ciphers) + sizeof(psk) + sizeof(psk_identity) +
+                         64] = "";
 
-            sprintf(command,
-                    AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES_ECC,
-                    tls_version,
-                    ciphers,
-                    1,
-                    ca_index,
-                    MQTT_PUBLIC_KEY_SLOT,
-                    MQTT_PRIVATE_KEY_SLOT,
-                    psk,
-                    psk_identity);
+            snprintf_P(command,
+                       sizeof(command),
+                       AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES_ECC,
+                       tls_version,
+                       ciphers,
+                       1,
+                       ca_index,
+                       MQTT_PUBLIC_KEY_SLOT,
+                       MQTT_PRIVATE_KEY_SLOT,
+                       psk,
+                       psk_identity);
 
             SequansController.writeBytes((uint8_t*)command,
                                          strlen(command),
@@ -1272,9 +1644,10 @@ void provisionMqtt() {
 
             // Wait for URC confirming the security profile
             if (!SequansController.waitForURC("SQNSPCFG", NULL, 0, 4000)) {
-                SerialModule.print(" Error whilst doing the provisioning ---");
+                SerialModule.print(
+                    F(" Error whilst doing the provisioning ---"));
             } else {
-                SerialModule.print(" Done! ---");
+                SerialModule.print(F(" Done! ---"));
             }
 
         } else {
@@ -1283,25 +1656,25 @@ void provisionMqtt() {
             //           Step 5: Load user's certificate and private key
             // -----------------------------------------------------------------
 
-            while (!requestAndSaveToNonVolatileMemory(
-                "Please paste in the public key certifiate and press "
-                "enter. It "
-                "should be on the follwing form:\r\n"
-                "-----BEGIN CERTIFICATE-----\r\n"
-                "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA==\r\n"
-                "-----END CERTIFICATE-----\r\n\r\n",
+            while (!requestAndSaveToNVM(
+                F("Please paste in the public key certifiate and press "
+                  "enter. It "
+                  "should be on the follwing form:\r\n"
+                  "-----BEGIN CERTIFICATE-----\r\n"
+                  "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA==\r\n"
+                  "-----END CERTIFICATE-----\r\n\r\n"),
                 MQTT_PUBLIC_KEY_SLOT,
                 true)) {
                 SerialModule.println("\r\n");
             }
 
             SerialModule.println("\r\n");
-            while (!requestAndSaveToNonVolatileMemory(
-                "Please paste in the private key and press enter. "
-                "It should be on the following form:\r\n"
-                "-----BEGIN RSA/EC PRIVATE KEY-----\r\n"
-                "...\r\n"
-                "-----END RSA/EC PRIVATE KEY-----\r\n\r\n",
+            while (!requestAndSaveToNVM(
+                F("Please paste in the private key and press enter. "
+                  "It should be on the following form:\r\n"
+                  "-----BEGIN RSA/EC PRIVATE KEY-----\r\n"
+                  "...\r\n"
+                  "-----END RSA/EC PRIVATE KEY-----\r\n\r\n"),
                 MQTT_PRIVATE_KEY_SLOT,
                 false)) {
                 SerialModule.println("\r\n");
@@ -1312,22 +1685,23 @@ void provisionMqtt() {
             // -----------------------------------------------------------------
 
             SerialModule.println();
-            SerialModule.print("--- Provisioning...");
+            SerialModule.print(F("--- Provisioning..."));
 
-            char command[strlen(AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES) +
+            char command[strlen_P(AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES) +
                          sizeof(ciphers) + sizeof(psk) + sizeof(psk_identity) +
                          64] = "";
 
-            sprintf(command,
-                    AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES,
-                    tls_version,
-                    ciphers,
-                    1,
-                    ca_index,
-                    MQTT_PUBLIC_KEY_SLOT,
-                    MQTT_PRIVATE_KEY_SLOT,
-                    psk,
-                    psk_identity);
+            snprintf_P(command,
+                       sizeof(command),
+                       AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES,
+                       tls_version,
+                       ciphers,
+                       1,
+                       ca_index,
+                       MQTT_PUBLIC_KEY_SLOT,
+                       MQTT_PRIVATE_KEY_SLOT,
+                       psk,
+                       psk_identity);
 
             SequansController.writeBytes((uint8_t*)command,
                                          strlen(command),
@@ -1335,9 +1709,10 @@ void provisionMqtt() {
 
             // Wait for URC confirming the security profile
             if (!SequansController.waitForURC("SQNSPCFG", NULL, 0, 4000)) {
-                SerialModule.print(" Error whilst doing the provisioning ---");
+                SerialModule.print(
+                    F(" Error whilst doing the provisioning ---"));
             } else {
-                SerialModule.print(" Done! ---");
+                SerialModule.print(F(" Done! ---"));
             }
         }
 
@@ -1345,21 +1720,46 @@ void provisionMqtt() {
     }
 }
 
+void provisionMqtt() {
+
+    SerialModule.println(F("\r\n\r\n--- MQTT Provisioning ---\r\n"));
+
+    const uint8_t service_choice = askNumberedQuestion(
+        F("Which service do you want to use?\r\n"
+          "1: Azure IoT Hub\r\n"
+          "2: Other\r\n"
+          "Please choose (press enter when done): "),
+        1,
+        2);
+
+    Service service = static_cast<Service>(service_choice);
+
+    switch (service) {
+    case Service::AzureIoTHub:
+        azureIoTHubMqttProvision();
+        break;
+
+    case Service::Other:
+        otherServiceMqttProvision();
+        break;
+    }
+}
+
 void provisionHttp() {
 
-    SerialModule.println("\r\n\r\n--- HTTP Provisioning ---");
+    SerialModule.println(F("\r\n\r\n--- HTTP Provisioning ---\r\n"));
 
     // ------------------------------------------------------------------------
     //                      Step 1: Choosing TLS version
     // ------------------------------------------------------------------------
 
     uint8_t tls_version = askNumberedQuestion(
-        "Which TLS version do you want to use?\r\n"
-        "1: TLS 1\r\n"
-        "2: TLS 1.1\r\n"
-        "3: TLS 1.2 (default)\r\n"
-        "4: TLS 1.3\r\n"
-        "Please choose (press enter when done): ",
+        F("Which TLS version do you want to use?\r\n"
+          "1: TLS 1\r\n"
+          "2: TLS 1.1\r\n"
+          "3: TLS 1.2 (default)\r\n"
+          "4: TLS 1.3\r\n"
+          "Please choose (press enter when done): "),
         1,
         4);
 
@@ -1376,22 +1776,22 @@ void provisionHttp() {
     uint8_t ca_index = DEFAULT_CA_SLOT;
 
     bool load_custom_ca = askCloseEndedQuestion(
-        "\r\nDo you want to load a custom certificate authority "
-        "certificate?");
+        F("Do you want to load a custom certificate authority "
+          "certificate?"));
 
     if (load_custom_ca) {
         ca_index = HTTP_CUSTOM_CA_SLOT;
 
         SerialModule.println("\r\n");
 
-        while (!requestAndSaveToNonVolatileMemory(
-            "Please paste in the CA certifiate and press enter. It "
-            "should "
-            "be on the follwing form:\r\n"
-            "-----BEGIN CERTIFICATE-----\r\n"
-            "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA=="
-            "\r\n"
-            "-----END CERTIFICATE-----\r\n\r\n",
+        while (!requestAndSaveToNVM(
+            F("Please paste in the CA certifiate and press enter. It "
+              "should "
+              "be on the follwing form:\r\n"
+              "-----BEGIN CERTIFICATE-----\r\n"
+              "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA=="
+              "\r\n"
+              "-----END CERTIFICATE-----\r\n\r\n"),
             ca_index,
             true)) {
             SerialModule.println("\r\n");
@@ -1406,19 +1806,24 @@ void provisionHttp() {
 
     SerialModule.println();
 
-    SerialModule.print("--- Provisioning...");
+    SerialModule.print(F("--- Provisioning..."));
 
-    char command[strlen(AT_HTTPS_SECURITY_PROFILE) + 64] = "";
+    char command[strlen_P(AT_HTTPS_SECURITY_PROFILE) + 64] = "";
 
-    sprintf(command, AT_HTTPS_SECURITY_PROFILE, tls_version, 1, ca_index);
+    snprintf_P(command,
+               sizeof(command),
+               AT_HTTPS_SECURITY_PROFILE,
+               tls_version,
+               1,
+               ca_index);
 
     SequansController.writeBytes((uint8_t*)command, strlen(command), true);
 
     // Wait for URC confirming the security profile
     if (!SequansController.waitForURC("SQNSPCFG", NULL, 0, 4000)) {
-        SerialModule.print(" Error whilst doing the provisioning ---");
+        SerialModule.print(F(" Error whilst doing the provisioning ---"));
     } else {
-        SerialModule.print(" Done! ---");
+        SerialModule.print(F(" Done! ---"));
     }
 
     SequansController.clearReceiveBuffer();
@@ -1435,28 +1840,24 @@ void setup() {
 }
 
 void loop() {
-    SerialModule.println(
-        "\r\n\r\n\r\n=== Provisioning for AVR-IoT Cellular Mini ===");
 
-    SerialModule.println("\r\n");
+    SerialModule.println(
+        F("\r\n\r\n\r\n=== Provisioning for AVR-IoT Cellular Mini ===\r\n"));
 
     const uint8_t provision_type = askNumberedQuestion(
-        "What do you want to provision?\r\n"
-        "1: MQTT\r\n"
-        "2: HTTP\r\n"
-        "Please choose (press enter when done): ",
+        F("What do you want to provision?\r\n"
+          "1: MQTT\r\n"
+          "2: HTTP\r\n"
+          "Please choose (press enter when done): "),
         1,
         2);
 
     switch (provision_type) {
     case 1:
-
-        SerialModule.println("\r\n");
         provisionMqtt();
         break;
 
     case 2:
-        SerialModule.println("\r\n");
         provisionHttp();
         break;
     }

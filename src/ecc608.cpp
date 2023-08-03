@@ -29,6 +29,14 @@ struct DataHeader {
     uint16_t type : 7; // Type of current item, see provision_data.h
 };
 
+/**
+ * @brief Convenience union for reading/writing header data.
+ */
+typedef union {
+    struct DataHeader header;
+    uint8_t bytes[sizeof(struct DataHeader)];
+} HeaderUnion;
+
 ECC608Class ECC608 = ECC608Class::instance();
 
 ATCA_STATUS ECC608Class::begin() {
@@ -57,12 +65,7 @@ ATCA_STATUS ECC608Class::readProvisionItem(const enum ecc_data_types type,
                                            size_t* size) {
 
     ATCA_STATUS atca_status = ATCA_SUCCESS;
-
-    // Use union for data header to avoid pointer casting
-    union {
-        struct DataHeader header;
-        uint8_t bytes[sizeof(struct DataHeader)];
-    } h;
+    HeaderUnion header_union;
 
     size_t slot_size;
     uint16_t offset = 0;
@@ -82,25 +85,27 @@ ATCA_STATUS ECC608Class::readProvisionItem(const enum ecc_data_types type,
         if ((atca_status = atcab_read_bytes_zone(ATCA_ZONE_DATA,
                                                  SLOT_NUM,
                                                  offset,
-                                                 h.bytes,
-                                                 sizeof(h))) != ATCA_SUCCESS) {
+                                                 header_union.bytes,
+                                                 sizeof(HeaderUnion))) !=
+            ATCA_SUCCESS) {
             *size = 0;
             return atca_status;
         }
 
-        if (h.header.type == type) {
-            size_t data_size = h.header.next - offset - sizeof(h);
+        if (header_union.header.type == type) {
+            size_t data_size = header_union.header.next - offset -
+                               sizeof(HeaderUnion);
 
             // Make sure there is room for \0 terminator
             if (data_size + 1 <= *size) {
 
                 // Read the actual data item
-                if ((atca_status = atcab_read_bytes_zone(ATCA_ZONE_DATA,
-                                                         SLOT_NUM,
-                                                         offset + sizeof(h),
-                                                         buffer,
-                                                         data_size)) !=
-                    ATCA_SUCCESS) {
+                if ((atca_status = atcab_read_bytes_zone(
+                         ATCA_ZONE_DATA,
+                         SLOT_NUM,
+                         offset + sizeof(HeaderUnion),
+                         buffer,
+                         data_size)) != ATCA_SUCCESS) {
                     *size = 0;
                     return atca_status;
                 }
@@ -115,13 +120,105 @@ ATCA_STATUS ECC608Class::readProvisionItem(const enum ecc_data_types type,
                 return ATCA_SMALL_BUFFER;
             }
         }
-        offset = h.header.next;
+        offset = header_union.header.next;
 
-    } while (h.header.type != EMPTY && offset + sizeof(h) <= slot_size);
+    } while (header_union.header.type != EMPTY &&
+             offset + sizeof(HeaderUnion) <= slot_size);
 
     *size = 0;
 
     return ATCA_INVALID_ID;
+}
+
+ATCA_STATUS
+ECC608Class::writeProvisionData(const size_t number_of_provision_items,
+                                const enum ecc_data_types* types,
+                                const uint8_t** data,
+                                const size_t* data_sizes) {
+
+    ATCA_STATUS atca_status = ATCA_SUCCESS;
+
+    size_t slot_size = 0;
+    if ((atca_status = atcab_get_zone_size(ATCA_ZONE_DATA,
+                                           SLOT_NUM,
+                                           &slot_size)) != ATCA_SUCCESS) {
+        return atca_status;
+    }
+
+    // Clear the data in the slot, this is just in case there is an edge case
+    // where the content written here aligns with the previous items and we can
+    // have duplicates of entries. We keep this in a nested scope here to free
+    // the buffer from the stack.
+    {
+        const uint8_t buffer[slot_size] = {0x00};
+
+        if ((atca_status = atcab_write_bytes_zone(ATCA_ZONE_DATA,
+                                                  SLOT_NUM,
+                                                  0,
+                                                  buffer,
+                                                  slot_size)) != ATCA_SUCCESS) {
+            return atca_status;
+        }
+    }
+
+    // First we calculate the total size including headers
+    size_t payload_size = 0;
+
+    for (size_t i = 0; i < number_of_provision_items; i++) {
+        payload_size += sizeof(HeaderUnion) + data_sizes[i];
+    }
+
+    // We have to make sure that the payload is a multiple of 32-bytes for the
+    // write, see the documentation for atcab_write_byte_zones for more
+    // information
+    payload_size = (payload_size / 32 + ((payload_size % 32 != 0) ? 1 : 0)) *
+                   32;
+
+    if (payload_size > slot_size) {
+        return ATCA_INVALID_LENGTH;
+    }
+
+    // Now we can build the payload data which includes the headers and the
+    // actual data
+    uint8_t payload[payload_size];
+    size_t offset = 0;
+
+    for (size_t i = 0; i < number_of_provision_items; i++) {
+        HeaderUnion header_union;
+
+        header_union.header.type = types[i];
+        header_union.header.next = offset + sizeof(HeaderUnion) + data_sizes[i];
+
+        memcpy(payload + offset, header_union.bytes, sizeof(HeaderUnion));
+        memcpy(payload + offset + sizeof(HeaderUnion), data[i], data_sizes[i]);
+
+        offset += sizeof(HeaderUnion) + data_sizes[i];
+    }
+
+    if ((atca_status = atcab_write_bytes_zone(ATCA_ZONE_DATA,
+                                              SLOT_NUM,
+                                              0,
+                                              payload,
+                                              payload_size)) != ATCA_SUCCESS) {
+        return atca_status;
+    }
+
+    // Verify that the data was written correctly
+    for (size_t i = 0; i < number_of_provision_items; i++) {
+        uint8_t buffer[data_sizes[i] + 1];
+        size_t size = data_sizes[i] + 1;
+
+        if ((atca_status = readProvisionItem(types[i], buffer, &size)) !=
+            ATCA_SUCCESS) {
+            return atca_status;
+        }
+
+        if (size != data_sizes[i] || memcmp(buffer, data[i], size) != 0) {
+            return ATCA_ASSERT_FAILURE;
+        }
+    }
+
+    return ATCA_SUCCESS;
 }
 
 ATCA_STATUS ECC608Class::getThingName(uint8_t* thing_name, uint8_t* size) {
