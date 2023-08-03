@@ -68,8 +68,6 @@
 #define TIMER_LENGTH      11
 #define TIMER_SLEEP_INDEX 8
 
-#ifdef __AVR_AVR128DB48__ // MINI
-
 #define RING_PORT   PORTC
 #define RING_PIN_bm PIN6_bm
 
@@ -77,21 +75,6 @@
 #define VOLTAGE_MEASURE_EN_PIN PIN_PB3
 #define VOLTAGE_MEASURE_PIN    PIN_PE0
 
-#else
-
-#ifdef __AVR_AVR128DB64__ // Non-Mini
-
-#define RING_PORT   PORTC
-#define RING_PIN_bm PIN4_bm
-
-#define LOWQ_PIN               PIN_PB4
-#define VOLTAGE_MEASURE_EN_PIN PIN_PB3
-#define VOLTAGE_MEASURE_PIN    PIN_PE0
-
-#else
-#error "INCOMPATIBLE_DEVICE_SELECTED"
-#endif
-#endif
 // Singleton. Defined for use of the rest of the library.
 LowPowerClass LowPower = LowPowerClass::instance();
 

@@ -11,8 +11,6 @@
 #include <string.h>
 #include <util/delay.h>
 
-#ifdef __AVR_AVR128DB48__ // MINI
-
 #define TX_PIN PIN_PC0
 #define RX_PIN PIN_PC1
 
@@ -26,29 +24,6 @@
 #define RTS_PIN_bm  PIN7_bm
 #define RESET_PIN   PIN_PC5
 #define HWSERIALAT  USART1
-
-#else
-
-#ifdef __AVR_AVR128DB64__ // Non-Mini
-
-#define TX_PIN PIN_PC0
-#define RX_PIN PIN_PC1
-
-#define CTS_PIN     PIN_PC6
-#define CTS_PIN_bm  PIN6_bm
-#define CTS_INT_bm  PORT_INT6_bm
-#define RING_PIN    PIN_PC4
-#define RING_INT_bm PORT_INT4_bm
-#define RTS_PORT    PORTC
-#define RTS_PIN     PIN_PC7
-#define RTS_PIN_bm  PIN7_bm
-#define RESET_PIN   PIN_PE1
-#define HWSERIALAT  USART1
-
-#else
-#error "INCOMPATIBLE_DEVICE_SELECTED"
-#endif
-#endif
 
 #define SEQUANS_MODULE_BAUD_RATE 115200
 

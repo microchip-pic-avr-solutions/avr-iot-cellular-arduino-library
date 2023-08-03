@@ -11,15 +11,7 @@
 #define DEBUG_LEVEL_FMT "[DEBUG] "
 #define WARN_LEVEL_FMT  "[WARN] "
 
-#ifdef __AVR_AVR128DB48__ // MINI
 LogClass Log(&Serial3);
-#else
-#ifdef __AVR_AVR128DB64__ // NON-MINI
-LogClass Log(&Serial5);
-#else
-#error "INCOMPATIBLE_DEVICE_SELECTED"
-#endif
-#endif
 
 int16_t printf_putchar(char c, FILE* fp) {
     ((class Print*)(fdev_get_udata(fp)))->write((uint8_t)c);

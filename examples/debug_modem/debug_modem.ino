@@ -13,19 +13,7 @@ void loop() { debugBridgeUpdate(); }
 
 // ------------------------------ DEBUG BRIDGE ----------------------------- //
 
-#ifdef __AVR_AVR128DB48__ // MINI
-
 #define SerialDebug Serial3
-
-#else
-#ifdef __AVR_AVR128DB64__ // Non-Mini
-
-#define SerialDebug Serial5
-
-#else
-#error "INCOMPATIBLE_DEVICE_SELECTED"
-#endif
-#endif
 
 #define DEL_CHARACTER   127
 #define ENTER_CHARACTER 13

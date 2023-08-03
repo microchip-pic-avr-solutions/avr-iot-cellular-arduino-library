@@ -10,21 +10,8 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#ifdef __AVR_AVR128DB48__ // MINI
-
 #define WIRE     Wire
 #define WIRE_MUX 2
-
-#else
-#ifdef __AVR_AVR128DB64__ // Non-Mini
-
-#define WIRE     Wire1
-#define WIRE_MUX 2
-
-#else
-#error "INCOMPATIBLE_DEVICE_SELECTED"
-#endif
-#endif
 
 ATCA_STATUS hal_i2c_init(ATCAIface iface, ATCAIfaceCfg* cfg) {
     WIRE.swap(WIRE_MUX);

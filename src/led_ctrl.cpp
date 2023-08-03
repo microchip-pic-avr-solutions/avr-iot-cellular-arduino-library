@@ -3,27 +3,11 @@
 
 #include <util/delay.h>
 
-#ifdef __AVR_AVR128DB48__ // MINI
-
 #define LED_CELL_PIN  PIN_PA0
 #define LED_CON_PIN   PIN_PA1
 #define LED_DATA_PIN  PIN_PA2
 #define LED_ERROR_PIN PIN_PA3
 #define LED_USER_PIN  PIN_PB2
-
-#else
-#ifdef __AVR_AVR128DB64__ // NON-MINI
-
-#define LED_CELL_PIN  PIN_PG2
-#define LED_CON_PIN   PIN_PG3
-#define LED_DATA_PIN  PIN_PG4
-#define LED_ERROR_PIN PIN_PG5
-#define LED_USER_PIN  PIN_PB0
-
-#else
-#error "INCOMPATIBLE_DEVICE_SELECTED"
-#endif
-#endif
 
 static bool manual_control_enabled = false;
 
