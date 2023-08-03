@@ -22,23 +22,36 @@
 char mqtt_sub_topic[128];
 char mqtt_pub_topic[128];
 
-bool initMQTTTopics() {
-    ECC608.begin();
+bool initTopics() {
+    ATCA_STATUS status = ECC608.begin();
 
-    // Find the thing ID and set the publish and subscription topics
-    uint8_t thingName[128];
-    size_t thingNameLen = sizeof(thingName);
-
-    // -- Get the thingname
-    ATCA_STATUS status =
-        ECC608.readProvisionItem(AWS_THINGNAME, thingName, &thingNameLen);
     if (status != ATCA_SUCCESS) {
-        Log.error("Could not retrieve thingname from the ECC");
+        Log.errorf("Failed to initialize ECC, error code: %X\r\n", status);
         return false;
     }
 
-    sprintf(mqtt_sub_topic, MQTT_SUB_TOPIC_FMT, thingName);
-    sprintf(mqtt_pub_topic, MQTT_PUB_TOPIC_FMT, thingName);
+    // Find the thing ID and set the publish and subscription topics
+    uint8_t thing_name[128];
+    size_t thing_name_length = sizeof(thing_name);
+
+    status =
+        ECC608.readProvisionItem(AWS_THINGNAME, thing_name, &thing_name_length);
+
+    if (status != ATCA_SUCCESS) {
+        Log.errorf(
+            "Could not retrieve thingname from the ECC, error code: %X\r\n",
+            status);
+        return false;
+    }
+
+    snprintf(mqtt_sub_topic,
+             sizeof(mqtt_sub_topic),
+             MQTT_SUB_TOPIC_FMT,
+             thing_name);
+    snprintf(mqtt_pub_topic,
+             sizeof(mqtt_pub_topic),
+             MQTT_PUB_TOPIC_FMT,
+             thing_name);
 
     return true;
 }
@@ -48,23 +61,22 @@ void setup() {
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
-    Log.info("Starting MQTT Polling for AWS example\r\n");
+    Log.info("Starting MQTT for AWS example\r\n");
 
-    if (initMQTTTopics() == false) {
+    if (!initTopics()) {
         Log.error("Unable to initialize the MQTT topics. Stopping...");
         while (1) {}
     }
 
     if (!Lte.begin()) {
         Log.error("Failed to connect to operator");
-
-        // Halt here
         while (1) {}
     }
 
-    // Attempt to connect to the broker
+    // Attempt to connect to AWS
     if (MqttClient.beginAWS()) {
-        Log.infof("Connecting to broker");
+
+        Log.infof("Connecting to AWS");
 
         while (!MqttClient.isConnected()) {
             Log.rawf(".");
@@ -73,19 +85,18 @@ void setup() {
 
         Log.rawf(" OK!\r\n");
 
-        // Subscribe to the topic
         MqttClient.subscribe(mqtt_sub_topic);
+
     } else {
         Log.rawf("\r\n");
-        Log.error("Failed to connect to broker");
-
-        // Halt here
+        Log.error("Failed to connect to AWS");
         while (1) {}
     }
 
     // Test MQTT publish and receive
     for (uint8_t i = 0; i < 3; i++) {
-        bool published_successfully =
+
+        const bool published_successfully =
             MqttClient.publish(mqtt_pub_topic, "{\"light\": 9, \"temp\": 9}");
 
         if (published_successfully) {
@@ -109,6 +120,7 @@ void setup() {
     }
 
     Log.info("Closing MQTT connection");
+
     MqttClient.end();
 }
 

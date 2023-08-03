@@ -328,47 +328,51 @@ static bool generateSigningCommand(char* data, char* command_buffer) {
 
 bool MqttClientClass::beginAWS() {
 
-    if (!Lte.isConnected()) {
-        return false;
-    }
-
     ATCA_STATUS status = ECC608.begin();
 
     if (status != ATCA_SUCCESS) {
-        Log.errorf("Could not initialize ECC hardware, cryptoauthlib error "
-                   "code: 0x%X\r\n",
+        Log.errorf("Could not initialize ECC hardware, error code: %X\r\n",
                    status);
         return false;
     }
 
-    uint8_t thingName[128];
-    size_t thingNameLen = sizeof(thingName);
+    uint8_t thing_name[128];
+    size_t thing_name_length = sizeof(thing_name);
     uint8_t endpoint[128];
     size_t endpointLen = sizeof(endpoint);
 
-    status = ECC608.readProvisionItem(AWS_THINGNAME, thingName, &thingNameLen);
+    status =
+        ECC608.readProvisionItem(AWS_THINGNAME, thing_name, &thing_name_length);
 
     if (status != ATCA_SUCCESS) {
-        Log.errorf("Could not retrieve thing name from the ECC, cryptoauthlib "
-                   "error code: 0x%X\r\n",
-                   status);
+
+        if (status == ATCA_INVALID_ID) {
+            Log.error(
+                "Could not find AWS thing name in the ECC. Please provision "
+                "the board for AWS using the iotprovision tool.");
+            return false;
+        }
+
+        Log.errorf(
+            "Could not retrieve thing name from the ECC, error code: %X\r\n",
+            status);
         return false;
     }
 
     status = ECC608.readProvisionItem(AWS_ENDPOINT, endpoint, &endpointLen);
 
     if (status != ATCA_SUCCESS) {
-        Log.errorf("Could not retrieve endpoint from the ECC, cryptoauthlib "
-                   "error code: 0x%X\r\n",
-                   status);
+        Log.errorf(
+            "Could not retrieve endpoint from the ECC, error code: %X\r\n",
+            status);
         return false;
     }
 
-    Log.debugf("Connecting to AWS with endpoint = %s and thingname = %s\r\n",
+    Log.debugf("Connecting to AWS with endpoint: %s and thingname: %s\r\n",
                endpoint,
-               thingName);
+               thing_name);
 
-    return this->begin((char*)(thingName),
+    return this->begin((char*)(thing_name),
                        (char*)(endpoint),
                        8883,
                        true,
@@ -376,6 +380,70 @@ bool MqttClientClass::beginAWS() {
                        true,
                        "",
                        "");
+}
+
+bool MqttClientClass::beginAzure() {
+
+    ATCA_STATUS status = ECC608.begin();
+
+    if (status != ATCA_SUCCESS) {
+        Log.errorf("Could not initialize ECC hardware, error code: %X\r\n",
+                   status);
+        return false;
+    }
+
+    // Device ID is at maximum 20 characters (the serial number for the ECC is 9
+    // digits converted to hexadecimal = 18 + 2 for "sn"). Add one for null
+    // termination.
+    char device_id[21]    = "";
+    size_t device_id_size = sizeof(device_id);
+
+    status = ECC608.readProvisionItem(AZURE_DEVICE_ID,
+                                      (uint8_t*)device_id,
+                                      &device_id_size);
+
+    if (status != ATCA_SUCCESS) {
+
+        if (status == ATCA_INVALID_ID) {
+            Log.error("Could not find the Azure device ID in the ECC. Please "
+                      "provision the board for Azure using the provision "
+                      "example sketch.");
+            return false;
+        }
+
+        Log.errorf("Failed to read device ID from ECC, error code: %X\r\n",
+                   status);
+        return false;
+    }
+
+    char hostname[256]   = "";
+    size_t hostname_size = sizeof(hostname);
+
+    status = ECC608.readProvisionItem(AZURE_IOT_HUB_NAME,
+                                      (uint8_t*)hostname,
+                                      &hostname_size);
+
+    if (status != ATCA_SUCCESS) {
+        Log.errorf("Failed to read Azure IoT hub host name from ECC, error "
+                   "code: %X\r\n",
+                   status);
+        return false;
+    }
+
+    Log.debugf("Connecting to Azure with hostname: %s and device ID: %s\r\n",
+               hostname,
+               device_id);
+
+    // 24 comes from the format in the string below. Add +1 for NULL termination
+    char username[sizeof(hostname) + 24 + sizeof(device_id) + 1] = "";
+
+    snprintf(username,
+             sizeof(username),
+             "%s/%s/api-version=2018-06-30",
+             hostname,
+             device_id);
+
+    return this->begin(device_id, hostname, 8883, true, 60, true, username, "");
 }
 
 bool MqttClientClass::begin(const char* client_id,

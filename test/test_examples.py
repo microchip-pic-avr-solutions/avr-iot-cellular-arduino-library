@@ -299,6 +299,108 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Response: {"
             }
         ],
+        "mqtt_aws": [
+            {
+                "expectation": "\\[INFO\\] Starting MQTT for AWS example"
+            },
+            {
+                "expectation": "\r\n"
+            },
+            {
+                "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
+            },
+            {
+                "expectation": "\\[INFO\\] Connecting to AWS.{0,}OK!"
+            },
+            {
+                "expectation": "\\[INFO\\] Published message"
+            },
+            {
+                "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
+            },
+            {
+                "expectation": "\\[INFO\\] Published message"
+            },
+            {
+                "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
+            },
+            {
+                "expectation": "\\[INFO\\] Published message"
+            },
+            {
+                "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
+            },
+            {
+                "expectation": "\\[INFO\\] Closing MQTT connection"
+            }
+        ],
+        "mqtt_azure": [
+            {
+                "expectation": "\\[INFO\\] Starting MQTT for Azure example"
+            },
+            {
+                "expectation": "\r\n"
+            },
+            {
+                "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
+            },
+            {
+                "expectation": "\\[INFO\\] Connecting to Azure IoT Hub.{0,}OK!"
+            },
+            {
+                "expectation": "\\[INFO\\] Published message"
+            },
+            {
+                "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
+            },
+            {
+                "expectation": "\\[INFO\\] Published message"
+            },
+            {
+                "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
+            },
+            {
+                "expectation": "\\[INFO\\] Published message"
+            },
+            {
+                "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
+            },
+            {
+                "expectation": "\\[INFO\\] Closing MQTT connection"
+            }
+        ],
+        "mqtt_custom_broker": [
+            {
+                "expectation": "\\[INFO\\] Starting MQTT with custom broker example (polling mode)"
+            },
+            {
+                "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
+            },
+            {
+                "expectation": "\\[INFO\\] Connecting to broker.{0,}OK!"
+            },
+            {
+                "expectation": "\\[INFO\\] Published message: Hello world: (\\d{1,})"
+            },
+            {
+                "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
+            },
+            {
+                "expectation": "\\[INFO\\] Published message: Hello world: (\\d{1,})"
+            },
+            {
+                "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
+            },
+            {
+                "expectation": "\\[INFO\\] Published message: Hello world: (\\d{1,})"
+            },
+            {
+                "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
+            },
+            {
+                "expectation": "\\[INFO\\] Closing MQTT connection"
+            }
+        ],
         "mqtt_low_power": [
             {
                 "expectation": "\\[INFO\\] Starting MQTT with low power"
@@ -371,73 +473,6 @@ def example_test_data():
             },
             {
                 "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
-            },
-            {
-                "expectation": "\\[INFO\\] Closing MQTT connection"
-            }
-        ],
-        "mqtt_polling": [
-            {
-                "expectation": "\\[INFO\\] Starting MQTT Polling example"
-            },
-            {
-                "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
-            },
-            {
-                "expectation": "\\[INFO\\] Connecting to broker.{0,}OK!"
-            },
-            {
-                "expectation": "\\[INFO\\] Published message: Hello world: (\\d{1,})"
-            },
-            {
-                "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
-            },
-            {
-                "expectation": "\\[INFO\\] Published message: Hello world: (\\d{1,})"
-            },
-            {
-                "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
-            },
-            {
-                "expectation": "\\[INFO\\] Published message: Hello world: (\\d{1,})"
-            },
-            {
-                "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
-            },
-            {
-                "expectation": "\\[INFO\\] Closing MQTT connection"
-            }
-        ],
-        "mqtt_polling_aws": [
-            {
-                "expectation": "\\[INFO\\] Starting MQTT Polling for AWS example"
-            },
-            {
-                "expectation": "\r\n"
-            },
-            {
-                "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
-            },
-            {
-                "expectation": "\\[INFO\\] Connecting to broker.{0,}OK!"
-            },
-            {
-                "expectation": "\\[INFO\\] Published message"
-            },
-            {
-                "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
-            },
-            {
-                "expectation": "\\[INFO\\] Published message"
-            },
-            {
-                "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
-            },
-            {
-                "expectation": "\\[INFO\\] Published message"
-            },
-            {
-                "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
             },
             {
                 "expectation": "\\[INFO\\] Closing MQTT connection"

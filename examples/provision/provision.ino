@@ -1078,7 +1078,7 @@ void azureIoTHubMqttProvision() {
     //     Step 2: Store the IoT Hub hostname and the device ID in the ECC
     // ------------------------------------------------------------------------
 
-    char hostname[128] = "";
+    char hostname[256] = "";
     askInputQuestion(
         F("Input Azure IoT Hub hostname, it should be on the form: "
           "<your-iot-hub-name>.azure-devices.net\r\nPress enter when done: "),
@@ -1176,67 +1176,100 @@ void azureIoTHubMqttProvision() {
     // to input into Azure IoT Hub as well as storing the device certificate in
     // the modem
 
-    // The SHA256 is 64 hexidecimal characters + NULL termination
+    size_t device_certificate_size = 0;
+
+    int atcacert_status = ATCACERT_E_SUCCESS;
+
+    if ((atcacert_status = ECC608.getDeviceCertificateSize(
+             &device_certificate_size)) != ATCACERT_E_SUCCESS) {
+        SerialModule.printf(F("Failed to get the size of the device "
+                              "certificate, error code: %X.\r\n"),
+                            atcacert_status);
+        return;
+    }
+
+    uint8_t device_certificate[device_certificate_size];
+
+    if ((atcacert_status = ECC608.getDeviceCertificate(
+             device_certificate,
+             &device_certificate_size)) != ATCACERT_E_SUCCESS) {
+        SerialModule.printf(F("Failed to get the device certificate, "
+                              "error code: %X.\r\n"),
+                            atcacert_status);
+        return;
+    }
+
+    // We need to base64 encode the device certificate before writing it
+    // to the modem
+    size_t base64_encoded_size = ECC608.calculateBase64EncodedCertificateSize(
+        device_certificate_size);
+
+    const char* base64_encoded_prefix = PSTR("-----BEGIN CERTIFICATE-----\n");
+    const char* base64_encoded_suffix = PSTR("\n-----END CERTIFICATE-----\n");
+
+    char base64_encoded_device_certificate[base64_encoded_size +
+                                           strlen_P(base64_encoded_prefix) +
+                                           strlen_P(base64_encoded_suffix) +
+                                           1] = "";
+
+    // Append prefix
+    strncpy_P(base64_encoded_device_certificate,
+              base64_encoded_prefix,
+              strlen_P(base64_encoded_prefix));
+
+    atca_status = ECC608.base64EncodeCertificate(
+        device_certificate,
+        device_certificate_size,
+        base64_encoded_device_certificate + strlen_P(base64_encoded_prefix),
+        &base64_encoded_size);
+
+    if (atca_status != ATCA_SUCCESS) {
+        SerialModule.printf(F("Failed to encode device certificate, error "
+                              "code: %X.\r\n"),
+                            atca_status);
+        return;
+    }
+
+    // Append the suffix
+    strncpy_P(base64_encoded_device_certificate +
+                  strlen_P(base64_encoded_prefix) + base64_encoded_size,
+              base64_encoded_suffix,
+              strlen_P(base64_encoded_suffix));
+
+    ResponseResult status = writeCertificate(
+        MQTT_PUBLIC_KEY_SLOT,
+        (char*)base64_encoded_device_certificate);
+
+    if (status != ResponseResult::OK) {
+        SerialModule.printf(F("Failed to write device certificate to "
+                              "modem, error code: %X.\r\n"),
+                            static_cast<uint8_t>(status));
+        return;
+    }
+
+    // Now lets generate the SHA 256 sum. The result is 32 bytes which is
+    // then converted to 64 bytes of hexadecimals
     char device_certificate_sha256[64 + 1] = "";
 
-    {
-        size_t device_certificate_size = 0;
+    uint8_t result[32];
+    atcab_hw_sha2_256(device_certificate, device_certificate_size, result);
 
-        int atcacert_status = ATCACERT_E_SUCCESS;
+    if ((atca_status = atcab_hw_sha2_256(device_certificate,
+                                         device_certificate_size,
+                                         result)) != ATCA_SUCCESS) {
+        SerialModule.printf(F("Failed to generate SHA256 thumbprint of device "
+                              "certificate, error code: %X.\r\n"),
+                            atca_status);
+        return;
+    }
 
-        if ((atcacert_status = ECC608.getDeviceCertificateSize(
-                 &device_certificate_size)) != ATCACERT_E_SUCCESS) {
-            SerialModule.printf(F("Failed to get the size of the device "
-                                  "certificate, error code: %X.\r\n"),
-                                atcacert_status);
-            return;
-        }
+    // Convert to hexadecimals
+    const char hex_conversion[] = "0123456789abcdef";
 
-        uint8_t device_certificate[device_certificate_size];
-
-        if ((atcacert_status = ECC608.getDeviceCertificate(
-                 device_certificate,
-                 &device_certificate_size)) != ATCACERT_E_SUCCESS) {
-            SerialModule.printf(F("Failed to get the device certificate, "
-                                  "error code: %X.\r\n"),
-                                atcacert_status);
-            return;
-        }
-
-        ResponseResult result = writeCertificate(MQTT_PUBLIC_KEY_SLOT,
-                                                 (char*)device_certificate);
-
-        if (result != ResponseResult::OK) {
-            SerialModule.printf(F("Failed to write device certificate to "
-                                  "modem, error code: %X.\r\n"),
-                                static_cast<uint8_t>(result));
-            return;
-        }
-
-        // Now lets generate the SHA 256 sum. The result is 32 bytes which is
-        // then converted to 64 bytes of hexadecimals
-        uint8_t result[32];
-        atcab_hw_sha2_256(device_certificate, device_certificate_size, result);
-
-        if ((atca_status = atcab_hw_sha2_256(device_certificate,
-                                             device_certificate_size,
-                                             result)) != ATCA_SUCCESS) {
-            SerialModule.printf(
-                F("Failed to generate SHA256 thumbprint of device "
-                  "certificate, error code: %X.\r\n"),
-                atca_status);
-            return;
-        }
-
-        // Convert to hexadecimals
-        const char hex_conversion[] = "0123456789abcdef";
-
-        for (uint8_t i = 0; i < sizeof(result); i++) {
-            device_certificate_sha256[i * 2] =
-                hex_conversion[(result[i] >> 4) & 0x0F];
-            device_certificate_sha256[i * 2 + 1] =
-                hex_conversion[result[i] & 0x0F];
-        }
+    for (uint8_t i = 0; i < sizeof(result); i++) {
+        device_certificate_sha256[i * 2] =
+            hex_conversion[(result[i] >> 4) & 0x0F];
+        device_certificate_sha256[i * 2 + 1] = hex_conversion[result[i] & 0x0F];
     }
 
     // ------------------------------------------------------------------------
@@ -1258,7 +1291,8 @@ void azureIoTHubMqttProvision() {
           "3. Input the following as the device ID (this is the common name "
           "of "
           "the ECC device certificate): %s\r\n"
-          "4. Input the following as the primary and secondary thumbprint "
+          "4. Select \"X.509 Self-Signed\" and input the following as the "
+          "primary and secondary thumbprint "
           "(this "
           "is the SHA256 sum of the device certificate): %s\r\n"),
         common_name,

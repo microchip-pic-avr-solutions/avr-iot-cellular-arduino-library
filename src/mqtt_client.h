@@ -60,9 +60,14 @@ class MqttClientClass {
                const char* password    = "");
 
     /**
-     * @brief Will configure and connect to the device specific AWS broker.
+     * @brief Will configure and connect to the provisioned AWS broker.
      */
     bool beginAWS();
+
+    /**
+     * @brief Will configure and connect to the provisioned Azure broker.
+     */
+    bool beginAzure();
 
     /**
      * @brief Disconnects from the broker and resets the state in the MQTT
