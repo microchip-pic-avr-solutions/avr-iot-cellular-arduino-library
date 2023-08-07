@@ -1205,7 +1205,7 @@ void azureIoTHubMqttProvision() {
 
     // We need to generate the SHA256 sum of the device certificate for the user
     // to input into Azure IoT Hub as well as storing the device certificate in
-    // the modem
+    // the modem.
 
     size_t device_certificate_size = 0;
 
