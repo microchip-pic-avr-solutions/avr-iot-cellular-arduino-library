@@ -1068,33 +1068,30 @@ void azureIoTHubMqttProvision() {
 
     SerialModule.println("\r\n");
 
-    // Force a scope here to make sure the CA buffer is popped from the stack
-    {
-        switch (ca_type) {
-        case DIGI_CERT_GLOBAL_ROOT_G2:
-            strncpy_P(data_buffer,
-                      digi_cert_global_root_g2,
-                      sizeof(digi_cert_global_root_g2));
-            break;
-        case BALTIMORE_CYBER_TRUST:
-            strncpy_P(data_buffer,
-                      baltimore_cyber_trust,
-                      sizeof(baltimore_cyber_trust));
-            break;
+    switch (ca_type) {
+    case DIGI_CERT_GLOBAL_ROOT_G2:
+        strncpy_P(data_buffer,
+                  digi_cert_global_root_g2,
+                  sizeof(digi_cert_global_root_g2));
+        break;
+    case BALTIMORE_CYBER_TRUST:
+        strncpy_P(data_buffer,
+                  baltimore_cyber_trust,
+                  sizeof(baltimore_cyber_trust));
+        break;
 
-        default:
-            break;
-        }
+    default:
+        break;
+    }
 
-        ResponseResult result = writeCertificate(MQTT_CUSTOM_CA_SLOT,
-                                                 data_buffer);
+    const ResponseResult certificate_write_result =
+        writeCertificate(MQTT_CUSTOM_CA_SLOT, data_buffer);
 
-        if (result != ResponseResult::OK) {
-            SerialModule.printf(F("Error occurred whilst storing CA "
-                                  "certificate, error code: %X."),
-                                static_cast<uint8_t>(result));
-            return;
-        }
+    if (certificate_write_result != ResponseResult::OK) {
+        SerialModule.printf(F("Error occurred whilst storing CA "
+                              "certificate, error code: %X."),
+                            static_cast<uint8_t>(certificate_write_result));
+        return;
     }
 
     // ------------------------------------------------------------------------
@@ -1174,18 +1171,33 @@ void azureIoTHubMqttProvision() {
     //                  Step 3: Writing security profile
     // ------------------------------------------------------------------------
 
-    // We use TLS 1.2 for Azure IoT Hub and automatically detect ciphers.
+    // We use TLS 1.2 for Azure IoT Hub and the recommended ciphers:
+    //
+    // - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256: 0xC02F
+    // - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384: 0xC030
+    // - TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256: 0xC027
+    // - TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384: 0xC028
     snprintf_P(command_buffer,
                sizeof(command_buffer),
-               AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES,
+               AT_MQTT_SECURITY_PROFILE_WITH_CERTIFICATES_ECC,
                2,
-               "",
+               "0xC02F;0xC030;0xC027;0xC028",
                1,
                MQTT_CUSTOM_CA_SLOT,
                MQTT_PUBLIC_KEY_SLOT,
                MQTT_PRIVATE_KEY_SLOT,
                "",
                "");
+
+    SequansController.writeBytes((uint8_t*)command_buffer,
+                                 strlen(command_buffer),
+                                 true);
+
+    // Wait for URC confirming the security profile
+    if (!SequansController.waitForURC("SQNSPCFG", NULL, 0, 4000)) {
+        SerialModule.println(F("Error whilst writing the security profile"));
+        return;
+    }
 
     // ------------------------------------------------------------------------
     //              Step 4: Write device certificate to modem
