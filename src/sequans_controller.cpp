@@ -501,7 +501,6 @@ void SequansControllerClass::begin(void) {
     rtsUpdate();
 
     // Wait for SYSSTART URC before we continue
-    // if (!waitForURC("SYSSTART")) {
     if (!waitForURC("SYSSTART")) {
         Log.error("Timed out waiting for cellular modem to start up\r\n");
 
