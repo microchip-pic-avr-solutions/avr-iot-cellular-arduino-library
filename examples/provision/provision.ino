@@ -1203,7 +1203,7 @@ const char baltimore_cyber_trust[] PROGMEM =
 
 void azureIoTHubMqttProvision() {
 
-    SerialModule.println();
+    SerialModule.println(F("\r\n"));
 
     // ------------------------------------------------------------------------
     //                  Step 1: Choosing IoT Hub root CA
@@ -1293,18 +1293,18 @@ void azureIoTHubMqttProvision() {
     // We add 2 here to have place for the "sn" and 1 for NULL termination.
     static char common_name[18 + 2 + 1] = "";
 
-    snprintf(common_name,
-             sizeof(common_name),
-             "sn%02X%02X%02X%02X%02X%02X%02X%02X%02X",
-             serial_number[0],
-             serial_number[1],
-             serial_number[2],
-             serial_number[3],
-             serial_number[4],
-             serial_number[5],
-             serial_number[6],
-             serial_number[7],
-             serial_number[8]);
+    snprintf_P(common_name,
+               sizeof(common_name),
+               PSTR("sn%02X%02X%02X%02X%02X%02X%02X%02X%02X"),
+               serial_number[0],
+               serial_number[1],
+               serial_number[2],
+               serial_number[3],
+               serial_number[4],
+               serial_number[5],
+               serial_number[6],
+               serial_number[7],
+               serial_number[8]);
 
     const enum ecc_data_types types[2] = {AZURE_IOT_HUB_NAME, AZURE_DEVICE_ID};
     const char* provision_data[2]      = {hostname, common_name};
