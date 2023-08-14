@@ -640,7 +640,14 @@ def example_test_data():
             },
             {
                 "expectation": "\\[INFO\\] This is a hexadecimal and a string: 1F - Hello world"
+            },
+            {
+                "expectation": "\\[INFO\\] This is a flash string"
+            },
+            {
+                "expectation": "\\[INFO\\] This is a flash string with formatting: 10"
             }
+
         ],
     }
 
