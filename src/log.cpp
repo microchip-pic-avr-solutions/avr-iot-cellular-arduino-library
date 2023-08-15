@@ -157,11 +157,19 @@ void LogClass::errorf(const char* format, ...) {
     va_end(args);
 }
 
+void LogClass::errorfv(const char* format, va_list args) {
+    this->printf(LogLevel::ERROR, format, args);
+}
+
 void LogClass::errorf(const __FlashStringHelper* format, ...) {
     va_list args;
     va_start(args, format);
     this->printf(LogLevel::ERROR, format, args);
     va_end(args);
+}
+
+void LogClass::errorfv(const __FlashStringHelper* format, va_list args) {
+    this->printf(LogLevel::ERROR, format, args);
 }
 
 void LogClass::warn(const char str[]) { this->print(LogLevel::WARN, str); }
@@ -181,11 +189,19 @@ void LogClass::warnf(const char* format, ...) {
     va_end(args);
 }
 
+void LogClass::warnfv(const char* format, va_list args) {
+    this->printf(LogLevel::WARN, format, args);
+}
+
 void LogClass::warnf(const __FlashStringHelper* format, ...) {
     va_list args;
     va_start(args, format);
     this->printf(LogLevel::WARN, format, args);
     va_end(args);
+}
+
+void LogClass::warnfv(const __FlashStringHelper* format, va_list args) {
+    this->printf(LogLevel::WARN, format, args);
 }
 
 void LogClass::info(const char str[]) { this->print(LogLevel::INFO, str); }
@@ -205,11 +221,19 @@ void LogClass::infof(const char* format, ...) {
     va_end(args);
 }
 
+void LogClass::infofv(const char* format, va_list args) {
+    this->printf(LogLevel::INFO, format, args);
+}
+
 void LogClass::infof(const __FlashStringHelper* format, ...) {
     va_list args;
     va_start(args, format);
     this->printf(LogLevel::INFO, format, args);
     va_end(args);
+}
+
+void LogClass::infofv(const __FlashStringHelper* format, va_list args) {
+    this->printf(LogLevel::INFO, format, args);
 }
 
 void LogClass::debug(const char str[]) { this->print(LogLevel::DEBUG, str); }
@@ -229,11 +253,19 @@ void LogClass::debugf(const char* format, ...) {
     va_end(args);
 }
 
+void LogClass::debugfv(const char* format, va_list args) {
+    this->printf(LogLevel::DEBUG, format, args);
+}
+
 void LogClass::debugf(const __FlashStringHelper* format, ...) {
     va_list args;
     va_start(args, format);
     this->printf(LogLevel::DEBUG, format, args);
     va_end(args);
+}
+
+void LogClass::debugfv(const __FlashStringHelper* format, va_list args) {
+    this->printf(LogLevel::DEBUG, format, args);
 }
 
 void LogClass::raw(const char str[]) { this->print(LogLevel::NONE, str); }
@@ -253,11 +285,19 @@ void LogClass::rawf(const char* format, ...) {
     va_end(args);
 }
 
+void LogClass::rawfv(const char* format, va_list args) {
+    this->printf(LogLevel::NONE, format, args);
+}
+
 void LogClass::rawf(const __FlashStringHelper* format, ...) {
     va_list args;
     va_start(args, format);
     this->printf(LogLevel::NONE, format, args);
     va_end(args);
+}
+
+void LogClass::rawfv(const __FlashStringHelper* format, va_list args) {
+    this->printf(LogLevel::NONE, format, args);
 }
 
 #pragma GCC diagnostic pop

@@ -58,200 +58,51 @@ class LogClass {
     void end();
 
     /**
-     * @brief Outputs a string with the ERROR log level.
-     *
-     * @param str [in] String to output.
+     * In the following level functions, we explicitly use the postfix of v to
+     * specify that we pass on a va_list. In this way, the compiler is not
+     * confused between calling e.g. infof with a va_list and calling infofv (as
+     * we should if we're passing on a va_list).
      */
+
     void error(const char str[]);
-
-    /**
-     * @brief Outputs a string with the error log level.
-     *
-     * @param str [in] String to output.
-     */
     void error(const String str);
-
-    /**
-     * @brief Outputs a string with the error log level, where the string is
-     * stored in program memory.
-     *
-     * @param str [in] String to output.
-     */
     void error(const __FlashStringHelper* str);
-
-    /**
-     * @brief Outputs a string with the error log level and optional formatting.
-     *
-     * @param format [in] Format string.
-     * @param ... [in] Arguments for formatting.
-     */
     void errorf(const char* format, ...);
-
-    /**
-     * @brief Outputs a string with the error log level and optional formatting,
-     * where the formatting is stored in program memory.
-     *
-     * @param format [in] Format string.
-     * @param ... [in] Arguments for formatting.
-     */
+    void errorfv(const char* format, va_list args);
     void errorf(const __FlashStringHelper* format, ...);
+    void errorfv(const __FlashStringHelper* format, va_list args);
 
-    /**
-     * @brief Outputs a string with the warning log level.
-     *
-     * @param str [in] String to output.
-     */
     void warn(const char str[]);
-
-    /**
-     * @brief Outputs a string with the warning log level.
-     *
-     * @param str [in] String to output.
-     */
     void warn(const String str);
-
-    /**
-     * @brief Outputs a string with the warning log level, where the string is
-     * stored in program memory.
-     *
-     * @param str [in] String to output.
-     */
     void warn(const __FlashStringHelper* str);
-
-    /**
-     * @brief Outputs a string with the warning log level and optional
-     * formatting.
-     *
-     * @param format [in] Format string.
-     * @param ... [in] Arguments for formatting.
-     */
     void warnf(const char* format, ...);
-
-    /**
-     * @brief Outputs a string with the warning log level and optional
-     * formatting, where the formatting is stored in program memory.
-     *
-     * @param format [in] Format string.
-     * @param ... [in] Arguments for formatting.
-     */
+    void warnfv(const char* format, va_list args);
     void warnf(const __FlashStringHelper* format, ...);
+    void warnfv(const __FlashStringHelper* format, va_list args);
 
-    /**
-     * @brief Outputs a string with the info log level.
-     *
-     * @param str [in] String to output.
-     */
     void info(const char str[]);
-
-    /**
-     * @brief Outputs a string with the info log level.
-     *
-     * @param str [in] String to output.
-     */
     void info(const String str);
-
-    /**
-     * @brief Outputs a string with the info log level, where the string is
-     * stored in program memory.
-     *
-     * @param str [in] String to output.
-     */
     void info(const __FlashStringHelper* str);
-
-    /**
-     * @brief Outputs a string with the info log level and optional formatting.
-     *
-     * @param format [in] Format string.
-     * @param ... [in] Arguments for formatting.
-     */
     void infof(const char* format, ...);
-
-    /**
-     * @brief Outputs a string with the info log level and optional formatting,
-     * where the formatting is stored in program memory.
-     *
-     * @param format [in] Format string.
-     * @param ... [in] Arguments for formatting.
-     */
+    void infofv(const char* format, va_list args);
     void infof(const __FlashStringHelper* format, ...);
+    void infofv(const __FlashStringHelper* format, va_list args);
 
-    /**
-     * @brief Outputs a string with the debug log level.
-     *
-     * @param str [in] String to output.
-     */
     void debug(const char str[]);
-
-    /**
-     * @brief Outputs a string with the debug log level.
-     *
-     * @param str [in] String to output.
-     */
     void debug(const String str);
-
-    /**
-     * @brief Outputs a string with the debug log level, where the string is
-     * stored in program memory.
-     *
-     * @param str [in] String to output.
-     */
     void debug(const __FlashStringHelper* str);
-
-    /**
-     * @brief Outputs a string with the debug log level and optional formatting.
-     *
-     * @param format [in] Format string.
-     * @param ... [in] Arguments for formatting.
-     */
     void debugf(const char* format, ...);
-
-    /**
-     * @brief Outputs a string with the debug log level and optional formatting,
-     * where the formatting is stored in program memory.
-     *
-     * @param format [in] Format string.
-     * @param ... [in] Arguments for formatting.
-     */
+    void debugfv(const char* format, va_list args);
     void debugf(const __FlashStringHelper* format, ...);
+    void debugfv(const __FlashStringHelper* format, va_list args);
 
-    /**
-     * @brief Outputs a string without log level..
-     *
-     * @param str [in] String to output.
-     */
     void raw(const char str[]);
-
-    /**
-     * @brief Outputs a string without log level.
-     *
-     * @param str [in] String to output.
-     */
     void raw(const String str);
-
-    /**
-     * @brief Outputs a string without log level, where the string is stored in
-     * program memory.
-     *
-     * @param str [in] String to output.
-     */
     void raw(const __FlashStringHelper* str);
-
-    /**
-     * @brief Outputs a string without log level and optional formatting.
-     *
-     * @param format [in] Format string.
-     * @param ... [in] Arguments for formatting.
-     */
     void rawf(const char* format, ...);
-
-    /**
-     * @brief Outputs a string without log level and optional formatting, where
-     * the formatting is stored in program memory.
-     *
-     * @param format [in] Format string.
-     * @param ... [in] Arguments for formatting.
-     */
+    void rawfv(const char* format, va_list args);
     void rawf(const __FlashStringHelper* format, ...);
+    void rawfv(const __FlashStringHelper* format, va_list args);
 
   private:
     /**
