@@ -48,11 +48,11 @@ void setup() {
     // Connecting to the network might fail, so we just retry
     while (!Lte.begin()) {}
 
-    Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
+    Log.infof(F("Connected to operator: %s\r\n"), Lte.getOperator().c_str());
 }
 
 void loop() {
-    Log.info("Powering down...");
+    Log.info(F("Powering down..."));
 
     // Allow some time for the log message to be transmitted before we power
     // down
@@ -62,13 +62,13 @@ void loop() {
     LowPower.powerDown(60);
 
     if (woke_up_from_button) {
-        Log.info("SW0 was pressed");
+        Log.info(F("SW0 was pressed"));
         woke_up_from_button = false;
     }
 
-    Log.info("Woke up!");
+    Log.info(F("Woke up!"));
 
     // Do work ...
-    Log.info("Doing work...");
+    Log.info(F("Doing work..."));
     delay(10000);
 }

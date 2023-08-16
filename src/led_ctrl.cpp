@@ -31,29 +31,26 @@ void LedCtrlClass::beginManual() {
 }
 
 uint8_t LedCtrlClass::getLedPin(Led led) {
-    uint8_t targetPin = 0;
+    uint8_t target_pin = 0;
     switch (led) {
     case Led::CELL:
-        targetPin = LED_CELL_PIN;
+        target_pin = LED_CELL_PIN;
         break;
     case Led::CON:
-        targetPin = LED_CON_PIN;
+        target_pin = LED_CON_PIN;
         break;
     case Led::DATA:
-        targetPin = LED_DATA_PIN;
+        target_pin = LED_DATA_PIN;
         break;
     case Led::ERROR:
-        targetPin = LED_ERROR_PIN;
+        target_pin = LED_ERROR_PIN;
         break;
     case Led::USER:
-        targetPin = LED_USER_PIN;
+        target_pin = LED_USER_PIN;
         break;
-    default:
-        Log.errorf("attempted to get invalid led pin %d\r\n", led);
-        return 200;
     }
 
-    return targetPin;
+    return target_pin;
 }
 
 void LedCtrlClass::on(Led led, bool is_from_system_event) {

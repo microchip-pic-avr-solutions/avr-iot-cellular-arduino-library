@@ -2,7 +2,6 @@
 #define LOW_POWER_H
 
 #include <stdint.h>
-#include <stdlib.h>
 
 /**
  * @brief Multipliers for cellular network power save mode when the cellular

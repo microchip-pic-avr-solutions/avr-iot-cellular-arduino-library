@@ -40,7 +40,7 @@ static void ping_callback(char* message) {
 void setup() {
     Log.begin(115200);
 
-    Log.info("Starting up example for custom AT commands");
+    Log.info(F("Starting up example for custom AT commands"));
 
     // If we didn't want to connect to the network, we could start the
     // SequansController directly by: SequansController.begin();
@@ -48,7 +48,7 @@ void setup() {
     Lte.begin();
 
     // Here we enable verbose error messages
-    SequansController.writeCommand("AT+CMEE=2");
+    SequansController.writeCommand(F("AT+CMEE=2"));
 
     // Here we perform a ping with incorrect parameter in order to trigger the
     // error message. Note that if the modem returns an error with the command,
@@ -57,14 +57,17 @@ void setup() {
     //
     // Here we also pass an optional response buffer to the function which will
     // be filled with the response from the command
-    char response[128] = "";
-    ResponseResult response_result =
-        SequansController.writeCommand("AT+PING=0", response, sizeof(response));
+    char response[128]             = "";
+    ResponseResult response_result = SequansController.writeCommand(
+        F("AT+PING=0"),
+        response,
+        sizeof(response));
 
     if (response_result == ResponseResult::OK) {
-        Log.infof("Command written successfully, this should not happen");
+        Log.infof(F("Command written successfully, this should not happen"));
     } else {
-        Log.errorf("Error writing command, the response was: %s\r\n", response);
+        Log.errorf(F("Error writing command, the response was: %s\r\n"),
+                   response);
     }
 
     // --------------------- Notifications & Commands -------------------------
@@ -76,31 +79,32 @@ void setup() {
     // response code), which can be though of as a notification.
     //
     // The different URCs are documented in Sequans' AT command reference.
-    SequansController.registerCallback("PING", ping_callback);
+    SequansController.registerCallback(F("PING"), ping_callback);
 
-    // Instead of writing a command, we use the writeBytes function here. It
-    // will simply write the bytes we provide and not check whether the command
+    // Instead of writing a command, we use the writeString function here. It
+    // will simply write the string we provide and not check whether the command
     // was written successfully. We do it this way for this example as we want
     // to utilise notifications and the ping command is blocking. This is thus
     // purely an example.
-    const char* command = "AT+PING=\"www.microchip.com\"";
-    SequansController.writeBytes((uint8_t*)command, strlen(command), true);
+    SequansController.writeString(F("AT+PING=\"www.microchip.com\""), true);
 
     // The default ping will retrieve four responses, so wait for them
     while (ping_messages_received < 4) {}
 
-    Log.infof("Received the following ping response:\r\n%s\r\n", ping_response);
+    Log.infof(F("Received the following ping response:\r\n%s\r\n"),
+              ping_response);
 
     // -------------- Extracting Parameters from Responses --------------------
 
     // Here we will utilise AT+CEREG?, which returns data about the current
     // connection. We can use it to check if we are connected to the network.
-    response_result =
-        SequansController.writeCommand("AT+CEREG?", response, sizeof(response));
+    response_result = SequansController.writeCommand(F("AT+CEREG?"),
+                                                     response,
+                                                     sizeof(response));
 
     if (response_result == ResponseResult::OK) {
 
-        Log.infof("Command written successfully, the response was: %s\r\n",
+        Log.infof(F("Command written successfully, the response was: %s\r\n"),
                   response);
 
         char value_buffer[8] = "";
@@ -112,12 +116,13 @@ void setup() {
                 1,
                 value_buffer,
                 sizeof(value_buffer))) {
-            Log.infof("The value was: %s\r\n", value_buffer);
+            Log.infof(F("The value was: %s\r\n"), value_buffer);
         } else {
-            Log.error("Failed to extract value");
+            Log.error(F("Failed to extract value"));
         }
     } else {
-        Log.errorf("Error writing command, the response was: %s\r\n", response);
+        Log.errorf(F("Error writing command, the response was: %s\r\n"),
+                   response);
     }
 
     Lte.end();

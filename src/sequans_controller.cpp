@@ -25,22 +25,22 @@
 #define RESET_PIN   PIN_PC5
 #define HWSERIALAT  USART1
 
-#define SEQUANS_MODULE_BAUD_RATE 115200
+#define SEQUANS_MODULE_BAUD_RATE (115200)
 
 // Defines for the amount of retries before we timeout and the interval between
 // them
-#define COMMAND_RETRY_SLEEP_MS 500
-#define COMMAND_NUM_RETRIES    5
-#define CTS_WAIT_MS            1000
+#define COMMAND_RETRY_SLEEP_MS (500)
+#define COMMAND_NUM_RETRIES    (5)
+#define CTS_WAIT_MS            (1000)
 
-#define READ_TIMEOUT_MS 2000
+#define READ_TIMEOUT_MS (2000)
 
 // Sizes for the circular buffers
-#define RX_BUFFER_SIZE 512
-#define TX_BUFFER_SIZE 512
+#define RX_BUFFER_SIZE (512)
+#define TX_BUFFER_SIZE (512)
 
-#define MAX_URC_CALLBACKS          10
-#define URC_IDENTIFIER_BUFFER_SIZE 28
+#define MAX_URC_CALLBACKS          (10)
+#define URC_IDENTIFIER_BUFFER_SIZE (28)
 
 #define LINE_FEED          '\n'
 #define CARRIAGE_RETURN    '\r'
@@ -87,9 +87,6 @@ typedef struct {
     void (*callback)(char* data) = NULL;
 
 } Urc;
-
-static const char OK_TERMINATION[]    = "\r\nOK\r\n";
-static const char ERROR_TERMINATION[] = "\r\nERROR\r\n";
 
 // Specifies the valid bits for the index in the buffers. Use constepxr here in
 // order to compute this at compile time and reduce the instruction of
@@ -205,62 +202,6 @@ static char wait_for_urc_buffer[URC_DATA_BUFFER_SIZE];
  */
 SequansControllerClass SequansController = SequansControllerClass::instance();
 
-/** @brief Flow control update for the receive part of the USART interface with
- * the cellular modem.
- *
- * Updates RTS line based on space available in receive buffer. If the buffer
- * is close to full the RTS line is asserted (set high) to signal to the
- * target that no more data should be sent
- */
-static inline void rtsUpdate(void) {
-    // If we are in a power save mode, flow control is disabled until we get a
-    // RING0 ack
-    if (power_save_mode == 1) {
-        return;
-    }
-
-    if (critical_section_enabled) {
-        return;
-    }
-
-    // We prefer to not use arduino's digitalWrite here to reduce code in the
-    // ISR
-    if (rx_num_elements < RX_BUFFER_ALMOST_FULL) {
-        // Space for more data, assert RTS line (active low)
-        VPORTC.OUT &= (~RTS_PIN_bm);
-    } else {
-        // Buffer is filling up, tell the target to stop sending data
-        // for now by de-asserting RTS
-        VPORTC.OUT |= RTS_PIN_bm;
-    }
-}
-
-/**
- * @brief Flow control update for the transmit part of the USART interface with
- * the cellular modem.
- *
- * Updates the USART's DREIE register if the CTS line is not asserted (logically
- * low) and the transmit buffer is not empty. This is necessary to do as the CTS
- * falling flank is sometimes missed due to having to use Arduino's
- * attachInterrupt() system. This adds quite a lot of instructions and the CTS
- * pulse is short (some microseconds), which leads to missing the flank.
- */
-static inline void ctsUpdate(void) {
-    if (!(HWSERIALAT.CTRLA & USART_DREIE_bm) && !(VPORTC.IN & CTS_PIN_bm) &&
-        tx_num_elements > 0) {
-        HWSERIALAT.CTRLA |= USART_DREIE_bm;
-    }
-}
-
-/**
- * @brief Callback for the waitForURC() function. This will copy over the URC
- * data to the wait_for_urc_buffer.
- */
-static void wait_for_urc_callback(char* urc_data) {
-    memcpy(wait_for_urc_buffer, urc_data, wait_for_urc_buffer_size);
-    got_wait_for_urc_callback = true;
-}
-
 void CTSInterrupt(void) {
 
     if (VPORTC.INTFLAGS & CTS_INT_bm) {
@@ -291,7 +232,54 @@ void RingInterrupt(void) {
     }
 }
 
-// RX complete
+/** @brief Flow control update for the receive part of the USART interface with
+ * the cellular modem.
+ *
+ * Updates RTS line based on space available in receive buffer. If the buffer
+ * is close to full the RTS line is asserted (set high) to signal to the
+ * target that no more data should be sent
+ */
+static inline void rtsUpdate(void) {
+    // If we are in a power save mode, flow control is disabled until we get a
+    // RING0 ack
+    if (power_save_mode == 1) {
+        return;
+    }
+
+    if (critical_section_enabled) {
+        return;
+    }
+
+    if (rx_num_elements < RX_BUFFER_ALMOST_FULL) {
+        // Space for more data, assert RTS line (active low)
+        VPORTC.OUT &= (~RTS_PIN_bm);
+    } else {
+        // Buffer is filling up, tell the target to stop sending data
+        // for now by de-asserting RTS
+        VPORTC.OUT |= RTS_PIN_bm;
+    }
+}
+
+/**
+ * @brief Flow control update for the transmit part of the USART interface with
+ * the cellular modem.
+ *
+ * Updates the USART's DREIE register if the CTS line is not asserted (logically
+ * low) and the transmit buffer is not empty. This is necessary to do as the CTS
+ * falling flank is sometimes missed due to having to use Arduino's
+ * attachInterrupt() system. This adds quite a lot of instructions and the CTS
+ * pulse is short (some microseconds), which leads to missing the flank.
+ */
+static inline void ctsUpdate(void) {
+    if (!(HWSERIALAT.CTRLA & USART_DREIE_bm) && !(VPORTC.IN & CTS_PIN_bm) &&
+        tx_num_elements > 0) {
+        HWSERIALAT.CTRLA |= USART_DREIE_bm;
+    }
+}
+
+/**
+ * @brief RX complete.
+ */
 ISR(USART1_RXC_vect) {
     uint8_t data = USART1.RXDATAL;
 
@@ -435,7 +423,7 @@ ISR(USART1_RXC_vect) {
  * the ring buffer.
  */
 ISR(USART1_DRE_vect) {
-    if (tx_num_elements != 0) {
+    if (tx_num_elements > 0) {
         tx_tail_index      = (tx_tail_index + 1) & TX_BUFFER_MASK;
         HWSERIALAT.TXDATAL = tx_buffer[tx_tail_index];
         tx_num_elements--;
@@ -444,9 +432,72 @@ ISR(USART1_DRE_vect) {
     }
 }
 
-void SequansControllerClass::begin(void) {
+/**
+ * @brief Callback for the waitForURC() function. This will copy over the URC
+ * data to the wait_for_urc_buffer.
+ */
+static void waitForUrcCallback(char* urc_data) {
+    memcpy(wait_for_urc_buffer, urc_data, wait_for_urc_buffer_size);
+    got_wait_for_urc_callback = true;
+}
 
-    // PIN SETUP
+/**
+ * @brief Appends a byte to the transmit buffer. If the transmit buffer is
+ * full, this function will attempt to push out data to the modem to make space
+ * in the transmit buffer.
+ *
+ * @param data [in] Data to append to transmit buffer.
+ * @param file [in] File pointer for compatibility with fdev_setup_stream, not
+ * used.
+ *
+ * @return 0 on sucess, -1 on time out (modem is not ready to accept data).
+ */
+static int appendDataToTransmitBuffer(const char data,
+                                      __attribute__((unused)) FILE* file) {
+
+    // If the transmit buffer is full, we enable the data register empty
+    // interrupt so that transmitting occurs and push out data before we append
+    // the incoming data
+    if (tx_num_elements == TX_BUFFER_SIZE) {
+
+        TimeoutTimer timeout_timer(1000);
+        while ((tx_num_elements == TX_BUFFER_SIZE) &&
+               !timeout_timer.hasTimedOut()) {
+
+            // Wait if the modem can't accept more data
+            while (VPORTC.IN & CTS_PIN_bm && !timeout_timer.hasTimedOut()) {
+                _delay_ms(1);
+            }
+
+            if (!(VPORTC.IN & CTS_PIN_bm) && !timeout_timer.hasTimedOut()) {
+                // Enable data register empty interrupt so that the data gets
+                // pushed out. We do this in the loop as the CTS interrupt might
+                // disable the interrupt logic, so we wait until that is not the
+                // case and then start the transmit logic
+                HWSERIALAT.CTRLA |= USART_DREIE_bm;
+            } else if (timeout_timer.hasTimedOut()) {
+                return -1;
+            }
+        }
+
+        // Make sure that that the transmit isn't fired whilst we are updating
+        // the transmit buffer
+        HWSERIALAT.CTRLA &= ~USART_DREIE_bm;
+    }
+
+    cli();
+    tx_head_index            = (tx_head_index + 1) & TX_BUFFER_MASK;
+    tx_buffer[tx_head_index] = data;
+    tx_num_elements++;
+    sei();
+
+    ctsUpdate();
+
+    return 0;
+}
+
+bool SequansControllerClass::begin(void) {
+
     pinConfigure(TX_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
     pinConfigure(RX_PIN, PIN_DIR_INPUT | PIN_INPUT_ENABLE);
 
@@ -473,45 +524,36 @@ void SequansControllerClass::begin(void) {
     // create a linker issue
     attachInterrupt(CTS_PIN, CTSInterrupt, CHANGE);
 
-    // Set reset low to reset the LTE modem
     pinConfigure(RESET_PIN, PIN_DIR_OUTPUT | PIN_INPUT_ENABLE);
     digitalWrite(RESET_PIN, HIGH);
-
-    // Delay for some time to reset the modem
     _delay_ms(10);
-
     digitalWrite(RESET_PIN, LOW);
 
-    // SERIAL INTERFACE SETUP
-
-    // LTE modules has set baud rate of 115200 for its UART0 interface
     HWSERIALAT.BAUD = (uint16_t)(((float)F_CPU * 64 /
                                   (16 * (float)SEQUANS_MODULE_BAUD_RATE)) +
                                  0.5);
 
-    // Interrupt on receive completed
     HWSERIALAT.CTRLA = USART_RXCIE_bm | USART_DREIE_bm;
-
     HWSERIALAT.CTRLB = USART_RXEN_bm | USART_TXEN_bm;
-
-    // LTE module interface requires 8 data bits with one stop bit
     HWSERIALAT.CTRLC = USART_CMODE_ASYNCHRONOUS_gc | USART_SBMODE_1BIT_gc |
                        USART_CHSIZE_8BIT_gc;
 
     rtsUpdate();
 
-    // Wait for SYSSTART URC before we continue
-    if (!waitForURC("SYSSTART")) {
-        Log.error("Timed out waiting for cellular modem to start up\r\n");
+    if (!waitForURC(F("SYSSTART"))) {
+        Log.error(F("Timed out waiting for cellular modem to start up\r\n"));
 
         // End the controller to deattach the interrupts
         SequansController.end();
-        return;
+
+        return false;
     }
 
     clearReceiveBuffer();
 
     initialized = true;
+
+    return true;
 }
 
 bool SequansControllerClass::isInitialized(void) { return initialized; }
@@ -546,76 +588,13 @@ bool SequansControllerClass::isTxReady(void) {
 
 bool SequansControllerClass::isRxReady(void) { return rx_num_elements > 0; }
 
-bool SequansControllerClass::appendDataToTransmitBuffer(const uint8_t data) {
-
-    // If the transmit buffer is full, we enable the data register empty
-    // interrupt so that transmitting occurs and push out data before we append
-    // the incoming data
-    if (!isTxReady()) {
-
-        TimeoutTimer timeout_timer(1000);
-        while (!isTxReady() && !timeout_timer.hasTimedOut()) {
-
-            // Wait if the modem can't accept more data
-            while (VPORTC.IN & CTS_PIN_bm && !timeout_timer.hasTimedOut()) {
-                _delay_ms(1);
-            }
-
-            if (!(VPORTC.IN & CTS_PIN_bm) && !timeout_timer.hasTimedOut()) {
-                // Enable data register empty interrupt so that the data gets
-                // pushed out. We do this in the loop as the CTS interrupt might
-                // disable the interrupt logic, so we wait until that is not the
-                // case and then start the transmit logic
-                HWSERIALAT.CTRLA |= USART_DREIE_bm;
-            } else if (timeout_timer.hasTimedOut()) {
-                // If we time out and the modem still can't accept the data, we
-                // just return
-                return false;
-            }
-        }
-
-        // Disable data register empty interrupt again before appending to the
-        // buffer
-        HWSERIALAT.CTRLA &= ~USART_DREIE_bm;
-    }
-
+void SequansControllerClass::clearReceiveBuffer(void) {
     cli();
-    tx_head_index            = (tx_head_index + 1) & TX_BUFFER_MASK;
-    tx_buffer[tx_head_index] = data;
-    tx_num_elements++;
+    rx_num_elements = 0;
+    rx_tail_index   = rx_head_index;
     sei();
 
-    return true;
-}
-
-void SequansControllerClass::writeBytes(const uint8_t* data,
-                                        const size_t buffer_size,
-                                        const bool append_carriage_return) {
-
-    for (size_t i = 0; i < buffer_size; i++) {
-        if (!appendDataToTransmitBuffer(data[i])) {
-            return;
-        }
-    }
-
-    if (append_carriage_return) {
-        if (!appendDataToTransmitBuffer((uint8_t)'\r')) {
-            return;
-        }
-    }
-
-    const TimeoutTimer timeout_timer(CTS_WAIT_MS);
-
-    // Wait if the modem can't accept more data
-    while ((VPORTC.IN & CTS_PIN_bm) && !timeout_timer.hasTimedOut()) {
-        _delay_ms(1);
-    }
-
-    // Only enable the data register empty interrupt (so that the data gets
-    // pushed out) if the CTS line was logically low before the end of the timer
-    if (!(VPORTC.IN & CTS_PIN_bm)) {
-        HWSERIALAT.CTRLA |= USART_DREIE_bm;
-    }
+    rtsUpdate();
 }
 
 int16_t SequansControllerClass::readByte(void) {
@@ -636,29 +615,157 @@ int16_t SequansControllerClass::readByte(void) {
     return rx_buffer[next_tail_index];
 }
 
+bool SequansControllerClass::writeBytes(const uint8_t* data,
+                                        const size_t buffer_size,
+                                        const bool append_carriage_return) {
+
+    for (size_t i = 0; i < buffer_size; i++) {
+        if (appendDataToTransmitBuffer((char)data[i], NULL)) {
+            return false;
+        }
+    }
+
+    if (append_carriage_return) {
+        if (appendDataToTransmitBuffer('\r', NULL)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool SequansControllerClass::writeString(const char* str,
+                                         const bool append_carriage_return,
+                                         const bool is_flash_string,
+                                         va_list args) {
+
+    Log.debugf(F("Writing string: "));
+
+    FILE file;
+
+    fdev_setup_stream(&file,
+                      appendDataToTransmitBuffer,
+                      NULL,
+                      _FDEV_SETUP_WRITE);
+
+    if (!is_flash_string) {
+
+        if (Log.getLogLevel() == LogLevel::DEBUG) {
+            Log.rawfv(str, args);
+            Log.rawf(F("\r\n"));
+        }
+
+        if (vfprintf(&file, str, args) < 0) {
+            fdev_close();
+            return false;
+        }
+    } else {
+
+        if (Log.getLogLevel() == LogLevel::DEBUG) {
+            Log.rawfv(reinterpret_cast<const __FlashStringHelper*>(str), args);
+            Log.rawf(F("\r\n"));
+        }
+
+        if (vfprintf_P(&file, str, args) < 0) {
+            fdev_close();
+            return false;
+        }
+    }
+
+    if (append_carriage_return) {
+        if (appendDataToTransmitBuffer('\r', NULL)) {
+            fdev_close();
+            return false;
+        }
+    }
+
+    fdev_close();
+
+    return true;
+}
+
+bool SequansControllerClass::writeString(const char* str,
+                                         const bool append_carriage_return,
+                                         ...) {
+
+    va_list args;
+    va_start(args, append_carriage_return);
+    const bool success = writeString(str, append_carriage_return, false, args);
+    va_end(args);
+
+    return success;
+}
+
+bool SequansControllerClass::writeString(const __FlashStringHelper* str,
+                                         const bool append_carriage_return,
+                                         ...) {
+
+    va_list args;
+    va_start(args, append_carriage_return);
+    const bool success = writeString(reinterpret_cast<const char*>(str),
+                                     append_carriage_return,
+                                     true,
+                                     args);
+    va_end(args);
+
+    return success;
+}
+
 ResponseResult
 SequansControllerClass::writeCommand(const char* command,
                                      char* result_buffer,
-                                     const size_t result_buffer_size) {
-
+                                     const size_t result_buffer_size,
+                                     const bool is_flash_string,
+                                     va_list args) {
     clearReceiveBuffer();
-    Log.debugf("Sending AT command: %s", command);
-    ResponseResult response;
+
+    if (Log.getLogLevel() == LogLevel::DEBUG) {
+
+        Log.debugf(F("Sending AT command: "));
+
+        if (!is_flash_string) {
+            Log.rawfv(command, args);
+        } else {
+            Log.rawfv(reinterpret_cast<const __FlashStringHelper*>(command),
+                      args);
+        }
+    }
+
+    ResponseResult response = ResponseResult::OK;
+
+    FILE file;
+    fdev_setup_stream(&file,
+                      appendDataToTransmitBuffer,
+                      NULL,
+                      _FDEV_SETUP_WRITE);
 
     uint8_t retry_count = 0;
 
     do {
-        writeBytes((const uint8_t*)command, strlen(command), true);
+        if (!is_flash_string) {
+            if (vfprintf(&file, command, args) < 0) {
+                fdev_close();
+                return ResponseResult::SERIAL_WRITE_ERROR;
+            }
+        } else {
+            if (vfprintf_P(&file, command, args) < 0) {
+                fdev_close();
+                return ResponseResult::SERIAL_WRITE_ERROR;
+            }
+        }
+
+        appendDataToTransmitBuffer('\r', NULL);
         response = readResponse(result_buffer, result_buffer_size);
 
         if (response == ResponseResult::BUFFER_OVERFLOW &&
             result_buffer != NULL) {
 
-            strcpy(result_buffer, "");
+            strcpy_P(result_buffer, PSTR(""));
             Log.error(
-                "SequansController.writeCommand() called with buffer which "
-                "is too small for the response. Increase response buffer "
-                "size.");
+                F("SequansController.writeCommand() called with buffer which "
+                  "is too small for the response. Increase response buffer "
+                  "size."));
+            fdev_close();
             return response;
         }
 
@@ -668,12 +775,48 @@ SequansControllerClass::writeCommand(const char* command,
     } while (response != ResponseResult::OK &&
              retry_count++ < COMMAND_NUM_RETRIES);
 
-    char response_string[18];
-    responseResultToString(response, response_string);
+    fdev_close();
 
     if (Log.getLogLevel() == LogLevel::DEBUG) {
-        Log.rawf(" -> %s\r\n", response_string);
+        // Maximum size is 19 here as the maximum response result string is 18
+        // characters (+1 for NULL termination).
+        char response_string[19] = "";
+        responseResultToString(response, response_string);
+
+        Log.rawf(F(" -> %s\r\n"), response_string);
     }
+
+    return response;
+}
+
+ResponseResult
+SequansControllerClass::writeCommand(const char* command,
+                                     char* result_buffer,
+                                     const size_t result_buffer_size,
+                                     ...) {
+    va_list args;
+    va_start(args, result_buffer_size);
+    const ResponseResult response =
+        writeCommand(command, result_buffer, result_buffer_size, false, args);
+    va_end(args);
+
+    return response;
+}
+
+ResponseResult
+SequansControllerClass::writeCommand(const __FlashStringHelper* command,
+                                     char* result_buffer,
+                                     const size_t result_buffer_size,
+                                     ...) {
+    va_list args;
+    va_start(args, result_buffer_size);
+    const ResponseResult response = writeCommand(
+        reinterpret_cast<const char*>(command),
+        result_buffer,
+        result_buffer_size,
+        true,
+        args);
+    va_end(args);
 
     return response;
 }
@@ -684,7 +827,7 @@ SequansControllerClass::readResponse(char* out_buffer,
 
     // Enough to hold the OK and ERROR termination if the out_buffer is NULL
     // and the result is not needed
-    char placeholder_buffer[32] = "";
+    char placeholder_buffer[16] = "";
 
     char* buffer       = placeholder_buffer;
     size_t buffer_size = sizeof(placeholder_buffer);
@@ -694,7 +837,7 @@ SequansControllerClass::readResponse(char* out_buffer,
         buffer_size = out_buffer_size;
     }
 
-    // Safe guard and place null termination at end of buffer
+    // Safe guard ourselves
     buffer[buffer_size - 1] = '\0';
 
     size_t i = 0;
@@ -722,7 +865,7 @@ SequansControllerClass::readResponse(char* out_buffer,
         }
 
         // For AT command responses from the LTE module, "\r\nOK\r\n" or
-        // "\r\nERROR\r\n" signifies the end of a response, so we look
+        // "\r\nERROR\r\n" signifies the end of a response, so we look for
         // "\r\n".
         //
         // Since we post increment the i variable, we have to take that into
@@ -730,14 +873,16 @@ SequansControllerClass::readResponse(char* out_buffer,
         // is incremented
         if (buffer[i - 2] == CARRIAGE_RETURN && buffer[i - 1] == LINE_FEED) {
 
-            char* ok_index = strstr(buffer, OK_TERMINATION);
+            char* ok_index = strstr_P(buffer, PSTR("\r\nOK\r\n"));
+
             if (ok_index != NULL) {
                 // Terminate and omit the rest from the OK index.
                 *ok_index = '\0';
                 return ResponseResult::OK;
             }
 
-            char* error_index = strstr(buffer, ERROR_TERMINATION);
+            char* error_index = strstr_P(buffer, PSTR("\r\nERROR\r\n"));
+
             if (error_index != NULL) {
                 // Terminate and omit the rest from the ERROR index
                 *error_index = '\0';
@@ -751,20 +896,11 @@ SequansControllerClass::readResponse(char* out_buffer,
     return ResponseResult::BUFFER_OVERFLOW;
 }
 
-void SequansControllerClass::clearReceiveBuffer(void) {
-    cli();
-    rx_num_elements = 0;
-    rx_tail_index   = rx_head_index;
-    sei();
-
-    rtsUpdate();
-}
-
 bool SequansControllerClass::extractValueFromCommandResponse(
     char* response,
     const uint8_t index,
-    char* buffer,
-    const size_t buffer_size,
+    char* destination_buffer,
+    const size_t destination_buffer_size,
     const char start_character) {
 
     // We need a copy in order to not modify the original
@@ -772,7 +908,7 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     char response_copy[rcp_size];
     strncpy(response_copy, response, rcp_size);
 
-    // Enforce non buffer overflow
+    // Safe guard ourselves
     response_copy[rcp_size - 1] = '\0';
 
     char* data;
@@ -828,10 +964,12 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     if (end_value_ptr == NULL) {
         end_value_ptr = data + strlen(data);
     }
-    end_value_ptr[0] = 0; // Add null termination
+
+    // Safe guard ourselves
+    end_value_ptr[0] = '\0';
 
     // If found, set termination to the carriage return. If not, leave the
-    // string be as it is
+    // string be as it is.
     char* first_carriage_return = strchr(start_value_ptr, '\r');
     if (first_carriage_return != NULL) {
         *first_carriage_return = 0;
@@ -840,38 +978,50 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     // We compare inclusive for value length as we want to take the null
     // termination into consideration. So the buffer size has be
     // value_length + 1
-    if (strlen(start_value_ptr) >= buffer_size) {
+    if (strlen(start_value_ptr) >= destination_buffer_size) {
         return false;
     }
 
-    strcpy(buffer, start_value_ptr);
+    strcpy(destination_buffer, start_value_ptr);
 
     return true;
 }
 
 bool SequansControllerClass::registerCallback(const char* urc_identifier,
                                               void (*urc_callback)(char*),
-                                              const bool clear_data) {
+                                              const bool clear_data,
+                                              const bool is_flash_string) {
 
-    const uint8_t urc_identifier_length = strlen(urc_identifier);
+    const size_t urc_identifier_length =
+        (is_flash_string ? strlen_P(urc_identifier) : strlen(urc_identifier));
 
     // Doing -1 here as we need one byte for null termination
     if (urc_identifier_length > (URC_IDENTIFIER_BUFFER_SIZE - 1)) {
 
-        Log.errorf("Attempted to register URC \"%s\" with length greater than "
-                   "the maximum length allowed for URCs (%d/%d)\r\n",
-                   urc_identifier,
-                   urc_identifier_length,
-                   URC_IDENTIFIER_BUFFER_SIZE - 1);
+        Log.errorf(F("Attempted to register URC "));
+
+        if (is_flash_string) {
+            Log.rawf(F("%S"), urc_identifier);
+        } else {
+            Log.rawf(F("%s"), urc_identifier);
+        }
+
+        Log.rawf(F(" with length greater than the maximum length allowed for "
+                   "URCs (%d/%d)\r\n"),
+                 urc_identifier_length,
+                 URC_IDENTIFIER_BUFFER_SIZE - 1);
 
         return false;
     }
 
     // Check if we can override first
-    for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
+    for (size_t i = 0; i < MAX_URC_CALLBACKS; i++) {
         if (urcs[i].identifier_length == urc_identifier_length &&
+            (is_flash_string
+                 ? strcmp_P((const char*)urcs[i].identifier, urc_identifier)
+                 : strcmp((const char*)urcs[i].identifier, urc_identifier)) ==
+                0) {
 
-            strcmp(urc_identifier, (const char*)urcs[i].identifier) == 0) {
             urcs[i].callback     = urc_callback;
             urcs[i].should_clear = clear_data;
 
@@ -880,11 +1030,20 @@ bool SequansControllerClass::registerCallback(const char* urc_identifier,
     }
 
     // Look for empty spot
-    for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
+    for (size_t i = 0; i < MAX_URC_CALLBACKS; i++) {
         if (urcs[i].identifier_length == 0) {
 
-            strcpy((char*)urcs[i].identifier, urc_identifier);
-            urcs[i].identifier_length = strlen(urc_identifier);
+            if (is_flash_string) {
+                strncpy_P((char*)urcs[i].identifier,
+                          urc_identifier,
+                          URC_IDENTIFIER_BUFFER_SIZE);
+            } else {
+                strncpy((char*)urcs[i].identifier,
+                        urc_identifier,
+                        URC_IDENTIFIER_BUFFER_SIZE);
+            }
+
+            urcs[i].identifier_length = urc_identifier_length;
             urcs[i].callback          = urc_callback;
             urcs[i].should_clear      = clear_data;
 
@@ -892,30 +1051,62 @@ bool SequansControllerClass::registerCallback(const char* urc_identifier,
         }
     }
 
-    Log.error("Max amount of URC callbacks for SequansController reached");
+    Log.error(F("Max amount of URC callbacks for SequansController reached"));
+
     return false;
 }
+bool SequansControllerClass::registerCallback(const char* urc_identifier,
+                                              void (*urc_callback)(char*),
+                                              const bool clear_data) {
 
-void SequansControllerClass::unregisterCallback(const char* urc_identifier) {
-    const uint8_t urc_identifier_length = strlen(urc_identifier);
+    return registerCallback(urc_identifier, urc_callback, clear_data, false);
+}
+
+bool SequansControllerClass::registerCallback(
+    const __FlashStringHelper* urc_identifier,
+    void (*urc_callback)(char*),
+    const bool clear_data) {
+
+    return registerCallback(reinterpret_cast<const char*>(urc_identifier),
+                            urc_callback,
+                            clear_data,
+                            true);
+}
+
+void SequansControllerClass::unregisterCallback(const char* urc_identifier,
+                                                const bool is_flash_string) {
+
+    const size_t urc_identifier_length = is_flash_string
+                                             ? strlen_P(urc_identifier)
+                                             : strlen(urc_identifier);
 
     // Doing -1 here as we need one byte for null termination
     if (urc_identifier_length > (URC_IDENTIFIER_BUFFER_SIZE - 1)) {
 
-        Log.errorf(
-            "Attempted to de-register URC \"%s\" with length greater than "
-            "the maximum length allowed for URCs (%d/%d)\r\n",
-            urc_identifier,
-            strlen(urc_identifier),
-            URC_IDENTIFIER_BUFFER_SIZE - 1);
+        Log.errorf(F("Attempted to de-register URC "));
+
+        if (is_flash_string) {
+            Log.rawf(F("%S"), urc_identifier);
+        } else {
+            Log.rawf(F("%s"), urc_identifier);
+        }
+
+        Log.rawf(F(" with length greater than the maximum length allowed for "
+                   "URCs (%d/%d)\r\n"),
+                 strlen(urc_identifier),
+                 URC_IDENTIFIER_BUFFER_SIZE - 1);
 
         return;
     }
 
-    for (uint8_t i = 0; i < MAX_URC_CALLBACKS; i++) {
-        if (memcmp((const void*)urc_identifier,
-                   (const void*)urcs[i].identifier,
-                   urc_identifier_length) == 0) {
+    for (size_t i = 0; i < MAX_URC_CALLBACKS; i++) {
+
+        if ((is_flash_string ? memcmp_P((const void*)urcs[i].identifier,
+                                        (const void*)urc_identifier,
+                                        urc_identifier_length)
+                             : memcmp((const void*)urcs[i].identifier,
+                                      (const void*)urc_identifier,
+                                      urc_identifier_length)) == 0) {
 
             // No need to fill the look up table identifier table, as we
             // override it if a new registration is issued, but the length
@@ -928,20 +1119,42 @@ void SequansControllerClass::unregisterCallback(const char* urc_identifier) {
     }
 }
 
+void SequansControllerClass::unregisterCallback(const char* urc_identifier) {
+    unregisterCallback(urc_identifier, false);
+}
+
+void SequansControllerClass::unregisterCallback(
+    const __FlashStringHelper* urc_identifier) {
+
+    unregisterCallback(reinterpret_cast<const char*>(urc_identifier), true);
+}
+
 bool SequansControllerClass::waitForURC(const char* urc_identifier,
                                         char* out_buffer,
                                         const uint16_t out_buffer_size,
-                                        const uint64_t timeout_ms) {
+                                        const uint32_t timeout_ms,
+                                        void (*action)(void),
+                                        const uint32_t action_interval_ms,
+                                        const bool is_flash_string) {
     got_wait_for_urc_callback = false;
     wait_for_urc_buffer_size  = out_buffer_size;
 
-    // We might hit the maximum amount of URC callbacks allowed, so return
-    // if that is the case
-    if (!registerCallback(urc_identifier, wait_for_urc_callback)) {
-        return false;
+    if (is_flash_string) {
+
+        if (!registerCallback(
+                reinterpret_cast<const __FlashStringHelper*>(urc_identifier),
+                waitForUrcCallback)) {
+            return false;
+        }
+    } else {
+
+        if (!registerCallback(urc_identifier, waitForUrcCallback)) {
+            return false;
+        }
     }
 
     TimeoutTimer timeout_timer(timeout_ms);
+    TimeoutTimer action_timer(action_interval_ms);
 
     while (!got_wait_for_urc_callback && !timeout_timer.hasTimedOut()) {
         // We update the CTS here in case the CTS interrupt didn't catch the
@@ -949,9 +1162,19 @@ bool SequansControllerClass::waitForURC(const char* urc_identifier,
         ctsUpdate();
 
         _delay_ms(1);
+
+        if (action != NULL && action_timer.hasTimedOut()) {
+            action();
+            action_timer.reset();
+        }
     }
 
-    unregisterCallback(urc_identifier);
+    if (is_flash_string) {
+        unregisterCallback(
+            reinterpret_cast<const __FlashStringHelper*>(urc_identifier));
+    } else {
+        unregisterCallback(urc_identifier);
+    }
 
     if (got_wait_for_urc_callback) {
         if (out_buffer != NULL) {
@@ -959,15 +1182,48 @@ bool SequansControllerClass::waitForURC(const char* urc_identifier,
         }
 
         return true;
-    } else {
-        return false;
     }
+
+    return false;
+}
+
+bool SequansControllerClass::waitForURC(const char* urc_identifier,
+                                        char* out_buffer,
+                                        const uint16_t out_buffer_size,
+                                        const uint32_t timeout_ms,
+                                        void (*action)(void),
+                                        const uint32_t action_interval_ms) {
+
+    return waitForURC(urc_identifier,
+                      out_buffer,
+                      out_buffer_size,
+                      timeout_ms,
+                      action,
+                      action_interval_ms,
+                      false);
+}
+
+bool SequansControllerClass::waitForURC(
+    const __FlashStringHelper* urc_identifier,
+    char* out_buffer,
+    const uint16_t out_buffer_size,
+    const uint32_t timeout_ms,
+    void (*action)(void),
+    const uint32_t action_interval_ms) {
+
+    return waitForURC(reinterpret_cast<const char*>(urc_identifier),
+                      out_buffer,
+                      out_buffer_size,
+                      timeout_ms,
+                      action,
+                      action_interval_ms,
+                      true);
 }
 
 void SequansControllerClass::setPowerSaveMode(const uint8_t mode,
                                               void (*ring_callback)(void)) {
 
-    Log.debugf("Setting power save mode %d\r\n", mode);
+    Log.debugf(F("Setting power save mode %d\r\n"), mode);
 
     if (mode == 0) {
         ring_line_callback = NULL;
@@ -1002,22 +1258,25 @@ void SequansControllerClass::responseResultToString(
 
     switch (response_result) {
     case ResponseResult::OK:
-        strcpy(response_string, "OK");
+        strcpy_P(response_string, PSTR("OK"));
         break;
     case ResponseResult::ERROR:
-        strcpy(response_string, "ERROR");
+        strcpy_P(response_string, PSTR("ERROR"));
         break;
     case ResponseResult::BUFFER_OVERFLOW:
-        strcpy(response_string, "BUFFER_OVERFLOW");
+        strcpy_P(response_string, PSTR("BUFFER_OVERFLOW"));
         break;
     case ResponseResult::TIMEOUT:
-        strcpy(response_string, "TIMEOUT");
+        strcpy_P(response_string, PSTR("TIMEOUT"));
         break;
     case ResponseResult::SERIAL_READ_ERROR:
-        strcpy(response_string, "SERIAL_READ_ERROR");
+        strcpy_P(response_string, PSTR("SERIAL_READ_ERROR"));
+        break;
+    case ResponseResult::SERIAL_WRITE_ERROR:
+        strcpy_P(response_string, PSTR("SERIAL_WRITE_ERROR"));
         break;
     case ResponseResult::NONE:
-        strcpy(response_string, "NONE");
+        strcpy_P(response_string, PSTR("NONE"));
         break;
     }
 }

@@ -812,7 +812,7 @@ bool writeECCDeviceCertificateToModem(const uint8_t slot,
         // Print the prefix. We do this manually as the certificate in the data
         // buffer does not include a carriage return (which we need for the
         // formatting in the serial terminal)
-        while ((data = pgm_read_byte(data_ptr)) != '\0') {
+        while ((data = pgm_read_byte_far(data_ptr)) != '\0') {
             SerialModule.print(data);
             data_ptr++;
         }
@@ -824,7 +824,7 @@ bool writeECCDeviceCertificateToModem(const uint8_t slot,
 
         // Skip the newline at the start of the suffix
         data_ptr = (char*)base64_encoded_suffix + 1;
-        while ((data = pgm_read_byte(data_ptr)) != '\0') {
+        while ((data = pgm_read_byte_far(data_ptr)) != '\0') {
             SerialModule.print(data);
             data_ptr++;
         }
@@ -1501,10 +1501,10 @@ void otherServiceMqttProvision() {
             char cipher_text_value_right[CIPHER_TEXT_MAX_LENGTH] = "";
 
             strcpy_P(cipher_text_value_left,
-                     (PGM_P)pgm_read_word(&(cipher_text_values[i])));
+                     (PGM_P)pgm_read_word_far(&(cipher_text_values[i])));
 
             strcpy_P(cipher_text_value_right,
-                     (PGM_P)pgm_read_word(
+                     (PGM_P)pgm_read_word_far(
                          &(cipher_text_values[NUMBER_OF_CIPHERS / 2 + i])));
 
             snprintf_P(data_buffer,
@@ -1584,7 +1584,7 @@ void otherServiceMqttProvision() {
                 // Append the cipher to the string which will be passed with the
                 // command to the modem
                 strcpy_P(&ciphers[cipher_character_index],
-                         (PGM_P)pgm_read_word(&(cipher_values[i])));
+                         (PGM_P)pgm_read_word_far(&(cipher_values[i])));
                 cipher_character_index += CIPHER_VALUE_LENGTH;
                 cipher_count++;
 
@@ -1597,7 +1597,7 @@ void otherServiceMqttProvision() {
                 char cipher_text_value[CIPHER_TEXT_MAX_LENGTH] = "";
 
                 strcpy_P(cipher_text_value,
-                         (PGM_P)pgm_read_word(&(cipher_text_values[i])));
+                         (PGM_P)pgm_read_word_far(&(cipher_text_values[i])));
 
                 // Check if the cipher chosen is a pre shared key one, so that
                 // the user has to provide the PSK and the PSK identity

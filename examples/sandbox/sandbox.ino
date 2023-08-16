@@ -21,12 +21,11 @@
 // Tool allows for publishing and subscribing on thing_id/topic. If you want to
 // publish and subscribe on other topics, see the AWS IoT Core Policy
 // documentation.
-#define MQTT_SUB_TOPIC_FMT "$aws/things/%s/shadow/update/delta"
-#define MQTT_PUB_TOPIC_FMT "%s/sensors"
+const char MQTT_SUB_TOPIC_FMT[] PROGMEM = "$aws/things/%s/shadow/update/delta";
+const char MQTT_PUB_TOPIC_FMT[] PROGMEM = "%s/sensors";
 
 #define NETWORK_CONN_FLAG                 (1 << 0)
 #define NETWORK_DISCONN_FLAG              (1 << 1)
-#define BROKER_CONN_FLAG                  (1 << 2)
 #define BROKER_DISCONN_FLAG               (1 << 3)
 #define SEND_HEARTBEAT_FLAG               (1 << 4)
 #define STOP_PUBLISHING_SENSOR_DATA_FLAG  (1 << 5)
@@ -94,7 +93,6 @@ void resetInterrupt(void) {
 }
 
 void disconnectedFromNetwork(void) { event_flags |= NETWORK_DISCONN_FLAG; }
-void connectedToBroker(void) { event_flags |= BROKER_CONN_FLAG; }
 void disconnectedFromBroker(void) { event_flags |= BROKER_DISCONN_FLAG; }
 
 void receivedMessage(const char* topic,
@@ -109,8 +107,7 @@ void receivedMessage(const char* topic,
 }
 
 void connectMqtt() {
-    MqttClient.onConnectionStatusChange(connectedToBroker,
-                                        disconnectedFromBroker);
+    MqttClient.onDisconnect(disconnectedFromBroker);
     MqttClient.onReceive(receivedMessage);
 
     // Attempt to connect to broker
@@ -152,7 +149,7 @@ void decodeMessage(const char* message) {
     DeserializationError error = deserializeJson(doc, message);
 
     if (error) {
-        Log.errorf("Unable to deserialize received JSON: %s\r\n",
+        Log.errorf(F("Unable to deserialize received JSON: %s\r\n"),
                    error.f_str());
         return;
     }
@@ -160,22 +157,22 @@ void decodeMessage(const char* message) {
     // Handle command frame
     const char* cmd = doc["state"]["cmd"];
     if (cmd == 0) {
-        Log.errorf("Unable to get command, pointer is zero, "
-                   "message is %s\r\n",
+        Log.errorf(F("Unable to get command, pointer is zero, "
+                     "message is %s\r\n"),
                    message);
         return;
     }
 
     // If it's a toggle_led command, handle it
-    if (strcmp(cmd, "set_led") == 0) {
+    if (strcmp_P(cmd, PSTR("set_led")) == 0) {
         // -- Read the led value
         const char* target_led = doc["state"]["opts"]["led"];
         const unsigned int target_state =
             doc["state"]["opts"]["state"].as<unsigned int>();
 
         if (target_led == 0) {
-            Log.errorf("Unable to get target led or state, pointer is zero, "
-                       "message is %s\r\n",
+            Log.errorf(F("Unable to get target led or state, pointer is zero, "
+                         "message is %s\r\n"),
                        message);
             return;
         }
@@ -183,26 +180,26 @@ void decodeMessage(const char* message) {
         // -- Toggle LED based on the given value
         Led led;
 
-        if (strcmp(target_led, "USER") == 0) {
+        if (strcmp_P(target_led, PSTR("USER")) == 0) {
             led = Led::USER;
         } else if (strcmp(target_led, "ERROR") == 0) {
             led = Led::ERROR;
         } else {
-            Log.errorf("Invalid LED value provided, "
-                       "led provided = %s\r\n",
+            Log.errorf(F("Invalid LED value provided, "
+                         "led provided = %s\r\n"),
                        led);
             return;
         }
 
         if (target_state) {
-            Log.infof("Turning LED %s on\r\n", target_led);
+            Log.infof(F("Turning LED %s on\r\n"), target_led);
             LedCtrl.on(led);
         } else {
-            Log.infof("Turning LED %s off\r\n", target_led);
+            Log.infof(F("Turning LED %s off\r\n"), target_led);
             LedCtrl.off(led);
         }
 
-    } else if (strcmp(cmd, "stream") == 0) {
+    } else if (strcmp_P(cmd, PSTR("stream")) == 0) {
         const unsigned int duration =
             doc["state"]["opts"]["duration"].as<unsigned int>();
 
@@ -210,8 +207,8 @@ void decodeMessage(const char* message) {
             doc["state"]["opts"]["freq"].as<unsigned int>();
 
         if (duration == 0 || frequency == 0) {
-            Log.errorf("Unable to get duration or frequency, pointer "
-                       "is zero, message is %s\r\n",
+            Log.errorf(F("Unable to get duration or frequency, pointer "
+                         "is zero, message is %s\r\n"),
                        message);
             return;
         }
@@ -221,18 +218,19 @@ void decodeMessage(const char* message) {
         target_seconds  = duration;
 
         event_flags |= START_PUBLISHING_SENSOR_DATA_FLAG;
-    } else if (strcmp(cmd, "verbose_logs") == 0) {
+    } else if (strcmp_P(cmd, PSTR("verbose_logs")) == 0) {
         Log.setLogLevel(LogLevel::DEBUG);
     }
 }
 
 void printHelp() {
-    Log.rawf("\r\nAvailable Commands\r\n"
-             "-----------------------\r\n"
-             "help\t\t Print this message\r\n"
-             "loglevel=level\t Set the log level. Available levels are debug, "
-             "info, warn, error\r\n"
-             "-----------------------\r\n");
+    Log.rawf(
+        F("\r\nAvailable Commands\r\n"
+          "-----------------------\r\n"
+          "help\t\t Print this message\r\n"
+          "loglevel=level\t Set the log level. Available levels are debug, "
+          "info, warn, error\r\n"
+          "-----------------------\r\n"));
 }
 
 void handleSerialCommand(const char* instruction, uint16_t instructionLen) {
@@ -242,7 +240,7 @@ void handleSerialCommand(const char* instruction, uint16_t instructionLen) {
     // If we did not find it, treat is at a non-value command
     if (equalIndex == NULL) {
         equalIndex = (char*)(&instruction[instructionLen - 1]);
-        Log.debug("Given command is non-value");
+        Log.debug(F("Given command is non-value"));
     }
 
     // Extract the command
@@ -258,20 +256,20 @@ void handleSerialCommand(const char* instruction, uint16_t instructionLen) {
     value[valueLen] = '\0';
 
     // Depending on the cmd content, execute different commands
-    if (strcmp(cmd, "help") == 0) {
+    if (strcmp_P(cmd, PSTR("help")) == 0) {
         printHelp();
-    } else if (strcmp(cmd, "loglevel") == 0) {
+    } else if (strcmp_P(cmd, PSTR("loglevel")) == 0) {
         if (!Log.setLogLevelStr(value)) {
-            Log.errorf("Could not set log level %s\r\n", value);
+            Log.errorf(F("Could not set log level %s\r\n"), value);
         } else {
-            Log.rawf("Log level is now %s\r\n", value);
+            Log.rawf(F("Log level is now %s\r\n"), value);
         }
-    } else if (strcmp(cmd, "heartbeat") == 0) {
+    } else if (strcmp_P(cmd, PSTR("heartbeat")) == 0) {
         event_flags |= SEND_HEARTBEAT_FLAG;
-    } else if (strcmp(cmd, "reset") == 0) {
+    } else if (strcmp_P(cmd, PSTR("reset")) == 0) {
         asm("jmp 0");
     } else {
-        Log.info("\nInvalid command");
+        Log.info(F("\nInvalid command"));
         printHelp();
         return;
     }
@@ -293,15 +291,19 @@ void setup() {
 
     sei();
 
-    Log.infof("Starting sandbox / landing page procedure. Version = %s\r\n",
+    Log.infof(F("Starting sandbox / landing page procedure. Version = %s\r\n"),
               SANDBOX_VERSION);
 
     if (Mcp9808.begin()) {
-        Log.error("Could not initialize the temperature sensor");
+        Log.error(F("Could not initialize the temperature sensor"));
+
+        while (1) {}
     }
 
     if (Veml3328.begin()) {
-        Log.error("Could not initialize the light sensor");
+        Log.error(F("Could not initialize the light sensor"));
+
+        while (1) {}
     }
 
     ECC608.begin();
@@ -313,20 +315,21 @@ void setup() {
     ATCA_STATUS status =
         ECC608.readProvisionItem(AWS_THINGNAME, thing_name, &thing_name_len);
     if (status != ATCA_SUCCESS) {
-        Log.error("Could not retrieve thing name from the ECC");
-        Log.error("Unable to initialize the MQTT topics. Stopping...");
+        Log.error(F("Could not retrieve thing name from the ECC"));
+        Log.error(F("Unable to initialize the MQTT topics. Stopping..."));
         LedCtrl.on(Led::ERROR);
         return;
     }
 
-    Log.infof("Board name: %s\r\n", thing_name);
+    Log.infof(F("Board name: %s\r\n"), thing_name);
 
-    sprintf(mqtt_sub_topic, MQTT_SUB_TOPIC_FMT, thing_name);
-    sprintf(mqtt_pub_topic, MQTT_PUB_TOPIC_FMT, thing_name);
+    sprintf_P(mqtt_sub_topic, MQTT_SUB_TOPIC_FMT, thing_name);
+    sprintf_P(mqtt_pub_topic, MQTT_PUB_TOPIC_FMT, thing_name);
 
-    Log.info("Will now connect to the operator. If the board hasn't previously "
-             "connected to the operator/network, establishing the "
-             "connection the first time might take some time.");
+    Log.info(
+        F("Will now connect to the operator. If the board hasn't previously "
+          "connected to the operator/network, establishing the "
+          "connection the first time might take some time."));
     connectLTE();
 }
 
@@ -344,10 +347,15 @@ void loop() {
         case NOT_CONNECTED:
             state = CONNECTED_TO_NETWORK;
             LedCtrl.on(Led::CELL);
-            Log.infof("Connected to operator: %s\r\n",
+            Log.infof(F("Connected to operator: %s\r\n"),
                       Lte.getOperator().c_str());
-            Log.info("Connecting to MQTT broker...");
             connectMqtt();
+
+            Log.infof(
+                F("Connected to MQTT broker, subscribing to topic: %s!\r\n"),
+                mqtt_sub_topic);
+            MqttClient.subscribe(mqtt_sub_topic, AT_LEAST_ONCE);
+            state = CONNECTED_TO_BROKER;
             break;
         default:
             break;
@@ -364,7 +372,7 @@ void loop() {
             LedCtrl.off(Led::USER);
             LedCtrl.off(Led::ERROR);
 
-            Log.info("Network disconnection, attempting to reconnect...");
+            Log.info(F("Network disconnection, attempting to reconnect..."));
 
             Lte.end();
             connectLTE();
@@ -373,44 +381,29 @@ void loop() {
 
         event_flags &= ~NETWORK_DISCONN_FLAG;
 
-    } else if (event_flags & BROKER_CONN_FLAG) {
-
-        switch (state) {
-        case CONNECTED_TO_NETWORK:
-            state = CONNECTED_TO_BROKER;
-
-            Log.infof("Connected to MQTT broker, subscribing to topic: %s!\r\n",
-                      mqtt_sub_topic);
-
-            MqttClient.subscribe(mqtt_sub_topic, AT_LEAST_ONCE);
-
-            break;
-        default:
-            break;
-        }
-
-        event_flags &= ~BROKER_CONN_FLAG;
     } else if (event_flags & BROKER_DISCONN_FLAG) {
 
         switch (state) {
         case CONNECTED_TO_BROKER:
             state = CONNECTED_TO_NETWORK;
 
-            Log.info("Lost connection to broker, attempting to reconnect...");
+            Log.info(
+                F("Lost connection to broker, attempting to reconnect..."));
 
-            MqttClient.end();
             connectMqtt();
+            MqttClient.subscribe(mqtt_sub_topic, AT_LEAST_ONCE);
 
             break;
 
         case STREAMING_DATA:
             state = CONNECTED_TO_NETWORK;
 
-            Log.info("Lost connection to broker, attempting to reconnect...");
+            Log.info(
+                F("Lost connection to broker, attempting to reconnect..."));
 
             stopStreamTimer();
-            MqttClient.end();
             connectMqtt();
+            MqttClient.subscribe(mqtt_sub_topic, AT_LEAST_ONCE);
 
             break;
 
@@ -446,7 +439,7 @@ void loop() {
             if (message_read_successfully) {
                 decodeMessage(message);
             } else {
-                Log.error("Failed to read message\r\n");
+                Log.error(F("Failed to read message\r\n"));
             }
 
         } break;
@@ -462,7 +455,7 @@ void loop() {
         case CONNECTED_TO_BROKER:
         case STREAMING_DATA:
 
-            Log.info("Sending heartbeat");
+            Log.info(F("Sending heartbeat"));
             MqttClient.publish(mqtt_pub_topic, heartbeat_message);
             last_heartbeat_time = millis();
             break;
@@ -479,7 +472,7 @@ void loop() {
 
             state = STREAMING_DATA;
 
-            Log.infof("Starting to stream data for %d seconds\r\n",
+            Log.infof(F("Starting to stream data for %d seconds\r\n"),
                       target_seconds);
             startStreamTimer();
             break;
@@ -511,18 +504,18 @@ void loop() {
             // -- Warning: Doing sprintf on a pointer without checking for
             // overflow is *bad* practice, but we do it here due to the
             // simplicity of the data.
-            sprintf(transmit_buffer,
-                    "{\"type\": \"data\",\
+            sprintf_P(transmit_buffer,
+                      PSTR("{\"type\": \"data\",\
                         \"data\": { \
                             \"Temperature\": %d, \
                             \"Light Intensity\": %d \
                         } \
-                    }",
-                    int(Mcp9808.readTempC()),
-                    Veml3328.getRed());
+                    }"),
+                      int(Mcp9808.readTempC()),
+                      Veml3328.getRed());
 
             if (!MqttClient.publish(mqtt_pub_topic, transmit_buffer)) {
-                Log.errorf("Failed to publish message: %s\r\n",
+                Log.errorf(F("Failed to publish message: %s\r\n"),
                            transmit_buffer);
             }
 

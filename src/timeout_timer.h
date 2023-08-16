@@ -12,7 +12,9 @@ class TimeoutTimer {
   public:
     TimeoutTimer(const uint32_t interval_ms);
 
-    bool hasTimedOut(void) const;
+    bool hasTimedOut() const;
+
+    void reset();
 };
 
 #endif

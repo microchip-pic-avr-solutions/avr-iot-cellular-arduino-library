@@ -28,11 +28,11 @@ bool initMQTTTopics() {
     ATCA_STATUS status =
         ECC608.readProvisionItem(AWS_THINGNAME, thingName, &thingNameLen);
     if (status != ATCA_SUCCESS) {
-        Log.error("Could not retrieve thingname from the ECC");
+        Log.error(F("Could not retrieve thingname from the ECC"));
         return false;
     }
 
-    sprintf(mqtt_pub_topic, "%s/sensors", thingName);
+    sprintf_P(mqtt_pub_topic, PSTR("%s/sensors"), thingName);
 
     return true;
 }
@@ -42,12 +42,12 @@ void setup() {
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
-    Log.info("Starting MQTT with low power");
+    Log.info(F("Starting MQTT with low power"));
 
     // First we retrieve the topics we're going to publish to, here using the
     // ECC thingname with AWS
     if (initMQTTTopics() == false) {
-        Log.error("Unable to initialize the MQTT topics. Stopping...");
+        Log.error(F("Unable to initialize the MQTT topics. Stopping..."));
         while (1) {}
     }
 
@@ -67,15 +67,6 @@ void setup() {
     // beginning, since the connection will remain active
 #if USE_PSM
     MqttClient.beginAWS();
-
-    Log.infof("Connecting to broker");
-
-    while (!MqttClient.isConnected()) {
-        Log.rawf(".");
-        delay(500);
-    }
-
-    Log.raw(" OK!\r\n");
 #endif
 
     Mcp9808.begin();
@@ -93,15 +84,6 @@ void loop() {
     // down is issued, so we need to re-establish s connection
 #if !USE_PSM
     MqttClient.beginAWS();
-
-    Log.infof("Connecting to broker");
-
-    while (!MqttClient.isConnected()) {
-        Log.rawf(".");
-        delay(500);
-    }
-
-    Log.raw(" OK!");
 #endif
 
     char message_to_publish[8] = {0};
@@ -111,9 +93,9 @@ void loop() {
         MqttClient.publish(mqtt_pub_topic, message_to_publish, AT_LEAST_ONCE);
 
     if (published_successfully) {
-        Log.infof("Published message: %s.\r\n", message_to_publish);
+        Log.infof(F("Published message: %s.\r\n"), message_to_publish);
     } else {
-        Log.info("Failed to publish");
+        Log.info(F("Failed to publish"));
     }
 
     counter++;
@@ -121,7 +103,7 @@ void loop() {
     Mcp9808.shutdown();
     Veml3328.shutdown();
 
-    Log.info("Entering low power");
+    Log.info(F("Entering low power"));
     delay(10);
 
 #if USE_PSM
@@ -130,6 +112,6 @@ void loop() {
     LowPower.powerDown(60);
 #endif
 
-    Log.info("Woke up!");
+    Log.info(F("Woke up!"));
     delay(10000);
 }

@@ -19,7 +19,6 @@ static char mqtt_pub_topic[128];
 static volatile bool connecteded_to_network = false;
 static volatile bool connected_to_broker    = false;
 
-void connectedToBroker(void) { connected_to_broker = true; }
 void disconnectedFromBroker(void) { connected_to_broker = false; }
 
 void disconnectedFromNetwork(void) { connecteded_to_network = false; }
@@ -35,7 +34,7 @@ bool initMQTTTopics() {
     ATCA_STATUS status =
         ECC608.readProvisionItem(AWS_THINGNAME, thingName, &thingNameLen);
     if (status != ATCA_SUCCESS) {
-        Log.error("Could not retrieve thingname from the ECC");
+        Log.error(F("Could not retrieve thingname from the ECC"));
         return false;
     }
 
@@ -48,7 +47,6 @@ static bool connectLTE() {
     // Connect with a maximum timeout value of 30 000 ms, if the connection is
     // not up and running within 30 seconds, abort and retry later
     if (!Lte.begin(30000)) {
-        Log.warn("Failed to connect to operator.");
         return false;
     } else {
         return true;
@@ -57,30 +55,8 @@ static bool connectLTE() {
 
 static bool connectMqtt() {
 
-    uint32_t start = millis();
-
     // Attempt to connect to the broker
-    if (MqttClient.beginAWS()) {
-        Log.infof("Connecting to broker");
-
-        // Wait for 60 seconds max
-        while (!MqttClient.isConnected() && millis() - start < 60000) {
-            Log.rawf(".");
-            delay(500);
-        }
-
-        if (millis() - start >= 60000) {
-            Log.rawf(" Failed to connect\r\n");
-            return false;
-        }
-
-        Log.rawf(" OK!\r\n");
-
-        connected_to_broker = true;
-    } else {
-        Log.rawf("\r\n");
-        Log.error("Failed to connect to broker");
-
+    if (!MqttClient.beginAWS()) {
         return false;
     }
 
@@ -92,17 +68,16 @@ void setup() {
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
-    Log.info("Starting MQTT with Connection Loss Handling\r\n");
+    Log.info(F("Starting MQTT with Connection Loss Handling\r\n"));
 
     if (initMQTTTopics() == false) {
-        Log.error("Unable to initialize the MQTT topics. Stopping...");
+        Log.error(F("Unable to initialize the MQTT topics. Stopping..."));
         while (1) {}
     }
 
     Lte.onDisconnect(disconnectedFromNetwork);
 
-    MqttClient.onConnectionStatusChange(connectedToBroker,
-                                        disconnectedFromBroker);
+    MqttClient.onDisconnect(disconnectedFromBroker);
 }
 
 /**
@@ -125,14 +100,14 @@ static uint32_t timer = 0;
 void loop() {
 
     if (!connecteded_to_network) {
-        Log.info("Not connected to the network. Attempting to connect!");
+        Log.info(F("Not connected to the network. Attempting to connect!"));
         if (connectLTE()) {
             connecteded_to_network = true;
         }
     }
 
     if (!connected_to_broker && connecteded_to_network) {
-        Log.info("Not connected to broker. Attempting to connect!");
+        Log.info(F("Not connected to broker. Attempting to connect!"));
 
         if (connectMqtt()) {
             connected_to_broker = true;
@@ -149,7 +124,7 @@ void loop() {
                                                              AT_LEAST_ONCE,
                                                              60000);
             if (published_successfully) {
-                Log.infof("Published message: %s. Failed publishes: %d.\r\n",
+                Log.infof(F("Published message: %s. Failed publishes: %d.\r\n"),
                           message_to_publish,
                           failed_publishes);
             } else {
