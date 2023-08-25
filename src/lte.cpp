@@ -1,5 +1,6 @@
 #include "lte.h"
 
+#include "flash_string.h"
 #include "led_ctrl.h"
 #include "log.h"
 #include "mqtt_client.h"
@@ -9,44 +10,22 @@
 #include <Arduino.h>
 #include <util/delay.h>
 
-#define AT_CONNECT                    "AT+CFUN=1"
-#define AT_DISCONNECT                 "AT+CFUN=0"
-#define AT_CONNECTION_STATUS          "AT+CEREG?"
-#define AT_ENABLE_CEREG_URC           "AT+CEREG=5"
-#define AT_CHECK_SIM                  "AT+CPIN?"
-#define AT_QUERY_OPERATOR_SET_FORMAT  "AT+COPS=3,0"
-#define AT_QUERY_OPERATOR             "AT+COPS?"
-#define AT_ENABLE_TIME_ZONE_UPDATE    "AT+CTZU=1"
-#define AT_ENABLE_TIME_ZONE_REPORTING "AT+CTZR=1"
-#define AT_GET_CLOCK                  "AT+CCLK?"
-#define AT_SYNC_NTP \
-    "AT+SQNNTP=2,\"time.google.com,time.windows.com,pool.ntp.org\",1"
-
-#define CEREG_CALLBACK    "CEREG"
-#define TIMEZONE_CALLBACK "CTZV"
-#define NTP_CALLBACK      "SQNNTP"
-
 #define TIMEZONE_WAIT_MS 10000
 
-// This includes null termination
-#define STAT_LENGTH                  2
-#define STAT_INDEX                   1
 #define STAT_REGISTERED_HOME_NETWORK '1'
 #define STAT_REGISTERED_ROAMING      '5'
 
 #define NTP_STATUS_INDEX 1
 #define NTP_OK           '0'
 
-#define RESPONSE_CONNECTION_STATUS_SIZE 70
-
-#define CEREG_DATA_LENGTH 2
-
 // When the CEREG appears as an URC, it only includes the stat, but there will
 // be a space before the data, hence this value since this index is character
 // index.
 #define CEREG_STAT_CHARACTER_INDEX 1
 
-const char* OPERATOR_NOT_AVAILABLE = "NOT_AVAILABLE";
+const char AT_DISCONNECT[] PROGMEM     = "AT+CFUN=0";
+const char CEREG_CALLBACK[] PROGMEM    = "CEREG";
+const char TIMEZONE_CALLBACK[] PROGMEM = "CTZV";
 
 /**
  * @brief Singleton. Defined for use of the rest of the library.
@@ -104,39 +83,49 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
 
     const TimeoutTimer timeout_timer(timeout_ms);
 
-    // If low power is utilized, sequans controller will already been
-    // initialized, so don't reset it by calling begin again
+    // If low power is utilized, the modem will already be initialized, so don't
+    // reset it by calling begin again
     if (!SequansController.isInitialized()) {
-        SequansController.begin();
+        if (!SequansController.begin()) {
+            return false;
+        }
     }
 
     // Disconnect before configuration if already connected
-    SequansController.writeCommand(AT_DISCONNECT);
+    SequansController.writeCommand(FV(AT_DISCONNECT));
 
-    _delay_ms(100);
-    SequansController.clearReceiveBuffer();
+    // Enable time zone callback
+    SequansController.registerCallback(FV(TIMEZONE_CALLBACK), timezoneCallback);
 
-    SequansController.registerCallback(TIMEZONE_CALLBACK, timezoneCallback);
+    // Enable time zone update
+    SequansController.writeCommand(F("AT+CTZU=1"));
 
-    SequansController.writeCommand(AT_ENABLE_TIME_ZONE_UPDATE);
-    SequansController.writeCommand(AT_ENABLE_TIME_ZONE_REPORTING);
-    SequansController.writeCommand(AT_ENABLE_CEREG_URC);
-    SequansController.writeCommand(AT_CONNECT);
+    // Enable time zone reporting
+    SequansController.writeCommand(F("AT+CTZR=1"));
+
+    // Enable CEREG URC
+    SequansController.writeCommand(F("AT+CEREG=5"));
+
+    // Start connecting to the operator
+    SequansController.writeCommand(F("AT+CFUN=1"));
 
     char response_buffer[64] = "";
     char value_buffer[32]    = "";
 
-    // Wait for CEREG URC before checking SIM
-    SequansController.waitForURC(CEREG_CALLBACK);
-    SequansController.registerCallback(CEREG_CALLBACK, connectionStatus, false);
+    // Wait for initial CEREG URC before checking SIM
+    SequansController.waitForURC(FV(CEREG_CALLBACK));
+
+    SequansController.registerCallback(FV(CEREG_CALLBACK),
+                                       connectionStatus,
+                                       false);
 
     // We check that the SIM card is inserted and ready. Note that we can only
     // do this and get a meaningful response in CFUN=1 or CFUN=4.
-    if (SequansController.writeCommand(AT_CHECK_SIM,
+    if (SequansController.writeCommand(F("AT+CPIN?"),
                                        response_buffer,
                                        sizeof(response_buffer)) !=
         ResponseResult::OK) {
-        Log.error("Checking SIM card failed, is it inserted?");
+        Log.error(F("Checking SIM card failed, is it inserted?"));
         Lte.end();
 
         return false;
@@ -147,21 +136,21 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
             0,
             value_buffer,
             sizeof(value_buffer))) {
-        Log.error("Failed to retrieve SIM status");
+        Log.error(F("Failed to retrieve SIM status."));
         Lte.end();
 
         return false;
     }
 
-    if (strncmp(value_buffer, "READY", 5) != 0) {
-        Log.errorf("SIM card is not ready, status: %s", value_buffer);
+    if (strncmp_P(value_buffer, PSTR("READY"), 5) != 0) {
+        Log.errorf(F("SIM card is not ready, status: %s."), value_buffer);
         Lte.end();
 
         return false;
     }
 
     if (print_messages) {
-        Log.infof("Connecting to operator");
+        Log.infof(F("Connecting to operator"));
     }
 
     while (!isConnected() && !timeout_timer.hasTimedOut()) {
@@ -169,19 +158,23 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
         _delay_ms(500);
 
         if (print_messages) {
-            Log.rawf(".");
+            Log.rawf(F("."));
         }
     }
 
     if (!isConnected()) {
-        Log.rawf(" Was not able to connect to the network within the timeout "
-                 "of %d ms. Consider increasing the timeout or checking your "
-                 "cellular coverage.\r\n",
-                 timeout_ms);
+        const char* error_message = PSTR(
+            "Was not able to connect to the network within the timeout "
+            "of %d ms. Consider increasing the timeout or checking your "
+            "cellular coverage.\r\n");
 
-        SequansController.unregisterCallback(CEREG_CALLBACK);
-        SequansController.unregisterCallback(TIMEZONE_CALLBACK);
-        SequansController.writeCommand(AT_DISCONNECT);
+        if (print_messages) {
+            Log.rawf(F(" ERROR: %S\r\n"), error_message);
+        } else {
+            Log.errorf(F("%S\r\n"), error_message);
+        }
+
+        Lte.end();
 
         return false;
     }
@@ -190,12 +183,13 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
         Log.rawf(" OK!\r\n");
     }
 
-    if (SequansController.writeCommand(AT_GET_CLOCK,
+    // Get the time from the modem
+    if (SequansController.writeCommand(F("AT+CCLK?"),
                                        response_buffer,
                                        sizeof(response_buffer)) !=
         ResponseResult::OK) {
 
-        Log.error("Command for retrieving modem time failed");
+        Log.error(F("Command for retrieving modem time failed"));
         Lte.end();
 
         return false;
@@ -206,7 +200,8 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
             0,
             value_buffer,
             sizeof(value_buffer))) {
-        Log.error("Failed to retrieve time from modem");
+
+        Log.error(F("Failed to retrieve time from modem"));
         Lte.end();
 
         return false;
@@ -215,6 +210,7 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
     char year[3]  = "";
     char month[3] = "";
     char day[3]   = "";
+
     memcpy(year, &value_buffer[0] + 1, 2);
     memcpy(month, &value_buffer[0] + 4, 2);
     memcpy(day, &value_buffer[0] + 7, 2);
@@ -232,8 +228,8 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
 
             // Do manual sync with NTP server
             if (print_messages) {
-                Log.info("Did not get time from operator, doing NTP sync. "
-                         "This can take some time...");
+                Log.info(F("Did not get time from operator, doing NTP sync. "
+                           "This can take some time..."));
             }
 
             // Will break from this when we get the NTP sync
@@ -246,46 +242,46 @@ bool LteClass::begin(const uint32_t timeout_ms, const bool print_messages) {
                 // We might be disconnected from the network whilst doing the
                 // NTP sync, so return if that is the case
                 if (!isConnected()) {
-                    Log.warn(
-                        "Got disconnected from network whilst doing NTP sync");
-                    SequansController.unregisterCallback(TIMEZONE_CALLBACK);
+                    Log.warn(F(
+                        "Got disconnected from network whilst doing NTP sync"));
                     Lte.end();
                     return false;
                 }
 
-                if (SequansController.writeCommand(AT_SYNC_NTP) !=
-                    ResponseResult::OK) {
+                // Perform the actual NTP sync
+                if (SequansController.writeCommand(
+                        F("AT+SQNNTP=2,\"time.google.com,time.windows.com,pool."
+                          "ntp.org\",1")) != ResponseResult::OK) {
                     continue;
                 }
 
                 char buffer[64] = "";
 
-                if (!SequansController.waitForURC(NTP_CALLBACK,
+                if (!SequansController.waitForURC(F("SQNNTP"),
                                                   buffer,
                                                   sizeof(buffer))) {
-                    // Time wait for the NTP URC timed out, retry
+                    // Wait for the NTP URC timed out, retry
                     continue;
                 }
 
                 if (buffer[NTP_STATUS_INDEX] == NTP_OK) {
-                    Log.info("Got NTP sync!");
+                    Log.info(F("Got NTP sync!"));
                     got_ntp_sync = true;
                     break;
                 }
             }
 
             if (!got_ntp_sync) {
-                Log.warnf("Did not get NTP sync within timeout of %lu ms. "
-                          "Consider increasing timeout for Lte.begin()\r\n",
+                Log.warnf(F("Did not get NTP sync within timeout of %lu ms. "
+                            "Consider increasing timeout for Lte.begin()\r\n"),
                           timeout_ms);
-                SequansController.unregisterCallback(TIMEZONE_CALLBACK);
                 Lte.end();
                 return false;
             }
         }
     }
 
-    SequansController.unregisterCallback(TIMEZONE_CALLBACK);
+    SequansController.unregisterCallback(FV(TIMEZONE_CALLBACK));
 
     return true;
 }
@@ -294,18 +290,19 @@ void LteClass::end(void) {
 
     if (SequansController.isInitialized()) {
 
-        // Terminate active connections (if any)
+        // Terminate active connections (if any) so that we don't suddenly get a
+        // hanging URC preventing the modem to shut down
         MqttClient.end();
 
-        SequansController.unregisterCallback(TIMEZONE_CALLBACK);
-        SequansController.writeCommand(AT_DISCONNECT);
+        SequansController.unregisterCallback(FV(TIMEZONE_CALLBACK));
+        SequansController.writeCommand(FV(AT_DISCONNECT));
 
         // Wait for the CEREG URC after disconnect so that the modem doesn't
         // have any pending URCs and won't prevent going to sleep
         const TimeoutTimer timeout_timer(2000);
         while (isConnected() && !timeout_timer.hasTimedOut()) {}
 
-        SequansController.unregisterCallback(CEREG_CALLBACK);
+        SequansController.unregisterCallback(FV(CEREG_CALLBACK));
 
         SequansController.clearReceiveBuffer();
         SequansController.end();
@@ -320,27 +317,19 @@ String LteClass::getOperator(void) {
     char response[64] = "";
     char id[48]       = "";
 
-    SequansController.clearReceiveBuffer();
-    SequansController.writeCommand(AT_QUERY_OPERATOR_SET_FORMAT);
+    // Set human readable format for operator query
+    SequansController.writeCommand(F("AT+COPS=3,0"));
 
-    SequansController.clearReceiveBuffer();
+    // Query operator name
+    if ((SequansController.writeCommand(F("AT+COPS?"),
+                                        response,
+                                        sizeof(response)) !=
+         ResponseResult::OK) ||
+        (!SequansController
+              .extractValueFromCommandResponse(response, 2, id, sizeof(id)))) {
 
-    if (SequansController.writeCommand(AT_QUERY_OPERATOR,
-                                       response,
-                                       sizeof(response)) !=
-        ResponseResult::OK) {
-
-        Log.error("Failed to query the operator name");
-        return OPERATOR_NOT_AVAILABLE;
-    }
-
-    if (!SequansController.extractValueFromCommandResponse(response,
-                                                           2,
-                                                           id,
-                                                           sizeof(id))) {
-
-        Log.error("Failed to retrieve the operator name");
-        return OPERATOR_NOT_AVAILABLE;
+        Log.error(F("Failed to retrieve the operator name."));
+        return String(F("NOT_AVAILABLE"));
     }
 
     // Remove the quotes

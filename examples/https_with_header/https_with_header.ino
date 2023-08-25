@@ -16,21 +16,21 @@ void setup() {
     LedCtrl.startupCycle();
 
     Log.begin(115200);
-    Log.info("Starting HTTPS with header example");
+    Log.info(F("Starting HTTPS with header example"));
 
     // Start LTE modem and connect to the operator
     if (!Lte.begin()) {
-        Log.error("Failed to connect to the operator");
+        Log.error(F("Failed to connect to the operator"));
         return;
     }
 
-    Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
+    Log.infof(F("Connected to operator: %s\r\n"), Lte.getOperator().c_str());
 
-    Log.info("Performing GET with header...");
+    Log.info(F("Performing GET with header..."));
 
     // For HTTP without TLS, use: HttpClient.configure(DOMAIN, 80, false)
     if (!HttpClient.configure(DOMAIN, 443, true)) {
-        Log.info("Failed to configure https client\r\n");
+        Log.info(F("Failed to configure https client\r\n"));
         return;
     }
 
@@ -38,7 +38,7 @@ void setup() {
     // HttpClient.post("<endpoint>", "<data>", "Authorization: Bearer");
     HttpResponse response = HttpClient.get("/get", "Authorization: Bearer");
 
-    Log.infof("GET - HTTP status code: %u, data size: %u\r\n",
+    Log.infof(F("GET - HTTP status code: %u, data size: %u\r\n"),
               response.status_code,
               response.data_size);
 
@@ -46,7 +46,7 @@ void setup() {
     String response_data = HttpClient.readBody();
 
     if (response_data != "") {
-        Log.infof("Response: %s\r\n", response_data.c_str());
+        Log.infof(F("Response: %s\r\n"), response_data.c_str());
     }
 }
 

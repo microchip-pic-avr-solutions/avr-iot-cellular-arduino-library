@@ -47,6 +47,9 @@ class MqttClientClass {
      * cryptographic engine.
      * @param username Optional: Username for authentication.
      * @param password Optional: Password for authentication.
+     * @param timeout_ms: Timeout for connecting to the broker.
+     * @param print_messages: If set to true, prints "Connecting to MQTT
+     * broker..."
      *
      * @return true if configuration and connection was succesful.
      */
@@ -54,10 +57,12 @@ class MqttClientClass {
                const char* host,
                const uint16_t port,
                const bool use_tls,
-               const size_t keep_alive = 60,
-               const bool use_ecc      = true,
-               const char* username    = "",
-               const char* password    = "");
+               const size_t keep_alive   = 60,
+               const bool use_ecc        = true,
+               const char* username      = "",
+               const char* password      = "",
+               const size_t timeout_ms   = 30000,
+               const bool print_messages = true);
 
     /**
      * @brief Will configure and connect to the provisioned AWS broker.
@@ -73,20 +78,32 @@ class MqttClientClass {
      * @brief Disconnects from the broker and resets the state in the MQTT
      * client.
      */
-    bool end(void);
+    bool end();
 
     /**
      * @brief Register callback function for when the client is
      * connected/disconnected to/from the MQTT broker. Called from ISR, so keep
      * this function short.
      */
-    void onConnectionStatusChange(void (*connected)(void),
-                                  void (*disconnected)(void));
+    __attribute__((deprecated(
+        "onConnectionStatusChange is deprecated as of version 1.3.7 as "
+        "MqttClient.begin() is now blocking and does not support "
+        "connected callback anymore (it will not be called by the "
+        "library). please use onDisconnect instead"))) void
+    onConnectionStatusChange(void (*connected)(void),
+                             void (*disconnected)(void));
+
+    /**
+     * @brief Register callback function for when the client is
+     * disconnected from the MQTT broker. Called from ISR, so keep
+     * this function short.
+     */
+    void onDisconnect(void (*disconnected)(void));
 
     /**
      * @return true if connected to MQTT broker.
      */
-    bool isConnected(void);
+    bool isConnected();
 
     /**
      * @brief Publishes the contents of the buffer to the given topic.

@@ -1,5 +1,6 @@
 #include "low_power.h"
 
+#include "flash_string.h"
 #include "led_ctrl.h"
 #include "log.h"
 #include "lte.h"
@@ -12,61 +13,24 @@
 #include <avr/sleep.h>
 #include <util/delay.h>
 
-#define AT_COMMAND_DISABLE_EDRX                 "AT+SQNEDRX=0"
-#define AT_COMMAND_ENABLE_PSM                   "AT+CPSMS=1,,,\"%s\",\"%s\""
-#define AT_COMMAND_DISABLE_PSM                  "AT+CPSMS=0"
-#define AT_COMMAND_SET_RING_BEHAVIOUR           "AT+SQNRICFG=1,2,1000"
-#define AT_COMMAND_CONNECTION_STATUS            "AT+CEREG?"
-#define AT_COMMAND_SET_RTS0_HIGH_TRIGGERS_SLEEP "AT+SQNIPSCFG=1,1000"
-
-#define AT_COMMAND_ENTER_MANUFACTURING_MODE "AT+CFUN=5"
-#define AT_COMMAND_DISABLE_WAKE_ON_RTS1     "AT+SQNHWCFG=\"wakeRTS1\",\"disable\""
-#define AT_COMMAND_DISABLE_WAKE_ON_SIM0     "AT+SQNHWCFG=\"wakeSim0\",\"disable\""
-#define AT_COMMAND_DISABLE_WAKE_ON_WAKE0    "AT+SQNHWCFG=\"wake0\",\"disable\""
-#define AT_COMMAND_DISABLE_WAKE_ON_WAKE1    "AT+SQNHWCFG=\"wake1\",\"disable\""
-#define AT_COMMAND_DISABLE_WAKE_ON_WAKE2    "AT+SQNHWCFG=\"wake2\",\"disable\""
-#define AT_COMMAND_DISABLE_WAKE_ON_WAKE3    "AT+SQNHWCFG=\"wake3\",\"disable\""
-#define AT_COMMAND_DISABLE_WAKE_ON_WAKE4    "AT+SQNHWCFG=\"wake4\",\"disable\""
-#define AT_COMMAND_DISABLE_UART1            "AT+SQNHWCFG=\"uart1\",\"disable\""
-#define AT_COMMAND_DISABLE_UART2            "AT+SQNHWCFG=\"uart2\",\"disable\""
-
-#define AT_RESET "AT^RESET"
-
-#define RESPONSE_CONNECTION_STATUS_SIZE 96
-
-// Command without arguments: 18 bytes
-// Both arguments within the quotes are strings of 8 numbers: 8 * 2 = 16 bytes
-// Total: 18 + 16 = 34 bytes
-#define AT_COMMAND_ENABLE_PSM_LENGTH 34
-
 // Max is 0b11111 = 31 for the value of the timers for power saving mode (not
 // the multipliers).
-#define PSM_VALUE_MAX 31
-
-// How long we wait between checking the ring line for activity
-#define PSM_WAITING_TIME_DELTA_MS 50
+#define PSM_VALUE_MAX (31)
 
 // How long time we require the ring line to be stable before declaring that we
 // have entered power save mode
-#define PSM_RING_LINE_STABLE_THRESHOLD_MS 2500
-#define PSM_MULTIPLIER_BM                 0xE0
-#define PSM_VALUE_BM                      0x1F
+#define PSM_RING_LINE_STABLE_THRESHOLD_MS (2500)
 
-// We set the active/paging timer parameter to ten seconds with this. The reason
-// behind this is that we don't care about the active period since after
-// sleep has finished, the RTS line will be active and prevent the modem
-// from going to sleep and thus the awake time is as long as the RTS
-// line is kept active.
+// PSM timer specification is given by a 8-bit number with the following format:
 //
-// This parameter thus only specifies how quickly the modem can go to sleep,
-// which we want to be quite low, but long enough time for sufficient paging.
-#define PSM_DEFAULT_PAGING_PARAMETER "00000101"
+// | Mul | Value |
+// | ... | ..... |
+#define PSM_MULTIPLIER_BM (0xE0)
+#define PSM_VALUE_BM      (0x1F)
 
-#define PSM_REMAINING_SLEEP_TIME_THRESHOLD 5
-
-// This includes null termination
-#define TIMER_LENGTH      11
-#define TIMER_SLEEP_INDEX 8
+// The following is used to decode the timer value from the operator
+#define TIMER_LENGTH      (11)
+#define TIMER_SLEEP_INDEX (8)
 
 #define RING_PORT   PORTC
 #define RING_PIN_bm PIN6_bm
@@ -75,8 +39,21 @@
 #define VOLTAGE_MEASURE_EN_PIN PIN_PB3
 #define VOLTAGE_MEASURE_PIN    PIN_PE0
 
-// Singleton. Defined for use of the rest of the library.
 LowPowerClass LowPower = LowPowerClass::instance();
+
+static const char AT_COMMAND_DISABLE_EDRX[] PROGMEM = "AT+SQNEDRX=0";
+
+/**
+ * @brief We set the active/paging timer parameter to ten seconds with this. The
+ * reason behind this is that we don't care about the active period since after
+ * sleep has finished, the RTS line will be active and prevent the modem
+ * from going to sleep and thus the awake time is as long as the RTS
+ * line is kept active.
+ *
+ * This parameter thus only specifies how quickly the modem can go to sleep,
+ * which we want to be quite low, but long enough time for sufficient paging.
+ */
+static const char PSM_DEFAULT_PAGING_PARAMETER[] PROGMEM = "00000101";
 
 static volatile bool ring_line_activity     = false;
 static volatile bool modem_is_in_power_save = false;
@@ -132,9 +109,8 @@ static void ring_line_callback(void) {
     }
 }
 
-static void uint8ToStringOfBits(const uint8_t value, char* string) {
-    // Terminate
-    string[8] = 0;
+static void uint8ToStringOfBits(const uint8_t value, char string[9]) {
+    string[8] = '\0';
 
     for (uint8_t i = 0; i < 8; i++) {
         string[i] = (value & (1 << (7 - i))) ? '1' : '0';
@@ -146,7 +122,6 @@ static uint8_t stringOfBitsToUint8(const char* string) {
     uint8_t value = 0;
 
     for (uint8_t i = 0; i < 8; i++) {
-        // We assume all other values are zero, so we only shift the ones
         if (string[i] == '1') {
             value |= (1 << (7 - i));
         }
@@ -179,7 +154,7 @@ decodePeriodMultiplier(const PowerSaveModePeriodMultiplier multiplier) {
 /**
  * @brief Will attempt to put the cellular modem in power save mode.
  *
- * @note Will wait for @p waiting_time to see if the modem gets to low power
+ * @note Will wait for @p waiting_time_ms to see if the modem gets to low power
  * mode.
  *
  * @note The power save mode can be abrupted if a new message arrives from
@@ -194,10 +169,10 @@ decodePeriodMultiplier(const PowerSaveModePeriodMultiplier multiplier) {
 static bool
 attemptToEnterPowerSaveModeForModem(const unsigned long waiting_time_ms) {
 
-    // First we make sure the UART buffers are empty on the modem's side so the
-    // modem can go to sleep
     SequansController.setPowerSaveMode(0, NULL);
 
+    // First we make sure the UART buffers are empty on the modem's side so the
+    // modem can go to sleep
     do {
         _delay_ms(50);
         SequansController.clearReceiveBuffer();
@@ -212,9 +187,9 @@ attemptToEnterPowerSaveModeForModem(const unsigned long waiting_time_ms) {
     unsigned long last_time_active = millis();
 
     do {
-        _delay_ms(PSM_WAITING_TIME_DELTA_MS);
+        // Wait some time before checking the activity on the RING line
+        _delay_ms(50);
 
-        // Reset timer if there has been activity or the RING line is high
         if (ring_line_activity || RING_PORT.IN & RING_PIN_bm) {
             last_time_active   = millis();
             ring_line_activity = false;
@@ -240,19 +215,20 @@ static uint32_t retrieveOperatorSleepTime(void) {
 
     // First we call CEREG in order to get the byte where the sleep time is
     // encoded
-    char response[RESPONSE_CONNECTION_STATUS_SIZE] = "";
+    char response[96] = "";
+
     SequansController.clearReceiveBuffer();
     const ResponseResult response_result = SequansController.writeCommand(
-        AT_COMMAND_CONNECTION_STATUS,
+        F("AT+CEREG?"),
         response,
-        RESPONSE_CONNECTION_STATUS_SIZE);
+        sizeof(response));
 
     if (response_result != ResponseResult::OK) {
         char response_result_string[18] = "";
         SequansController.responseResultToString(response_result,
                                                  response_result_string);
-        Log.warnf("Did not get response result OK when retriving operator "
-                  "sleep time: %d, %s\r\n",
+        Log.warnf(F("Did not get response result OK when retriving operator "
+                    "sleep time: %d, %s\r\n"),
                   response_result,
                   response_result_string);
         return 0;
@@ -267,8 +243,9 @@ static uint32_t retrieveOperatorSleepTime(void) {
         TIMER_LENGTH);
 
     if (!found_token) {
-        Log.warnf("Did not find period timer token, got the following: %s\r\n",
-                  period_timer_token);
+        Log.warnf(
+            F("Did not find period timer token, got the following: %s\r\n"),
+            period_timer_token);
         return 0;
     }
 
@@ -330,7 +307,6 @@ static void enablePIT(void) {
     // The first PIT intterupt will not necessarily be at the period specified,
     // so we just wait until it has triggered and track the reminaing time from
     // there
-
     while (!pit_triggered) { __asm__ __volatile__("nop\n\t"); }
     pit_triggered = false;
 }
@@ -642,31 +618,31 @@ static void disableLDO(void) {
 static void configureModemForDeepSleep(void) {
 
     // First we need to enter manufactoring mode to disable wake up sources
-    SequansController.writeCommand(AT_COMMAND_ENTER_MANUFACTURING_MODE);
+    SequansController.writeCommand(F("AT+CFUN=5"));
 
     // Disable all the wake sources except RTS0 (which is on by default)
-    SequansController.writeCommand(AT_COMMAND_DISABLE_WAKE_ON_RTS1);
-    SequansController.writeCommand(AT_COMMAND_DISABLE_WAKE_ON_SIM0);
-    SequansController.writeCommand(AT_COMMAND_DISABLE_WAKE_ON_WAKE0);
-    SequansController.writeCommand(AT_COMMAND_DISABLE_WAKE_ON_WAKE1);
-    SequansController.writeCommand(AT_COMMAND_DISABLE_WAKE_ON_WAKE2);
-    SequansController.writeCommand(AT_COMMAND_DISABLE_WAKE_ON_WAKE3);
-    SequansController.writeCommand(AT_COMMAND_DISABLE_WAKE_ON_WAKE4);
+    SequansController.writeCommand(F("AT+SQNHWCFG=\"wakeRTS1\",\"disable\""));
+    SequansController.writeCommand(F("AT+SQNHWCFG=\"wakeSim0\",\"disable\""));
+    SequansController.writeCommand(F("AT+SQNHWCFG=\"wake0\",\"disable\""));
+    SequansController.writeCommand(F("AT+SQNHWCFG=\"wake1\",\"disable\""));
+    SequansController.writeCommand(F("AT+SQNHWCFG=\"wake2\",\"disable\""));
+    SequansController.writeCommand(F("AT+SQNHWCFG=\"wake3\",\"disable\""));
+    SequansController.writeCommand(F("AT+SQNHWCFG=\"wake4\",\"disable\""));
 
     // Disable the other UARTs on the modem in case the message buffers
     // within these UARTs prevent the modem to sleep
-    SequansController.writeCommand(AT_COMMAND_DISABLE_UART1);
-    SequansController.writeCommand(AT_COMMAND_DISABLE_UART2);
+    SequansController.writeCommand(F("AT+SQNHWCFG=\"uart1\",\"disable\""));
+    SequansController.writeCommand(F("AT+SQNHWCFG=\"uart2\",\"disable\""));
 
     // Now we need to issue a reset to get back into regular mode
-    SequansController.writeCommand(AT_RESET);
+    SequansController.writeCommand(F("AT^RESET"));
 
     // Wait for the modem to boot again
-    SequansController.waitForURC("SYSSTART");
+    SequansController.waitForURC(F("SYSSTART"));
 
     // Set device to sleep when RTS0 is pulled high. By default the modem will
     // sleep if RTS0, RTS1 and RTS2 are pulled high, so we want to change that
-    SequansController.writeCommand(AT_COMMAND_SET_RTS0_HIGH_TRIGGERS_SLEEP);
+    SequansController.writeCommand(F("AT+SQNIPSCFG=1,1000"));
 }
 
 void LowPowerClass::configurePowerDown(void) {
@@ -681,8 +657,8 @@ void LowPowerClass::configurePowerDown(void) {
     configureModemForDeepSleep();
 
     // Disable EDRX and PSM
-    SequansController.writeCommand(AT_COMMAND_DISABLE_EDRX);
-    SequansController.writeCommand(AT_COMMAND_DISABLE_PSM);
+    SequansController.writeCommand(FV(AT_COMMAND_DISABLE_EDRX));
+    SequansController.writeCommand(F("AT+CPSMS=0"));
 }
 
 void LowPowerClass::configurePeriodicPowerSave(
@@ -701,12 +677,13 @@ void LowPowerClass::configurePeriodicPowerSave(
     configureModemForDeepSleep();
 
     // Disable EDRX as we use PSM
-    SequansController.writeCommand(AT_COMMAND_DISABLE_EDRX);
+    SequansController.writeCommand(FV(AT_COMMAND_DISABLE_EDRX));
 
     // Enable RING line so that we can wake up from the power save
-    SequansController.writeCommand(AT_COMMAND_SET_RING_BEHAVIOUR);
+    SequansController.writeCommand(F("AT+SQNRICFG=1,2,1000"));
 
-    // Set the power saving mode configuration
+    // Set the power saving mode configuration. 8-bit number, so 8 + 1 for null
+    // termination.
     char period_parameter_str[9] = "";
 
     // We encode both the multipier and value in one value after the setup:
@@ -727,19 +704,15 @@ void LowPowerClass::configurePeriodicPowerSave(
 
     uint8ToStringOfBits(period_parameter, period_parameter_str);
 
-    // Now we can embed the values for the awake and sleep periode in the
-    // power saving mode configuration command
-    char command[AT_COMMAND_ENABLE_PSM_LENGTH + 1]; // + 1 for null termination
-    sprintf(command,
-            AT_COMMAND_ENABLE_PSM,
-            period_parameter_str,
-            PSM_DEFAULT_PAGING_PARAMETER);
-
     period_requested = decodePeriodMultiplier(
                            power_save_mode_period_multiplier) *
                        min(power_save_mode_period_value, PSM_VALUE_MAX);
 
-    SequansController.writeCommand(command);
+    SequansController.writeCommand(F("AT+CPSMS=1,,,\"%s\",\"%S\""),
+                                   NULL,
+                                   0,
+                                   period_parameter_str,
+                                   PSM_DEFAULT_PAGING_PARAMETER);
 }
 
 void LowPowerClass::powerSave(void) {
@@ -750,14 +723,16 @@ void LowPowerClass::powerSave(void) {
         period = retrieveOperatorSleepTime();
 
         if (period == 0) {
-            Log.warnf("Got invalid period from operator: %d\r\n", period);
+            Log.warnf(F("Got invalid period from operator: %d\r\n"), period);
             return;
         } else {
             if (period_requested != period) {
-                Log.warnf("Operator was not able to match the requested power "
-                          "save mode period of %d seconds. ",
-                          period_requested);
-                Log.rawf("Operator set the period to %d seconds.\r\n", period);
+                Log.warnf(
+                    F("Operator was not able to match the requested power "
+                      "save mode period of %d seconds. "),
+                    period_requested);
+                Log.rawf(F("Operator set the period to %d seconds.\r\n"),
+                         period);
             }
 
             retrieved_period = true;
@@ -766,8 +741,11 @@ void LowPowerClass::powerSave(void) {
 
     if (!attemptToEnterPowerSaveModeForModem(45000)) {
         Log.error(
-            "Failed to put cellular modem in sleep. Power save functionality "
-            "might not be available for your operator.");
+            F("Failed to put cellular modem in sleep. Power save functionality "
+              "might not be available for your operator."));
+
+        SequansController.setPowerSaveMode(0, NULL);
+        return;
     }
 
     if (modem_is_in_power_save) {

@@ -80,16 +80,20 @@ void setup() {
     Log.setLogLevel(LogLevel::INFO);
 
     // The logging library can also format strings by using the f postfix in the
-    // function name, so we don't have to use multiple print calls as with the
-    // standard Arduino Serial. This makes printing more complex things far more
-    // structured and work in the same way as the printf in the standard library
-    // of C. Note we have to add a \r\n for a carriage return and new line when
-    // the format based functions are used.
+    // function name. Note we have to add a \r\n for a carriage return and new
+    // line when the format based functions are used.
     Log.infof("This is a number: %d\r\n", 10);
     Log.infof("This is a string: %s\r\n", "Hello world");
     Log.infof("This is a hexadecimal and a string: %X - %s\r\n",
               31,
               "Hello world");
+
+    // The logging library also supports flash strings stored in program memory.
+    // This is very useful for reducing memory usage
+    Log.info(F("This is a flash string"));
+
+    // The flash string functionality also support formatting
+    Log.infof(F("This is a flash string with formatting: %d\r\n"), 10);
 }
 
 void loop() {}

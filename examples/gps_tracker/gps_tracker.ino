@@ -80,9 +80,9 @@ static void initializeGPS(void) {
  */
 static void initializeHTTP(void) {
     if (!HttpClient.configure(HTTP_DOMAIN, 8080, false)) {
-        Log.info("Failed to configure HTTP client");
+        Log.info(F("Failed to configure HTTP client"));
     } else {
-        Log.info("Configured HTTP");
+        Log.info(F("Configured HTTP"));
     }
 }
 
@@ -93,15 +93,15 @@ static void sendData(void) {
 
     char data[80] = "";
 
-    sprintf(data,
-            "{\"lat\":\"%s\",\"lon\":\"%s\",\"time\": \"%s\"}",
-            latitude,
-            longitude,
-            time);
+    sprintf_P(data,
+              PSTR("{\"lat\":\"%s\",\"lon\":\"%s\",\"time\": \"%s\"}"),
+              latitude,
+              longitude,
+              time);
 
     HttpResponse response = HttpClient.post("/data", data);
 
-    Log.infof("POST - status code: %u, data size: %u\r\n",
+    Log.infof(F("POST - status code: %u, data size: %u\r\n"),
               response.status_code,
               response.data_size);
 
@@ -109,7 +109,7 @@ static void sendData(void) {
         String body = HttpClient.readBody(512);
 
         if (body != "") {
-            Log.infof("Response: %s\r\n", body.c_str());
+            Log.infof(F("Response: %s\r\n"), body.c_str());
         }
     }
 }
@@ -123,7 +123,8 @@ static void connectToNetwork() {
     // If we already are connected, don't do anything
     if (!Lte.isConnected()) {
         while (!Lte.begin()) {}
-        Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
+        Log.infof(F("Connected to operator: %s\r\n"),
+                  Lte.getOperator().c_str());
     }
 
     state = State::CONNECTED;
@@ -146,7 +147,7 @@ static void parseGPSMessages() {
             return;
         } else {
 
-            Log.rawf("Timestamp: %d/%d/20%d %d:%d:%d GMT+0 \r\n",
+            Log.rawf(F("Timestamp: %d/%d/20%d %d:%d:%d GMT+0 \r\n"),
                      GPS.day,
                      GPS.month,
                      GPS.year,
@@ -154,7 +155,7 @@ static void parseGPSMessages() {
                      GPS.minute,
                      GPS.seconds);
 
-            Log.rawf("Fix: %d, quality: %d\r\n", GPS.fix, GPS.fixquality);
+            Log.rawf(F("Fix: %d, quality: %d\r\n"), GPS.fix, GPS.fixquality);
 
             if (GPS.fix) {
 
@@ -162,23 +163,23 @@ static void parseGPSMessages() {
                 dtostrf(GPS.latitudeDegrees, 2, 4, latitude);
                 dtostrf(GPS.longitudeDegrees, 2, 4, longitude);
 
-                sprintf(time,
-                        "%d/%d/20%d %d:%d:%d",
-                        GPS.day,
-                        GPS.month,
-                        GPS.year,
-                        GPS.hour,
-                        GPS.minute,
-                        GPS.seconds);
+                sprintf_P(time,
+                          PSTR("%d/%d/20%d %d:%d:%d"),
+                          GPS.day,
+                          GPS.month,
+                          GPS.year,
+                          GPS.hour,
+                          GPS.minute,
+                          GPS.seconds);
 
-                Log.rawf("Location: %s N, %s E\r\n", latitude, longitude);
-                Log.rawf("Satellites: %d\r\n", GPS.satellites);
+                Log.rawf(F("Location: %s N, %s E\r\n"), latitude, longitude);
+                Log.rawf(F("Satellites: %d\r\n"), GPS.satellites);
 
-                Log.rawf("\r\n");
+                Log.rawf(F("\r\n"));
 
                 has_parsed = true;
             } else {
-                Log.info("Waiting for GPS fix...");
+                Log.info(F("Waiting for GPS fix..."));
             }
         }
     }
@@ -189,7 +190,7 @@ void setup() {
     LedCtrl.startupCycle();
 
     Log.begin(115200);
-    Log.info("Starting AVR-IoT Cellular Adafruit GPS example");
+    Log.info(F("Starting AVR-IoT Cellular Adafruit GPS example"));
 
     // We configure the low power module for power down configuration, where
     // the LTE modem and the CPU will be powered down
@@ -246,13 +247,13 @@ void loop() {
             state = State::NOT_CONNECTED;
             LedCtrl.off(Led::CON);
 
-            Log.info("Entering low power");
+            Log.info(F("Entering low power"));
             GPS.sendCommand(PMTK_STANDBY);
             delay(1000); // Allow some time to print messages before we sleep
 
             LowPower.powerDown(60);
 
-            Log.info("Woke up!");
+            Log.info(F("Woke up!"));
             GPS.sendCommand(PMTK_AWAKE);
 
             // Set that we need an update for the position

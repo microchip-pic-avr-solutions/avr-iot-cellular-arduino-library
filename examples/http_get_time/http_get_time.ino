@@ -26,18 +26,18 @@ void setup() {
     LedCtrl.startupCycle();
 
     Log.begin(115200);
-    Log.info("Starting HTTP Get Time Example\r\n");
+    Log.info(F("Starting HTTP Get Time Example\r\n"));
 
     // Start LTE modem and connect to the operator
     if (!Lte.begin()) {
-        Log.error("Failed to connect to operator");
+        Log.error(F("Failed to connect to operator"));
         return;
     }
 
-    Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
+    Log.infof(F("Connected to operator: %s\r\n"), Lte.getOperator().c_str());
 
     if (!HttpClient.configure(TIMEZONE_URL, 80, false)) {
-        Log.errorf("Failed to configure HTTP for the domain %s\r\n",
+        Log.errorf(F("Failed to configure HTTP for the domain %s\r\n"),
                    TIMEZONE_URL);
         return;
     }
@@ -48,28 +48,30 @@ void setup() {
     response = HttpClient.get(TIMEZONE_URI);
     if (response.status_code != HttpClient.STATUS_OK) {
         Log.errorf(
-            "Error when performing a GET request on %s%s. Got HTTP status"
-            "code = %d. Exiting...\r\n",
+            F("Error when performing a GET request on %s%s. Got HTTP status"
+              "code = %d. Exiting...\r\n"),
             TIMEZONE_URL,
             TIMEZONE_URI,
             response.status_code);
         return;
     }
 
-    Log.infof("Successfully performed GET request. HTTP status code = %d, Size "
-              "= %d\r\n",
-              response.status_code,
-              response.data_size);
+    Log.infof(
+        F("Successfully performed GET request. HTTP status code = %d, Size "
+          "= %d\r\n"),
+        response.status_code,
+        response.data_size);
 
     String body = HttpClient.readBody(512);
 
     if (body == "") {
-        Log.errorf("The returned body from the GET request is empty. Something "
-                   "went wrong. Exiting...\r\n");
+        Log.errorf(
+            F("The returned body from the GET request is empty. Something "
+              "went wrong. Exiting...\r\n"));
         return;
     }
 
-    Log.infof("Got the time (unixtime) %lu\r\n", getTimeFromResponse(&body));
+    Log.infof(F("Got the time (unixtime) %lu\r\n"), getTimeFromResponse(&body));
 }
 
 void loop() {}

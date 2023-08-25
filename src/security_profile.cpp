@@ -4,22 +4,20 @@
 
 #include "log.h"
 
-#define QUERY_SECURITY_PROFILE "AT+SQNSPCFG"
-
 #define SECURITY_PROFILE_PREFIX_LENGTH 11
 
 SecurityProfileClass SecurityProfile = SecurityProfileClass::instance();
 
 bool SecurityProfileClass::profileExists(const uint8_t id) {
 
-    char response[256]    = "";
-    ResponseResult result = SequansController.writeCommand(
-        QUERY_SECURITY_PROFILE,
+    char response[256]          = "";
+    const ResponseResult result = SequansController.writeCommand(
+        F("AT+SQNSPCFG"),
         response,
         sizeof(response));
 
     if (result != ResponseResult::OK) {
-        Log.error("Failed to query security profile");
+        Log.error(F("Failed to query security profile"));
         return false;
     }
 

@@ -9,8 +9,6 @@
 
 The recommended way to install the library is within the Arduino IDE. Simply go Tools -> Manage Libraries and search for "avr-iot". The library can also be cloned from this repository. More information can be found [here](https://iot.microchip.com/docs/arduino/introduction/devenv).
 
-**As of DxCore version 1.5.3, there is a bug with the interrupt system. To alleviate this, choose `Tools` -> `attachInterrupt() Version` -> `Old version` in the Arduino IDE.**
-
 ## Board Description
 
 The [AVR-IoT Cellular Mini](https://www.microchip.com/en-us/development-tool/EV70N78A) is a development board from Microchip to develop cellular IoT applications.

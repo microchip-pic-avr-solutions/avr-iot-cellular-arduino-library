@@ -1,4 +1,5 @@
 #include "http_client.h"
+#include "flash_string.h"
 #include "led_ctrl.h"
 #include "log.h"
 #include "security_profile.h"
@@ -9,65 +10,43 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <util/delay.h>
 
-// We only use profile 0 to keep things simple we also stick with spId 3
-// which we dedicate to HTTPS
-#define HTTP_CONFIGURE "AT+SQNHTTPCFG=0,\"%s\",%u,0,\"\",\"\",%u,120,,3"
+#define HTTPS_SECURITY_PROFILE_NUMBER (3)
 
-// Command without any data in it (with quotation marks): 35 bytes
-// Max length of domain name: 127 bytes
-// Max length of port number: 5 bytes (0-65535)
-// TLS enabled: 1 byte
-// Termination: 1 byte
-// This results in 35 + 127 + 5 + 1 + 1 = 169
-#define HTTP_CONFIGURE_SIZE 169
+#define HTTP_POST_METHOD   (0)
+#define HTTP_PUT_METHOD    (1)
+#define HTTP_GET_METHOD    (0)
+#define HTTP_HEAD_METHOD   (1)
+#define HTTP_DELETE_METHOD (2)
 
-#define HTTPS_SECURITY_PROFILE_NUMBER 3
-
-#define HTTP_SEND    "AT+SQNHTTPSND=0,%u,\"%s\",%lu,\"%s\",\"%s\""
-#define HTTP_RECEIVE "AT+SQNHTTPRCV=0,%lu"
-#define HTTP_QUERY   "AT+SQNHTTPQRY=0,%u,\"%s\",\"%s\""
-
-#define HTTP_RING_URC "SQNHTTPRING"
-
-#define HTTP_POST_METHOD   0
-#define HTTP_PUT_METHOD    1
-#define HTTP_GET_METHOD    0
-#define HTTP_HEAD_METHOD   1
-#define HTTP_DELETE_METHOD 2
-
-// Content type specifiers for POST requests for the AT+SQNHTTPSND command
-#define HTTP_CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED "0"
-#define HTTP_CONTENT_TYPE_TEXT_PLAIN                        "1"
-#define HTTP_CONTENT_TYPE_APPLICATION_OCTET_STREAM          "2"
-#define HTTP_CONTENT_TYPE_APPLICATION_MULTIPART_FORM_DATA   "3"
-#define HTTP_CONTENT_TYPE_APPLICATION_APPLICATION_JSON      "4"
-
-#define HTTP_RECEIVE_LENGTH          32
-#define HTTP_RECEIVE_START_CHARACTER '<'
-#define HTTP_SEND_START_CHARACTER    '>'
-
-#define HTTP_RESPONSE_MAX_LENGTH         84
-#define HTTP_RESPONSE_STATUS_CODE_INDEX  1
-#define HTTP_RESPONSE_STATUS_CODE_LENGTH 3
-#define HTTP_RESPONSE_DATA_SIZE_INDEX    3
-#define HTTP_RESPONSE_DATA_SIZE_LENGTH   16
+#define HTTP_RESPONSE_MAX_LENGTH         (84)
+#define HTTP_RESPONSE_STATUS_CODE_INDEX  (1)
+#define HTTP_RESPONSE_STATUS_CODE_LENGTH (3)
+#define HTTP_RESPONSE_DATA_SIZE_INDEX    (3)
+#define HTTP_RESPONSE_DATA_SIZE_LENGTH   (16)
 
 // These are limitations from the Sequans module, so the range of bytes we can
 // receive with one call to the read body AT command has to be between these
 // values. One thus has to call the function multiple times if the data size is
 // greater than the max size
-#define HTTP_BODY_BUFFER_MIN_SIZE 64
-#define HTTP_BODY_BUFFER_MAX_SIZE 1500
+#define HTTP_BODY_BUFFER_MIN_SIZE (64)
+#define HTTP_BODY_BUFFER_MAX_SIZE (1500)
 
-#define HTTP_TIMEOUT 20000
+#define HTTP_TIMEOUT (20000)
+
+// Content type specifiers for POST requests for the AT+SQNHTTPSND command
+const char HTTP_CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED[] PROGMEM = "0";
+const char HTTP_CONTENT_TYPE_TEXT_PLAIN[] PROGMEM                        = "1";
+const char HTTP_CONTENT_TYPE_APPLICATION_OCTET_STREAM[] PROGMEM          = "2";
+const char HTTP_CONTENT_TYPE_APPLICATION_MULTIPART_FORM_DATA[] PROGMEM   = "3";
+const char HTTP_CONTENT_TYPE_APPLICATION_APPLICATION_JSON[] PROGMEM      = "4";
+
+const char HTTP_RING_URC[] PROGMEM = "SQNHTTPRING";
 
 HttpClientClass HttpClient = HttpClientClass::instance();
 
 /**
  * @brief Generic method for sending data via HTTP, either with POST or PUT.
- * Issues an AT command to the LTE modem.
  *
  * @param endpoint Destination of payload, part after host name in URL.
  * @param data Payload to send.
@@ -91,66 +70,36 @@ sendData(const char* endpoint,
 
     // The modem could hang if several HTTP requests are done quickly after each
     // other, this alleviates this
-    SequansController.writeCommand("AT");
+    SequansController.writeCommand(F("AT"));
 
     HttpResponse http_response = {0, 0};
 
-    // Setup and transmit SEND command before sending the data
-    const uint32_t digits_in_data_length = trunc(log10(data_length)) + 1;
-
-    const uint32_t command_length = strlen(HTTP_SEND) + strlen(endpoint) +
-                                    digits_in_data_length + header_length;
-
-    // Append +1 for NULL termination
-    char command[command_length + 1];
-
-    // Append +1 for NULL termination
-    int bytes_written = snprintf(command,
-                                 command_length,
-                                 HTTP_SEND,
-                                 method,
-                                 endpoint,
-                                 (unsigned long)data_length,
-                                 content_type,
-                                 header == NULL ? "" : (const char*)header);
-    if (bytes_written < 0) {
-        Log.errorf(
-            "Failed to write HTTP send command, snprintf returned %d\r\n",
-            bytes_written);
-        return HttpResponse{0, 0};
+    if (!SequansController.writeString(
+            F("AT+SQNHTTPSND=0,%u,\"%s\",%lu,\"%s\",\"%s\""),
+            true,
+            method,
+            endpoint,
+            (unsigned long)data_length,
+            content_type,
+            header == NULL ? "" : (const char*)header)) {
+        Log.error(F("Was not able to write HTTP AT command\r\n"));
+        return http_response;
     }
-
-    if (bytes_written >= (int)command_length) {
-        Log.errorf("Failed to write HTTP send command, snprintf returned %d "
-                   "but command length is %d\r\n",
-                   bytes_written,
-                   command_length);
-        return HttpResponse{0, 0};
-    }
-
-    command[bytes_written + 1] = '\0';
-
-    LedCtrl.on(Led::DATA, true);
-    SequansController.writeBytes((uint8_t*)command, bytes_written, true);
 
     // Only send the data payload if there is any
     if (data_length > 0) {
 
-        if (!SequansController.waitForByte(HTTP_SEND_START_CHARACTER,
-                                           HTTP_TIMEOUT)) {
-            Log.error("Timed out whilst waiting on delivering the HTTP "
-                      "payload. Is the "
-                      "server online? If you're using HTTPS, you might need to "
-                      "provision with a different CA certificate.");
+        // Modem responds with '>' when it is ready to receive the payload
+        if (!SequansController.waitForByte('>', HTTP_TIMEOUT)) {
+            Log.error(
+                F("Timed out whilst waiting on delivering the HTTP "
+                  "payload. Is the "
+                  "server online? If you're using HTTPS, you might need to "
+                  "provision with a different CA certificate."));
 
             LedCtrl.off(Led::CON, true);
-            LedCtrl.off(Led::DATA, true);
             return http_response;
         }
-
-        // Wait some before delivering the payload. The modem might hang if we
-        // deliver it too quickly
-        _delay_ms(100);
 
         // Now we deliver the payload
         SequansController.writeBytes(data, data_length, true);
@@ -160,18 +109,26 @@ sendData(const char* endpoint,
     char http_status_code_buffer[HTTP_RESPONSE_STATUS_CODE_LENGTH + 1] = "";
     char data_size_buffer[HTTP_RESPONSE_DATA_SIZE_LENGTH]              = "";
 
+    const auto toggle_led_whilst_waiting = [] {
+        LedCtrl.toggle(Led::DATA, true);
+    };
+
     // Now we wait for the URC
-    if (!SequansController.waitForURC(HTTP_RING_URC,
+    if (!SequansController.waitForURC(FV(HTTP_RING_URC),
                                       http_response_buffer,
                                       sizeof(http_response_buffer),
-                                      timeout_ms)) {
-        LedCtrl.off(Led::CON, true);
+                                      timeout_ms,
+                                      toggle_led_whilst_waiting,
+                                      500)) {
         LedCtrl.off(Led::DATA, true);
-        Log.warn("Did not get HTTP response before timeout\r\n");
+        LedCtrl.off(Led::CON, true);
+
+        Log.warnf(F("Did not get HTTP response before timeout on %d ms. "
+                    "Consider increasing the timeout.\r\n"),
+                  timeout_ms);
+
         return http_response;
     }
-
-    LedCtrl.off(Led::DATA, true);
 
     // We pass in NULL as the start character here as the URC data will only
     // contain the payload, not the URC identifier
@@ -197,6 +154,7 @@ sendData(const char* endpoint,
         http_response.data_size = atoi(data_size_buffer);
     }
 
+    LedCtrl.off(Led::DATA, true);
     LedCtrl.off(Led::CON, true);
 
     return http_response;
@@ -222,60 +180,46 @@ static HttpResponse queryData(const char* endpoint,
 
     // The modem could hang if several HTTP requests are done quickly after each
     // other, this alleviates this
-    SequansController.writeCommand("AT");
+    SequansController.writeCommand(F("AT"));
 
     HttpResponse http_response = {0, 0};
 
-    // Set up and send the query
-    const uint32_t command_length = strlen(HTTP_QUERY) + strlen(endpoint) +
-                                    header_length;
+    const ResponseResult response = SequansController.writeCommand(
+        F("AT+SQNHTTPQRY=0,%u,\"%s\",\"%s\""),
+        NULL,
+        0,
+        method,
+        endpoint,
+        header == NULL ? "" : (const char*)header);
 
-    // Append +1 for NULL termination
-    char command[command_length + 1];
-
-    int bytes_written = snprintf(command,
-                                 command_length,
-                                 HTTP_QUERY,
-                                 method,
-                                 endpoint,
-                                 header == NULL ? "" : (const char*)header);
-
-    if (bytes_written < 0) {
-        Log.errorf(
-            "Failed to write HTTP query command, snprintf returned %d\r\n",
-            bytes_written);
-        return HttpResponse{0, 0};
+    if (response != ResponseResult::OK) {
+        Log.errorf(F("Was not able to write HTTP AT command, error: %X\r\n"),
+                   static_cast<uint8_t>(response));
+        return http_response;
     }
-
-    if (bytes_written >= (int)command_length) {
-        Log.errorf("Failed to write HTTP query command, snprintf returned %d "
-                   "but command length is %d\r\n",
-                   bytes_written,
-                   command_length);
-        return HttpResponse{0, 0};
-    }
-
-    command[bytes_written + 1] = '\0';
-
-    LedCtrl.on(Led::DATA, true);
-    SequansController.writeCommand(command);
 
     char http_response_buffer[HTTP_RESPONSE_MAX_LENGTH]                = "";
     char http_status_code_buffer[HTTP_RESPONSE_STATUS_CODE_LENGTH + 1] = "";
     char data_size_buffer[HTTP_RESPONSE_DATA_SIZE_LENGTH]              = "";
 
-    if (!SequansController.waitForURC(HTTP_RING_URC,
+    const auto toggle_led_whilst_waiting = [] {
+        LedCtrl.toggle(Led::DATA, true);
+    };
+
+    if (!SequansController.waitForURC(FV(HTTP_RING_URC),
                                       http_response_buffer,
                                       sizeof(http_response_buffer),
-                                      timeout_ms)) {
-        Log.warn("Did not get HTTP response before timeout\r\n");
+                                      timeout_ms,
+                                      toggle_led_whilst_waiting,
+                                      500)) {
+        Log.warnf(F("Did not get HTTP response before timeout on %d ms. "
+                    "Consider increasing the timeout.\r\n"),
+                  timeout_ms);
 
         LedCtrl.off(Led::DATA, true);
         LedCtrl.off(Led::CON, true);
         return http_response;
     }
-
-    LedCtrl.off(Led::DATA, true);
 
     bool got_response_code = SequansController.extractValueFromCommandResponse(
         http_response_buffer,
@@ -311,16 +255,22 @@ bool HttpClientClass::configure(const char* host,
 
     if (enable_tls) {
         if (!SecurityProfile.profileExists(HTTPS_SECURITY_PROFILE_NUMBER)) {
-            Log.error("Security profile not set up for HTTPS. Run the "
-                      "'provision' Arduino sketch example to set this up.");
+            Log.error(F("Security profile not set up for HTTPS. Run the "
+                        "'provision' Arduino sketch example to set this up."));
 
             return false;
         }
     }
 
-    char command[HTTP_CONFIGURE_SIZE] = "";
-    sprintf(command, HTTP_CONFIGURE, host, port, enable_tls ? 1 : 0);
-    return SequansController.writeCommand(command) == ResponseResult::OK;
+    // We only use profile 0 to keep things simple we also stick with spId 3
+    // which we dedicate to HTTPS
+    return SequansController.writeCommand(
+               F("AT+SQNHTTPCFG=0,\"%s\",%u,0,\"\",\"\",%u,120,,3"),
+               NULL,
+               0,
+               host,
+               port,
+               enable_tls ? 1 : 0) == ResponseResult::OK;
 }
 
 HttpResponse HttpClientClass::post(const char* endpoint,
@@ -337,33 +287,33 @@ HttpResponse HttpClientClass::post(const char* endpoint,
 
     switch (content_type) {
     case CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED:
-        strncpy(content_type_buffer,
-                HTTP_CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED,
-                sizeof(content_type_buffer));
+        strncpy_P(content_type_buffer,
+                  HTTP_CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED,
+                  sizeof(content_type_buffer));
         break;
 
     case CONTENT_TYPE_APPLICATION_OCTET_STREAM:
-        strncpy(content_type_buffer,
-                HTTP_CONTENT_TYPE_APPLICATION_OCTET_STREAM,
-                sizeof(content_type_buffer));
+        strncpy_P(content_type_buffer,
+                  HTTP_CONTENT_TYPE_APPLICATION_OCTET_STREAM,
+                  sizeof(content_type_buffer));
         break;
 
     case CONTENT_TYPE_MULTIPART_FORM_DATA:
-        strncpy(content_type_buffer,
-                HTTP_CONTENT_TYPE_APPLICATION_MULTIPART_FORM_DATA,
-                sizeof(content_type_buffer));
+        strncpy_P(content_type_buffer,
+                  HTTP_CONTENT_TYPE_APPLICATION_MULTIPART_FORM_DATA,
+                  sizeof(content_type_buffer));
         break;
 
     case CONTENT_TYPE_APPLICATION_JSON:
-        strncpy(content_type_buffer,
-                HTTP_CONTENT_TYPE_APPLICATION_APPLICATION_JSON,
-                sizeof(content_type_buffer));
+        strncpy_P(content_type_buffer,
+                  HTTP_CONTENT_TYPE_APPLICATION_APPLICATION_JSON,
+                  sizeof(content_type_buffer));
         break;
 
     default:
-        strncpy(content_type_buffer,
-                HTTP_CONTENT_TYPE_TEXT_PLAIN,
-                sizeof(content_type_buffer));
+        strncpy_P(content_type_buffer,
+                  HTTP_CONTENT_TYPE_TEXT_PLAIN,
+                  sizeof(content_type_buffer));
         break;
     }
 
@@ -460,20 +410,21 @@ int16_t HttpClientClass::readBody(char* buffer, const uint32_t buffer_size) {
 
     // Fix for bringing the modem out of idling and prevent timeout whilst
     // waiting for modem response during the next AT command
-    SequansController.writeCommand("AT");
+    SequansController.writeCommand(F("AT"));
 
     // We send the buffer size with the receive command so that we only
     // receive that. The rest will be flushed from the modem.
-    char command[HTTP_RECEIVE_LENGTH] = "";
-    sprintf(command, HTTP_RECEIVE, buffer_size);
-    SequansController.writeBytes((uint8_t*)command, strlen(command), true);
+    if (!SequansController.writeString(F("AT+SQNHTTPRCV=0,%lu"),
+                                       true,
+                                       buffer_size)) {
+        Log.error(F("Was not able to write HTTP read body AT command\r\n"));
+        return -1;
+    }
 
-    // We receive three start bytes of the character '<', so we wait for
-    // them
+    // We receive three start bytes '<', have to wait for them
     uint8_t start_bytes = 3;
-
     while (start_bytes > 0) {
-        if (SequansController.readByte() == HTTP_RECEIVE_START_CHARACTER) {
+        if (SequansController.readByte() == '<') {
             start_bytes--;
         }
     }

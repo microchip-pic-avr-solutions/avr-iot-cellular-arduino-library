@@ -28,11 +28,11 @@ void setup() {
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
-    Log.info("Starting MQTT with custom broker example (polling mode)");
+    Log.info(F("Starting MQTT with custom broker example (polling mode)"));
 
     // Establish LTE connection
     if (!Lte.begin()) {
-        Log.error("Failed to connect to operator");
+        Log.error(F("Failed to connect to operator"));
 
         // Halt here
         while (1) {}
@@ -45,19 +45,10 @@ void setup() {
                          MQTT_USE_TLS,
                          MQTT_KEEPALIVE,
                          MQTT_USE_ECC)) {
-
-        Log.infof("Connecting to broker");
-        while (!MqttClient.isConnected()) {
-            Log.rawf(".");
-            delay(500);
-        }
-
-        Log.rawf(" OK!\r\n");
-
         MqttClient.subscribe(MQTT_SUB_TOPIC);
     } else {
-        Log.rawf("\r\n");
-        Log.error("Failed to connect to broker");
+        Log.rawf(F("\r\n"));
+        Log.error(F("Failed to connect to broker"));
 
         // Halt here
         while (1) {}
@@ -71,10 +62,11 @@ void setup() {
             MqttClient.publish(MQTT_PUB_TOPIC, message_to_publish.c_str());
 
         if (publishedSuccessfully) {
-            Log.infof("Published message: %s\r\n", message_to_publish.c_str());
+            Log.infof(F("Published message: %s\r\n"),
+                      message_to_publish.c_str());
             counter++;
         } else {
-            Log.error("Failed to publish");
+            Log.error(F("Failed to publish"));
         }
 
         delay(3000);
@@ -85,11 +77,11 @@ void setup() {
         // messages, so anything other than that means that there was a new
         // message
         if (message != "") {
-            Log.infof("Got new message: %s\r\n", message.c_str());
+            Log.infof(F("Got new message: %s\r\n"), message.c_str());
         }
     }
 
-    Log.info("Closing MQTT connection");
+    Log.info(F("Closing MQTT connection"));
     MqttClient.end();
 }
 

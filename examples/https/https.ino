@@ -15,33 +15,33 @@ void setup() {
     LedCtrl.startupCycle();
 
     Log.begin(115200);
-    Log.info("Starting HTTPS example");
+    Log.info(F("Starting HTTPS example"));
 
     // Start LTE modem and connect to the operator
     if (!Lte.begin()) {
-        Log.error("Failed to connect to the operator");
+        Log.error(F("Failed to connect to the operator"));
         return;
     }
 
-    Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
+    Log.infof(F("Connected to operator: %s\r\n"), Lte.getOperator().c_str());
 
     // --- HTTPS ---
-    Log.info("---- Testing HTTPS ----");
+    Log.info(F("---- Testing HTTPS ----"));
 
     if (!HttpClient.configure(DOMAIN, 443, true)) {
-        Log.info("Failed to configure https client\r\n");
+        Log.info(F("Failed to configure https client\r\n"));
         return;
     }
 
-    Log.info("Configured to HTTPS");
+    Log.info(F("Configured to HTTPS"));
 
     HttpResponse response = HttpClient.get("/get");
-    Log.infof("GET - HTTP status code: %u, data size: %u\r\n",
+    Log.infof(F("GET - HTTP status code: %u, data size: %u\r\n"),
               response.status_code,
               response.data_size);
 
     response = HttpClient.post("/post", "{\"hello\": \"world\"}");
-    Log.infof("POST - HTTP status code: %u, data size: %u\r\n",
+    Log.infof(F("POST - HTTP status code: %u, data size: %u\r\n"),
               response.status_code,
               response.data_size);
 
@@ -49,7 +49,7 @@ void setup() {
     String body = HttpClient.readBody(response.data_size + 16);
 
     if (body != "") {
-        Log.infof("Body: %s\r\n", body.c_str());
+        Log.infof(F("Body: %s\r\n"), body.c_str());
     }
 }
 

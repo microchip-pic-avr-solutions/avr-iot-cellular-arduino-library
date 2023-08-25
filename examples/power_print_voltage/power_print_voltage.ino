@@ -15,12 +15,12 @@
 
 void setup() {
     Log.begin(115200);
-    Log.setLogLevel(LogLevel::DEBUG);
 
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
-    Log.info("Starting up example for printing voltage supplied to the board");
+    Log.info(
+        F("Starting up example for printing voltage supplied to the board"));
 }
 
 void loop() {
@@ -29,7 +29,7 @@ void loop() {
 
     // Note that in order to print floats, you have to set printf support to
     // full in the Arduino IDE. Go to Tools -> printf() -> Full
-    Log.infof("The voltage supplied is: %f\r\n", voltage);
+    Log.infof(F("The voltage supplied is: %f\r\n"), voltage);
 
     delay(1000);
 }

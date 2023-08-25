@@ -88,14 +88,14 @@ void setup() {
     // connected through USB (USB is delivering 5 V, but there are some
     // voltage drop over the components on the way to the voltage measurement
     // circuit)
-    Serial3.print("The voltage supplied is: ");
+    Serial3.print(F("The voltage supplied is: "));
     Serial3.println(analog_value);
 }
 
 void loop() {
 
     if (button_pressed) {
-        Serial3.println("Button pressed");
+        Serial3.println(F("Button pressed"));
         button_pressed = false;
     }
 }

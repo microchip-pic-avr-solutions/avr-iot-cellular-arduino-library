@@ -1,138 +1,63 @@
 #include "mqtt_client.h"
 #include "ecc608.h"
+#include "flash_string.h"
 #include "led_ctrl.h"
 #include "log.h"
 #include "lte.h"
 #include "security_profile.h"
 #include "sequans_controller.h"
 
+#include <avr/pgmspace.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define MQTT_CONFIGURE           "AT+SQNSMQTTCFG=0,\"%s\",\"%s\",\"%s\""
-#define MQTT_CONFIGURE_TLS       "AT+SQNSMQTTCFG=0,\"%s\",\"%s\",\"%s\",%u"
-#define MQTT_CONNECT             "AT+SQNSMQTTCONNECT=0,\"%s\",%u,%u"
-#define MQTT_DISCONNECT          "AT+SQNSMQTTDISCONNECT=0"
-#define MQTT_PUBLISH             "AT+SQNSMQTTPUBLISH=0,\"%s\",%u,%lu"
-#define MQTT_SUSBCRIBE           "AT+SQNSMQTTSUBSCRIBE=0,\"%s\",%u"
-#define MQTT_RECEIVE             "AT+SQNSMQTTRCVMESSAGE=0,\"%s\""
-#define MQTT_RECEIVE_WITH_MSG_ID "AT+SQNSMQTTRCVMESSAGE=0,\"%s\",%u"
-#define MQTT_ON_MESSAGE_URC      "SQNSMQTTONMESSAGE"
-#define MQTT_ON_CONNECT_URC      "SQNSMQTTONCONNECT"
-#define MQTT_ON_DISCONNECT_URC   "SQNSMQTTONDISCONNECT"
-#define MQTT_ON_PUBLISH_URC      "SQNSMQTTONPUBLISH"
-#define MQTT_ON_SUBSCRIBE_URC    "SQNSMQTTONSUBSCRIBE"
+#define MQTT_PUBLISH_URC_LENGTH   (32)
+#define MQTT_SUBSCRIBE_URC_LENGTH (164)
 
-// Command without any data in it (with quotation marks): 25 bytes
-// Termination: 1 byte
-// Total: 26 bytes
-#define MQTT_CONFIGURE_LENGTH 26
+#define MQTT_MSG_MAX_BUFFER_SIZE    (1024) // This is a limitation from the modem
+#define MQTT_MSG_LENGTH_BUFFER_SIZE (4) // Max length is 1024, so 4 characters
+#define MQTT_SIGNING_BUFFER         (256)
 
-// Command with security profile ID (with quotation marks): 27 bytes
-// Termination: 1 byte
-// Total: 28 bytes
-#define MQTT_CONFIGURE_TLS_LENGTH 28
+#define MQTT_TLS_SECURITY_PROFILE_ID     (2)
+#define MQTT_TLS_ECC_SECURITY_PROFILE_ID (1)
 
-// Command without any data in it (with quotation marks): 25 bytes
-// Hostname: 127 bytes
-// Port: 5 bytes
-// Termination: 1 byte
-// Total: 157 bytes
-#define MQTT_CONNECT_LENGTH_PRE_KEEP_ALIVE 158
+#define MQTT_URC_STATUS_CODE_INDEX (2)
+#define STATUS_CODE_INVALID_VALUE  (3)
+#define NUM_STATUS_CODES           (18)
 
-#define MQTT_DISCONNECT_LENGTH 24
+#define HCESIGN_DIGEST_LENGTH (64)
+#define HCESIGN_CTX_ID_LENGTH (5)
 
-// Command without any data in it (with quotation marks): 25 bytes
-// Topic: 128 bytes (this is imposed by this implementation)
-// QoS: 1 byte
-// Termination: 1 byte
-// Total: 155 bytes
-//
-// Note that we don't add the length of the data here as it is not fixed
-#define MQTT_PUBLISH_LENGTH_PRE_DATA 155
+#define MQTT_TIMEOUT_MS (2000)
 
-// Command without any data in it (with quotation marks): 26 bytes
-// Topic: 128 bytes (this is imposed by this implementation)
-// QoS: 1 byte
-// Termination: 1 byte
-// Total: 156 bytes
-#define MQTT_SUBSCRIBE_LENGTH 157
+const char MQTT_RECEIVE[] PROGMEM = "AT+SQNSMQTTRCVMESSAGE=0,\"%s\"";
+const char MQTT_RECEIVE_WITH_MSG_ID[] PROGMEM =
+    "AT+SQNSMQTTRCVMESSAGE=0,\"%s\",%u";
+const char MQTT_ON_MESSAGE_URC[] PROGMEM    = "SQNSMQTTONMESSAGE";
+const char MQTT_ON_DISCONNECT_URC[] PROGMEM = "SQNSMQTTONDISCONNECT";
+const char MQTT_DISCONNECT[] PROGMEM        = "AT+SQNSMQTTDISCONNECT=0";
+const char HCESIGN[] PROGMEM                = "AT+SQNHCESIGN=%u,0,64,\"%s\"";
 
-// Command without any data in it (with quotation marks): 26 bytes
-// Topic: 128 bytes (this is imposed by this implementation)
-// Termination: 1 byte
-// Total: 155 bytes
-#define MQTT_RECEIVE_LENGTH 155
-
-// Command without any data in it (with quotation marks): 27 bytes
-// Topic: 128 bytes (this is imposed by this implementation)
-// Message ID: N bytes (runtime determined)
-// Termination: 1 byte
-// Total: 156 bytes
-#define MQTT_RECEIVE_WITH_MSG_ID_LENGTH 156
-
-#define MQTT_PUBLISH_URC_LENGTH            32
-#define MQTT_SUBSCRIBE_URC_LENGTH          164
-#define MQTT_PUB_SUB_URC_STATUS_CODE_INDEX 2
-
-// This is the index in characters, including delimiter in the connection URC.
-#define MQTT_CONNECTION_RC_INDEX  2
-#define MQTT_CONNECTION_RC_LENGTH 3
-
-#define MQTT_CONNECTION_SUCCESS_RC '0'
-
-// This is a limitation from the sequans module
-#define MQTT_MAX_BUFFER_SIZE 1024
-
-// Max length is 1024, so 4 characters
-#define MQTT_MSG_LENGTH_BUFFER_SIZE 4
-
-// Identifiers passed to the configure command
-#define MQTT_TLS_SECURITY_PROFILE_ID     2
-#define MQTT_TLS_ECC_SECURITY_PROFILE_ID 1
-
-#define MQTT_SIGNING_BUFFER 256
-
-#define HCESIGN "AT+SQNHCESIGN=%u,0,64,\"%s\""
-
-// Command without any data in it (with parantheses): 22 bytes
-// ctxId: 5 bytes (16 bits, thus 5 characters max)
-// Signature: 128 bytes
-// Termination: 1 byte
-// Total: 156 bytes
-#define HCESIGN_LENGTH 156
-
-#define HCESIGN_URC "SQNHCESIGN"
-
-#define HCESIGN_REQUEST_LENGTH 128
-#define HCESIGN_DIGEST_LENGTH  64
-#define HCESIGN_CTX_ID_LENGTH  5
-
-#define SIGN_TIMEOUT_MS       20000
-#define MQTT_TIMEOUT_MS       2000
-#define DISCONNECT_TIMEOUT_MS 20000
-
-#define NUM_STATUS_CODES    18
-#define STATUS_CODE_PENDING (-1)
-
-// Singleton instance
-MqttClientClass MqttClient = MqttClientClass::instance();
-
-static volatile bool connected_to_broker   = false;
-static void (*connected_callback)(void)    = NULL;
-static void (*disconnected_callback)(void) = NULL;
-
-static char receive_urc_buffer[URC_DATA_BUFFER_SIZE + 1];
-
-// +3 since we need two extra characters for the parantheses and one
-// extra for null termination in the max case
-static char topic_buffer[MQTT_TOPIC_MAX_LENGTH + 3];
-
-static void (*receive_callback)(const char* topic,
-                                const uint16_t message_length,
-                                const int32_t message_id) = NULL;
+static const char STATUS_CODE_SUCCESS[] PROGMEM       = "Success";
+static const char STATUS_CODE_NOMEM[] PROGMEM         = "No memory";
+static const char STATUS_CODE_PROTOCOL[] PROGMEM      = "Protocol error";
+static const char STATUS_CODE_INVAL[] PROGMEM         = "Invalid value";
+static const char STATUS_CODE_NO_CONN[] PROGMEM       = "No connection";
+static const char STATUS_CODE_CONN_REFUSED[] PROGMEM  = "Connection refused";
+static const char STATUS_CODE_NOT_FOUND[] PROGMEM     = "Not found";
+static const char STATUS_CODE_CONN_LOST[] PROGMEM     = "Connection lost";
+static const char STATUS_CODE_TLS[] PROGMEM           = "TLS error";
+static const char STATUS_CODE_PAYLOAD_SIZE[] PROGMEM  = "Payload size invalid";
+static const char STATUS_CODE_NOT_SUPPORTED[] PROGMEM = "Not supported";
+static const char STATUS_CODE_AUTH[] PROGMEM          = "Authentication error";
+static const char STATUS_CODE_ACL_DENIED[] PROGMEM    = "ACL denied";
+static const char STATUS_CODE_UNKNOWN[] PROGMEM       = "Unknown";
+static const char STATUS_CODE_ERRNO[] PROGMEM         = "ERRNO";
+static const char STATUS_CODE_EAI[] PROGMEM           = "EAI";
+static const char STATUS_CODE_PROXY[] PROGMEM         = "Proxy error";
+static const char STATUS_CODE_UNAVAILABLE[] PROGMEM   = "Unavailable";
 
 /**
  * @brief Status codes from publish and subscribe MQTT commands.
@@ -140,47 +65,49 @@ static void (*receive_callback)(const char* topic,
  * @note Both status code 2 and 3 are protocol invalid according to the AT
  * command reference.
  */
-static char status_code_table[NUM_STATUS_CODES][24] = {"Success",
-                                                       "No memory",
-                                                       "Protocol invalid",
-                                                       "Protocol invalid",
-                                                       "No connection",
-                                                       "Connection refused",
-                                                       "Not found",
-                                                       "Connection lost",
-                                                       "TLS error",
-                                                       "Payload size invalid",
-                                                       "Not supported",
-                                                       "Authentication error",
-                                                       "ACL denied",
-                                                       "Unknown",
-                                                       "ERRNO",
-                                                       "EAI",
-                                                       "Proxy error",
-                                                       "Pending"};
+static PGM_P const STATUS_CODE_TABLE[NUM_STATUS_CODES] PROGMEM = {
+    STATUS_CODE_SUCCESS,
+    STATUS_CODE_NOMEM,
+    STATUS_CODE_PROTOCOL,
+    STATUS_CODE_INVAL,
+    STATUS_CODE_NO_CONN,
+    STATUS_CODE_CONN_REFUSED,
+    STATUS_CODE_NOT_FOUND,
+    STATUS_CODE_CONN_LOST,
+    STATUS_CODE_TLS,
+    STATUS_CODE_PAYLOAD_SIZE,
+    STATUS_CODE_NOT_SUPPORTED,
+    STATUS_CODE_AUTH,
+    STATUS_CODE_ACL_DENIED,
+    STATUS_CODE_UNKNOWN,
+    STATUS_CODE_ERRNO,
+    STATUS_CODE_EAI,
+    STATUS_CODE_PROXY,
+    STATUS_CODE_UNAVAILABLE};
+
+MqttClientClass MqttClient = MqttClientClass::instance();
+
+static volatile bool connected_to_broker = false;
 
 /**
- * @brief Called on MQTT broker connection URC. Will check the URC to see if the
- * connection was successful.
+ * @brief Used when receiving messages to store the topic the messages was
+ * received on.
+ *
+ * @note +3 since we need two extra characters for the parantheses and one extra
+ * for null termination in the max case.
  */
-static void internalConnectedCallback(char* urc_data) {
-    if (urc_data[MQTT_CONNECTION_RC_INDEX] == MQTT_CONNECTION_SUCCESS_RC) {
+static char topic_buffer[MQTT_TOPIC_MAX_LENGTH + 3];
 
-        connected_to_broker = true;
-        LedCtrl.on(Led::CON, true);
+/**
+ * @brief Used when waiting for URCs and for the receive callback. Functions as
+ * a temporary buffer to store data.
+ */
+static char urc_buffer[URC_DATA_BUFFER_SIZE + 1];
 
-        if (connected_callback != NULL) {
-            connected_callback();
-        }
-    } else {
-        connected_to_broker = false;
-        LedCtrl.off(Led::CON, true);
-
-        if (disconnected_callback != NULL) {
-            disconnected_callback();
-        }
-    }
-}
+static void (*disconnected_callback)(void)                = NULL;
+static void (*receive_callback)(const char* topic,
+                                const uint16_t message_length,
+                                const int32_t message_id) = NULL;
 
 static void internalDisconnectCallback(char* urc_data) {
     connected_to_broker = false;
@@ -193,10 +120,10 @@ static void internalDisconnectCallback(char* urc_data) {
 
 static void internalOnReceiveCallback(char* urc_data) {
 
-    strncpy(receive_urc_buffer, urc_data, URC_DATA_BUFFER_SIZE);
+    strncpy(urc_buffer, urc_data, URC_DATA_BUFFER_SIZE);
 
-    bool got_topic = SequansController.extractValueFromCommandResponse(
-        receive_urc_buffer,
+    const bool got_topic = SequansController.extractValueFromCommandResponse(
+        urc_buffer,
         1,
         topic_buffer,
         sizeof(topic_buffer),
@@ -212,12 +139,13 @@ static void internalOnReceiveCallback(char* urc_data) {
 
     char message_length_buffer[MQTT_MSG_LENGTH_BUFFER_SIZE + 1];
 
-    bool got_message_length = SequansController.extractValueFromCommandResponse(
-        receive_urc_buffer,
-        2,
-        message_length_buffer,
-        sizeof(message_length_buffer),
-        0);
+    const bool got_message_length =
+        SequansController.extractValueFromCommandResponse(
+            urc_buffer,
+            2,
+            message_length_buffer,
+            sizeof(message_length_buffer),
+            0);
 
     if (!got_message_length) {
         return;
@@ -225,12 +153,13 @@ static void internalOnReceiveCallback(char* urc_data) {
 
     char message_id_buffer[16];
 
-    bool got_message_id = SequansController.extractValueFromCommandResponse(
-        receive_urc_buffer,
-        4,
-        message_id_buffer,
-        sizeof(message_id_buffer),
-        0);
+    const bool got_message_id =
+        SequansController.extractValueFromCommandResponse(
+            urc_buffer,
+            4,
+            message_id_buffer,
+            sizeof(message_id_buffer),
+            0);
 
     // If there is no message ID, which is the case of MqttQoS is 0, then we
     // just specify -1.
@@ -268,7 +197,7 @@ static bool generateSigningCommand(char* data, char* command_buffer) {
         (char)NULL);
 
     if (!got_ctx_id) {
-        Log.error("No context ID!");
+        Log.error(F("Failed to generate signing command, no context ID!"));
         return false;
     }
 
@@ -284,7 +213,8 @@ static bool generateSigningCommand(char* data, char* command_buffer) {
         (char)NULL);
 
     if (!got_digest) {
-        Log.error("No digest for signing request!");
+        Log.error(F("Failed to generate signing command, no digest for signing "
+                    "request!"));
         return false;
     }
 
@@ -299,10 +229,10 @@ static bool generateSigningCommand(char* data, char* command_buffer) {
     }
 
     // Sign digest with ECC's primary private key
-    ATCA_STATUS result = atcab_sign(0, message_to_sign, (uint8_t*)digest);
+    const ATCA_STATUS result = atcab_sign(0, message_to_sign, (uint8_t*)digest);
 
     if (result != ATCA_SUCCESS) {
-        Log.errorf("ECC signing failed, status code: %x\r\n", result);
+        Log.errorf(F("ECC signing failed, status code: %X\r\n"), result);
         return false;
     }
 
@@ -321,7 +251,7 @@ static bool generateSigningCommand(char* data, char* command_buffer) {
 
     // NULL terminate
     signature[HCESIGN_DIGEST_LENGTH * 2] = 0;
-    sprintf(command_buffer, HCESIGN, atoi(ctx_id_buffer), signature);
+    sprintf_P(command_buffer, HCESIGN, atoi(ctx_id_buffer), signature);
 
     return true;
 }
@@ -331,7 +261,7 @@ bool MqttClientClass::beginAWS() {
     ATCA_STATUS status = ECC608.begin();
 
     if (status != ATCA_SUCCESS) {
-        Log.errorf("Could not initialize ECC hardware, error code: %X\r\n",
+        Log.errorf(F("Could not initialize ECC hardware, error code: %X\r\n"),
                    status);
         return false;
     }
@@ -348,13 +278,14 @@ bool MqttClientClass::beginAWS() {
 
         if (status == ATCA_INVALID_ID) {
             Log.error(
-                "Could not find AWS thing name in the ECC. Please provision "
-                "the board for AWS using the iotprovision tool.");
+                F("Could not find AWS thing name in the ECC. Please provision "
+                  "the board for AWS using the instructions in the provision "
+                  "sketch."));
             return false;
         }
 
         Log.errorf(
-            "Could not retrieve thing name from the ECC, error code: %X\r\n",
+            F("Could not retrieve thing name from the ECC, error code: %X\r\n"),
             status);
         return false;
     }
@@ -363,12 +294,12 @@ bool MqttClientClass::beginAWS() {
 
     if (status != ATCA_SUCCESS) {
         Log.errorf(
-            "Could not retrieve endpoint from the ECC, error code: %X\r\n",
+            F("Could not retrieve endpoint from the ECC, error code: %X\r\n"),
             status);
         return false;
     }
 
-    Log.debugf("Connecting to AWS with endpoint: %s and thingname: %s\r\n",
+    Log.debugf(F("Connecting to AWS with endpoint: %s and thingname: %s\r\n"),
                endpoint,
                thing_name);
 
@@ -387,7 +318,7 @@ bool MqttClientClass::beginAzure() {
     ATCA_STATUS status = ECC608.begin();
 
     if (status != ATCA_SUCCESS) {
-        Log.errorf("Could not initialize ECC hardware, error code: %X\r\n",
+        Log.errorf(F("Could not initialize ECC hardware, error code: %X\r\n"),
                    status);
         return false;
     }
@@ -405,13 +336,13 @@ bool MqttClientClass::beginAzure() {
     if (status != ATCA_SUCCESS) {
 
         if (status == ATCA_INVALID_ID) {
-            Log.error("Could not find the Azure device ID in the ECC. Please "
-                      "provision the board for Azure using the provision "
-                      "example sketch.");
+            Log.error(F("Could not find the Azure device ID in the ECC. Please "
+                        "provision the board for Azure using the provision "
+                        "example sketch."));
             return false;
         }
 
-        Log.errorf("Failed to read device ID from ECC, error code: %X\r\n",
+        Log.errorf(F("Failed to read device ID from ECC, error code: %X\r\n"),
                    status);
         return false;
     }
@@ -424,24 +355,24 @@ bool MqttClientClass::beginAzure() {
                                       &hostname_size);
 
     if (status != ATCA_SUCCESS) {
-        Log.errorf("Failed to read Azure IoT hub host name from ECC, error "
-                   "code: %X\r\n",
+        Log.errorf(F("Failed to read Azure IoT hub host name from ECC, error "
+                     "code: %X\r\n"),
                    status);
         return false;
     }
 
-    Log.debugf("Connecting to Azure with hostname: %s and device ID: %s\r\n",
+    Log.debugf(F("Connecting to Azure with hostname: %s and device ID: %s\r\n"),
                hostname,
                device_id);
 
     // 24 comes from the format in the string below. Add +1 for NULL termination
     char username[sizeof(hostname) + 24 + sizeof(device_id) + 1] = "";
 
-    snprintf(username,
-             sizeof(username),
-             "%s/%s/api-version=2018-06-30",
-             hostname,
-             device_id);
+    snprintf_P(username,
+               sizeof(username),
+               PSTR("%s/%s/api-version=2018-06-30"),
+               hostname,
+               device_id);
 
     return this->begin(device_id, hostname, 8883, true, 60, true, username, "");
 }
@@ -453,156 +384,270 @@ bool MqttClientClass::begin(const char* client_id,
                             const size_t keep_alive,
                             const bool use_ecc,
                             const char* username,
-                            const char* password) {
+                            const char* password,
+                            const size_t timeout_ms,
+                            const bool print_messages) {
 
     if (!Lte.isConnected()) {
         return false;
     }
 
+    connected_to_broker = false;
+
     // Disconnect to terminate existing configuration
-    SequansController.writeBytes((uint8_t*)MQTT_DISCONNECT,
-                                 strlen(MQTT_DISCONNECT),
-                                 true);
+    //
+    // We do this with writeString instead of writeCommand to not issue the
+    // retries of the command if it fails.
+    SequansController.writeString(FV(MQTT_DISCONNECT), true);
 
     // Force to read the result so that we don't go on with the next command
     // instantly. We just want to close the current connection if there are any.
     // If there aren't, this will return an error from the modem, but that is
     // fine as it just means that there aren't any connections active.
-    //
-    // We do this with writeBytes instead of writeCommand to not issue the
-    // retries of the command if it fails.
     SequansController.readResponse();
 
-    SequansController.clearReceiveBuffer();
-
     // -- Configuration --
-
-    const size_t client_id_length = strlen(client_id);
-    const size_t username_length  = strlen(username);
-    const size_t password_length  = strlen(password);
 
     // The sequans modem fails if we specify 0 as TLS, so we just have to have
     // two commands for this
     if (use_tls) {
 
-        char command[MQTT_CONFIGURE_TLS_LENGTH + client_id_length +
-                     username_length + password_length] = "";
+        if (!SecurityProfile.profileExists(
+                use_ecc ? MQTT_TLS_ECC_SECURITY_PROFILE_ID
+                        : MQTT_TLS_SECURITY_PROFILE_ID)) {
+            Log.error(F("Security profile not set up for MQTT TLS. "
+                        "Run the 'provision' example Arduino sketch for more "
+                        "instructions on how to set this up."));
+            return false;
+        }
 
         if (use_ecc) {
 
-            if (!SecurityProfile.profileExists(
-                    MQTT_TLS_ECC_SECURITY_PROFILE_ID)) {
-                Log.error("Security profile not set up for MQTT TLS with ECC. "
-                          "Run the 'provision' example Arduino sketch to set "
-                          "this up for a custom broker or use the iotprovision "
-                          "tool to set this up for AWS.");
-                return false;
-            }
+            const ATCA_STATUS status = ECC608.begin();
 
-            uint8_t status = ECC608.begin();
             if (status != ATCA_SUCCESS) {
-                Log.error("Could not initialize ECC hardware");
+                Log.errorf(
+                    F("Could not initialize ECC hardware, error code: %X\r\n"),
+                    status);
                 return false;
             }
-
-            sprintf(command,
-                    MQTT_CONFIGURE_TLS,
-                    client_id,
-                    username,
-                    password,
-                    MQTT_TLS_ECC_SECURITY_PROFILE_ID);
-
-        } else {
-            if (!SecurityProfile.profileExists(MQTT_TLS_SECURITY_PROFILE_ID)) {
-                Log.error("Security profile not set up for MQTT TLS. Run the "
-                          "'provision' example Arduino sketch to set this up.");
-                return false;
-            }
-
-            sprintf(command,
-                    MQTT_CONFIGURE_TLS,
-                    client_id,
-                    username,
-                    password,
-                    MQTT_TLS_SECURITY_PROFILE_ID);
         }
 
-        if (SequansController.writeCommand(command) != ResponseResult::OK) {
-            Log.error(
-                "Failed to configure MQTT. The TLS setup might be incorrect. "
-                "If you're using a custom broker with TLS, run the provision "
-                "example sketch in order to provision for a custom MQTT broker "
-                "with TLS.");
+        const ResponseResult configure_response =
+            SequansController.writeCommand(
+                F("AT+SQNSMQTTCFG=0,\"%s\",\"%s\",\"%s\",%u"),
+                NULL,
+                0,
+                client_id,
+                username,
+                password,
+                use_ecc ? MQTT_TLS_ECC_SECURITY_PROFILE_ID
+                        : MQTT_TLS_SECURITY_PROFILE_ID);
+
+        if (configure_response != ResponseResult::OK) {
+            Log.errorf(
+                F("Failed to configure MQTT. The TLS setup might be incorrect. "
+                  "If you're using a custom broker with TLS, run the provision "
+                  "example sketch in order to provision for a custom MQTT "
+                  "broker "
+                  "with TLS. Error code: %X\r\n"),
+                static_cast<uint8_t>(configure_response));
+
             return false;
         }
     } else {
-        char command[MQTT_CONFIGURE_LENGTH + client_id_length +
-                     username_length + password_length] = "";
-        sprintf(command, MQTT_CONFIGURE, client_id, username, password);
 
-        if (SequansController.writeCommand(command) != ResponseResult::OK) {
-            Log.error("Failed to configure MQTT");
+        const ResponseResult configure_response =
+            SequansController.writeCommand(
+                F("AT+SQNSMQTTCFG=0,\"%s\",\"%s\",\"%s\""),
+                NULL,
+                0,
+                client_id,
+                username,
+                password);
+
+        if (configure_response != ResponseResult::OK) {
+            Log.errorf(F("Failed to configure MQTT, error code: %X\r\n"),
+                       static_cast<uint8_t>(configure_response));
             return false;
         }
     }
 
-    SequansController.registerCallback(MQTT_ON_CONNECT_URC,
-                                       internalConnectedCallback);
-    SequansController.registerCallback(MQTT_ON_DISCONNECT_URC,
-                                       internalDisconnectCallback);
-
     // -- Request connection --
-    size_t keep_alive_length = floor(log10(keep_alive)) + 1;
-    char command[MQTT_CONNECT_LENGTH_PRE_KEEP_ALIVE + keep_alive_length] = "";
 
-    sprintf(command, MQTT_CONNECT, host, port, keep_alive);
+    const ResponseResult connect_response = SequansController.writeCommand(
+        F("AT+SQNSMQTTCONNECT=0,\"%s\",%u,%u"),
+        NULL,
+        0,
+        host,
+        port,
+        keep_alive);
 
-    if (SequansController.writeCommand(command) != ResponseResult::OK) {
-        Log.error("Failed to request connection to MQTT broker\r\n");
+    if (connect_response != ResponseResult::OK) {
+        Log.errorf(F("Failed to request connection to MQTT broker, error code: "
+                     "%X\r\n"),
+                   static_cast<uint8_t>(connect_response));
         return false;
     }
 
+    if (print_messages) {
+        Log.infof(F("Connecting to MQTT broker"));
+    }
+
+    // We are not allowed to capture local variables with the AVR compiler, so
+    // we have to construct two lambdas.
+    const auto toggle_led = [] { LedCtrl.toggle(Led::CON, true); };
+
+    const auto toggle_led_with_printing = [] {
+        LedCtrl.toggle(Led::CON, true);
+        Log.rawf(F("."));
+    };
+
     if (use_tls && use_ecc) {
 
-        char urc[URC_DATA_BUFFER_SIZE] = "";
-        if (!SequansController.waitForURC(HCESIGN_URC, urc, sizeof(urc))) {
-            Log.error("Timed out whilst waiting for TLS signing. Please verify "
-                      "your certificate setup (run the provision Arduino "
-                      "sketch to set this up for a new broker).\r\n");
+        // Need to wait for a sign URC if we are using the ECC
+        const bool got_sign_urc = SequansController.waitForURC(
+            F("SQNHCESIGN"),
+            urc_buffer,
+            sizeof(urc_buffer),
+            timeout_ms,
+            print_messages ? toggle_led_with_printing : toggle_led,
+            500);
+
+        if (!got_sign_urc) {
+
+            const char* error_message = PSTR(
+                "Timed out whilst waiting for TLS signing. "
+                "Please verify "
+                "your certificate setup (run the provision Arduino "
+                "sketch to set this up for a new broker).\r\n");
+
+            if (print_messages) {
+                Log.rawf(F(" %S\r\n"), error_message);
+            } else {
+                Log.errorf(F("%S\r\n"), error_message);
+            }
+
+            LedCtrl.off(Led::CON, true);
             return false;
         }
 
         char signing_request_buffer[MQTT_SIGNING_BUFFER + 1] = "";
 
         SequansController.startCriticalSection();
-        bool success = generateSigningCommand(urc, signing_request_buffer);
+        const bool success = generateSigningCommand(urc_buffer,
+                                                    signing_request_buffer);
 
-        if (success != true) {
-            Log.error("Unable to handle signature request\r\n");
+        if (!success) {
+            SequansController.stopCriticalSection();
+
+            const char* error_message = PSTR(
+                "Unable to handle signature request\r\n");
+
+            if (print_messages) {
+                Log.rawf(F(" %S\r\n"), error_message);
+            } else {
+                Log.errorf(F("%S\r\n"), error_message);
+            }
+
+            LedCtrl.off(Led::CON, true);
             return false;
         }
 
-        SequansController.writeBytes((uint8_t*)signing_request_buffer,
-                                     strlen(signing_request_buffer),
-                                     true);
-
+        SequansController.writeString(signing_request_buffer, true);
         SequansController.stopCriticalSection();
     }
 
-    return true;
+    // Wait for connection response
+    const bool got_connect_urc = SequansController.waitForURC(
+        F("SQNSMQTTONCONNECT"),
+        urc_buffer,
+        sizeof(urc_buffer),
+        timeout_ms,
+        print_messages ? toggle_led_with_printing : toggle_led,
+        500);
+
+    if (!got_connect_urc) {
+        const char* error_message = PSTR(
+            "Timed out waiting for connection response.\r\n");
+
+        if (print_messages) {
+            Log.rawf(F(" %S\r\n"), error_message);
+        } else {
+            Log.errorf(F("%S\r\n"), error_message);
+        }
+
+        LedCtrl.off(Led::CON, true);
+        return false;
+    }
+
+    // At most we can have two character ("-x"). We add an extra for null
+    // termination
+    char status_code_buffer[3] = "";
+
+    if (!SequansController.extractValueFromCommandResponse(
+            urc_buffer,
+            MQTT_URC_STATUS_CODE_INDEX,
+            status_code_buffer,
+            sizeof(status_code_buffer),
+            (char)NULL)) {
+
+        const char* error_message = PSTR(
+            "Failed to extract status code for connection.\r\n");
+
+        if (print_messages) {
+            Log.rawf(F(" %S\r\n"), error_message);
+        } else {
+            Log.errorf(F("%S\r\n"), error_message);
+        }
+
+        LedCtrl.off(Led::CON, true);
+        return false;
+    }
+
+    // Status codes are reported as negative numbers, so we need to take the
+    // absolute value. 0 is success.
+    const uint8_t connection_response_code = abs(atoi(status_code_buffer));
+
+    if (!connection_response_code) {
+
+        if (print_messages) {
+            Log.raw(F(" OK!"));
+        }
+
+        connected_to_broker = true;
+        LedCtrl.on(Led::CON, true);
+
+        SequansController.registerCallback(FV(MQTT_ON_DISCONNECT_URC),
+                                           internalDisconnectCallback);
+    } else {
+
+        if (print_messages) {
+            Log.rawf(F(" Unable to connect to broker: %S.\r\n"),
+                     (PGM_P)pgm_read_word_far(
+                         &(STATUS_CODE_TABLE[connection_response_code])));
+        } else {
+            Log.errorf(F("Unable to connect to broker: %S.\r\n"),
+                       (PGM_P)pgm_read_word_far(
+                           &(STATUS_CODE_TABLE[connection_response_code])));
+        }
+
+        connected_to_broker = false;
+        LedCtrl.off(Led::CON, true);
+    }
+
+    return connected_to_broker;
 }
 
-bool MqttClientClass::end(void) {
+bool MqttClientClass::end() {
 
     LedCtrl.off(Led::CON, true);
 
-    SequansController.unregisterCallback(MQTT_ON_MESSAGE_URC);
-    SequansController.unregisterCallback(MQTT_ON_CONNECT_URC);
-    SequansController.unregisterCallback(MQTT_ON_DISCONNECT_URC);
+    SequansController.unregisterCallback(FV(MQTT_ON_MESSAGE_URC));
+    SequansController.unregisterCallback(FV(MQTT_ON_DISCONNECT_URC));
 
     if (Lte.isConnected() && isConnected()) {
-
-        SequansController.writeCommand(MQTT_DISCONNECT);
+        SequansController.writeCommand(FV(MQTT_DISCONNECT));
         SequansController.clearReceiveBuffer();
     }
 
@@ -615,18 +660,22 @@ bool MqttClientClass::end(void) {
     return true;
 }
 
-void MqttClientClass::onConnectionStatusChange(void (*connected)(void),
-                                               void (*disconnected)(void)) {
-    if (connected != NULL) {
-        connected_callback = connected;
-    }
+void MqttClientClass::onConnectionStatusChange(
+    __attribute__((unused)) void (*connected)(void),
+    void (*disconnected)(void)) {
 
     if (disconnected != NULL) {
         disconnected_callback = disconnected;
     }
 }
 
-bool MqttClientClass::isConnected(void) { return connected_to_broker; }
+void MqttClientClass::onDisconnect(void (*disconnected)(void)) {
+    if (disconnected != NULL) {
+        disconnected_callback = disconnected;
+    }
+}
+
+bool MqttClientClass::isConnected() { return connected_to_broker; }
 
 bool MqttClientClass::publish(const char* topic,
                               const uint8_t* buffer,
@@ -635,50 +684,49 @@ bool MqttClientClass::publish(const char* topic,
                               const uint32_t timeout_ms) {
 
     if (!isConnected()) {
-        Log.error("Attempted publish without being connected to a broker");
+        Log.error(F("Attempted publish without being connected to a broker"));
         LedCtrl.off(Led::DATA, false);
         return false;
     }
 
     LedCtrl.on(Led::DATA, true);
 
-    const size_t digits_in_buffer_size = trunc(log10(buffer_size)) + 1;
-    char command[MQTT_PUBLISH_LENGTH_PRE_DATA + digits_in_buffer_size];
-
-    // Fill everything besides the data
-    sprintf(command,
-            MQTT_PUBLISH,
-            topic,
-            quality_of_service,
-            (unsigned long)buffer_size);
-
-    SequansController.writeBytes((uint8_t*)command, strlen(command), true);
+    SequansController.writeString(F("AT+SQNSMQTTPUBLISH=0,\"%s\",%u,%lu"),
+                                  true,
+                                  topic,
+                                  quality_of_service,
+                                  buffer_size);
 
     // Wait for start character for delivering payload
     if (!SequansController.waitForByte('>', MQTT_TIMEOUT_MS)) {
-        Log.warn("Timed out waiting to deliver MQTT payload.");
+        Log.warn(F("Timed out waiting to deliver MQTT payload."));
 
         LedCtrl.off(Led::DATA, true);
         return false;
     }
 
-    Log.debugf("Publishing MQTT payload: %s\r\n", buffer);
+    Log.debugf(F("Publishing MQTT payload: %s\r\n"), buffer);
 
     SequansController.writeBytes(buffer, buffer_size);
 
     char urc[MQTT_PUBLISH_URC_LENGTH] = "";
 
-    // At most we can have two character ("-1"). We add an extra for null
+    // At most we can have two character ("-x"). We add an extra for null
     // termination
     char status_code_buffer[3] = "";
 
-    if (!SequansController.waitForURC(MQTT_ON_PUBLISH_URC,
+    if (!SequansController.waitForURC(F("SQNSMQTTONPUBLISH"),
                                       urc,
                                       sizeof(urc),
                                       timeout_ms)) {
+<<<<<<< HEAD
         Log.warn("Timed out waiting for publish confirmation. Consider "
                  "increasing timeout for publishing\r\n");
         LedCtrl.off(Led::DATA, true);
+=======
+        Log.warn(F("Timed out waiting for publish confirmation. Consider "
+                   "increasing timeout for publishing\r\n"));
+>>>>>>> develop
         return false;
     }
 
@@ -687,29 +735,31 @@ bool MqttClientClass::publish(const char* topic,
 
     if (!SequansController.extractValueFromCommandResponse(
             urc,
-            MQTT_PUB_SUB_URC_STATUS_CODE_INDEX,
+            MQTT_URC_STATUS_CODE_INDEX,
             status_code_buffer,
             sizeof(status_code_buffer),
             (char)NULL)) {
 
+<<<<<<< HEAD
         Log.error("Failed to retrieve status code from publish notification");
         LedCtrl.off(Led::DATA, true);
+=======
+        Log.error(
+            F("Failed to retrieve status code from publish notification"));
+>>>>>>> develop
         return false;
     }
 
-    int8_t publish_status_code = atoi(status_code_buffer);
-
-    // One of the status codes is -1, so in order to not overflow the status
-    // code table, we swap the place with the last one
-    if (publish_status_code == STATUS_CODE_PENDING) {
-        publish_status_code = NUM_STATUS_CODES - 1;
-    }
+    // Status codes are reported as negative numbers, so we need to take the
+    // absolute value
+    const int8_t publish_status_code = abs(atoi(status_code_buffer));
 
     LedCtrl.off(Led::DATA, true);
 
     if (publish_status_code != 0) {
-        Log.errorf("Error happened while publishing: %s\r\n",
-                   status_code_table[publish_status_code]);
+        Log.errorf(F("Error happened whilst publishing: %S.\r\n"),
+                   (PGM_P)pgm_read_word_far(
+                       &(STATUS_CODE_TABLE[publish_status_code])));
         return false;
     }
 
@@ -732,53 +782,57 @@ bool MqttClientClass::subscribe(const char* topic,
 
     if (!isConnected()) {
         Log.error(
-            "Attempted MQTT Subscribe without being connected to a broker");
+            F("Attempted MQTT Subscribe without being connected to a broker"));
         return false;
     }
 
-    char command[MQTT_SUBSCRIBE_LENGTH] = "";
-    sprintf(command, MQTT_SUSBCRIBE, topic, quality_of_service);
+    const ResponseResult subscribe_result = SequansController.writeCommand(
+        F("AT+SQNSMQTTSUBSCRIBE=0,\"%s\",%u"),
+        NULL,
+        0,
+        topic,
+        quality_of_service);
 
-    if (SequansController.writeCommand(command) != ResponseResult::OK) {
-        Log.error("Failed to send subscribe command");
+    if (subscribe_result != ResponseResult::OK) {
+        Log.errorf(F("Failed to send subscribe command, error code: %x"),
+                   static_cast<uint8_t>(subscribe_result));
         return false;
     }
 
     char urc[MQTT_SUBSCRIBE_URC_LENGTH] = "";
 
-    // At most we can have two character ("-1"). We add an extra for null
+    // At most we can have two character ("-x"). We add an extra for null
     // termination
     char status_code_buffer[3] = "";
 
-    if (!SequansController.waitForURC(MQTT_ON_SUBSCRIBE_URC,
+    if (!SequansController.waitForURC(F("SQNSMQTTONSUBSCRIBE"),
                                       urc,
                                       sizeof(urc))) {
-        Log.warn("Timed out waiting for subscribe confirmation\r\n");
+        Log.error(F("Timed out waiting for subscribe confirmation\r\n"));
         return false;
     }
 
     if (!SequansController.extractValueFromCommandResponse(
             urc,
-            MQTT_PUB_SUB_URC_STATUS_CODE_INDEX,
+            MQTT_URC_STATUS_CODE_INDEX,
             status_code_buffer,
             sizeof(status_code_buffer),
             (char)NULL)) {
 
-        Log.error("Failed to retrieve status code from subscribe notification");
+        Log.error(
+            F("Failed to retrieve status code from subscribe notification"));
         return false;
     }
 
-    int8_t subscribe_status_code = atoi(status_code_buffer);
-
-    // One of the status codes is -1, so in order to not overflow the status
-    // code table, we swap the place with the last one
-    if (subscribe_status_code == STATUS_CODE_PENDING) {
-        subscribe_status_code = NUM_STATUS_CODES - 1;
-    }
+    // Status codes are reported as negative numbers, so we need to take the
+    // absolute value
+    const int8_t subscribe_status_code = abs(atoi(status_code_buffer));
 
     if (subscribe_status_code != 0) {
-        Log.errorf("Error happened while subscribing: %s\r\n",
-                   status_code_table[subscribe_status_code]);
+
+        Log.errorf(F("Error happened whilst subscribing: %S.\r\n"),
+                   (PGM_P)pgm_read_word_far(
+                       &(STATUS_CODE_TABLE[subscribe_status_code])));
         return false;
     }
 
@@ -790,7 +844,7 @@ void MqttClientClass::onReceive(void (*callback)(const char* topic,
                                                  const int32_t message_id)) {
     if (callback != NULL) {
         receive_callback = callback;
-        SequansController.registerCallback(MQTT_ON_MESSAGE_URC,
+        SequansController.registerCallback(FV(MQTT_ON_MESSAGE_URC),
                                            internalOnReceiveCallback);
     }
 }
@@ -799,10 +853,10 @@ bool MqttClientClass::readMessage(const char* topic,
                                   char* buffer,
                                   const uint16_t buffer_size,
                                   const int32_t message_id) {
-    if (buffer_size > MQTT_MAX_BUFFER_SIZE) {
+    if (buffer_size > MQTT_MSG_MAX_BUFFER_SIZE) {
 
-        Log.errorf("MQTT message is longer than the max size of %d\r\n",
-                   MQTT_MAX_BUFFER_SIZE);
+        Log.errorf(F("MQTT message is longer than the max size of %d\r\n"),
+                   MQTT_MSG_MAX_BUFFER_SIZE);
         return false;
     }
 
@@ -810,29 +864,17 @@ bool MqttClientClass::readMessage(const char* topic,
     // will return a carraige return and a line feed before the content, so
     // we write the bytes and manually clear these character before the
     // payload
-
     SequansController.clearReceiveBuffer();
 
     // We determine all message IDs lower than 0 as just no message ID passed
     if (message_id < 0) {
-        char command[MQTT_RECEIVE_LENGTH] = "";
-        sprintf(command, MQTT_RECEIVE, topic);
-
-        SequansController.writeBytes((uint8_t*)&command[0],
-                                     strlen(command),
-                                     true);
+        SequansController.writeString(FV(MQTT_RECEIVE), true, topic);
 
     } else {
-        const uint32_t digits_in_msg_id = trunc(log10(message_id)) + 1;
-        char command[MQTT_RECEIVE_WITH_MSG_ID_LENGTH + digits_in_msg_id] = "";
-        sprintf(command,
-                MQTT_RECEIVE_WITH_MSG_ID,
-                topic,
-                (unsigned int)message_id);
-
-        SequansController.writeBytes((uint8_t*)&command[0],
-                                     strlen(command),
-                                     true);
+        SequansController.writeString(FV(MQTT_RECEIVE_WITH_MSG_ID),
+                                      true,
+                                      topic,
+                                      (unsigned int)message_id);
     }
 
     // First two bytes are \r\n for the MQTT message response, so we flush those
@@ -843,17 +885,18 @@ bool MqttClientClass::readMessage(const char* topic,
         return false;
     }
 
-    // Then we can read the response into the buffer
-    const ResponseResult response = SequansController.readResponse(buffer,
-                                                                   buffer_size);
+    const ResponseResult receive_response =
+        SequansController.readResponse(buffer, buffer_size);
 
-    return (response == ResponseResult::OK);
+    return (receive_response == ResponseResult::OK);
 }
 
 String MqttClientClass::readMessage(const char* topic, const uint16_t size) {
-    Log.debugf("Reading message on topic %s\r\n", topic);
+    Log.debugf(F("Reading message on topic %s\r\n"), topic);
+
     // Add bytes for termination of AT command when reading
     char buffer[size + 16];
+
     if (!readMessage(topic, buffer, sizeof(buffer))) {
         return "";
     }
@@ -864,10 +907,7 @@ String MqttClientClass::readMessage(const char* topic, const uint16_t size) {
 void MqttClientClass::clearMessages(const char* topic,
                                     const uint16_t num_messages) {
 
-    char command[MQTT_RECEIVE_LENGTH] = "";
-    sprintf(command, MQTT_RECEIVE, topic);
-
     for (uint16_t i = 0; i < num_messages; i++) {
-        SequansController.writeCommand(command);
+        SequansController.writeCommand(FV(MQTT_RECEIVE), NULL, 0, topic);
     }
 }

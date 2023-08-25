@@ -6,20 +6,18 @@
 #ifndef SEQUANS_CONTROLLER_H
 #define SEQUANS_CONTROLLER_H
 
+#include <WString.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-// Is public here for users of the interface
-#define URC_DATA_BUFFER_SIZE 384
+#define URC_DATA_BUFFER_SIZE (384)
 
 #define URC_IDENTIFIER_START_CHARACTER '+'
 #define URC_IDENTIFIER_END_CHARACTER   ':'
 
-#define SEQUANS_CONTROLLER_READ_BYTE_OK      1
-#define SEQUANS_CONTROLLER_READ_BYTE_TIMEOUT 2
-
-#define WAIT_FOR_URC_TIMEOUT_MS 20000
+#define WAIT_FOR_URC_TIMEOUT_MS (20000)
 
 enum class ResponseResult {
     NONE = 0,
@@ -27,26 +25,11 @@ enum class ResponseResult {
     ERROR,
     BUFFER_OVERFLOW,
     TIMEOUT,
-    SERIAL_READ_ERROR
+    SERIAL_READ_ERROR,
+    SERIAL_WRITE_ERROR
 };
 
 class SequansControllerClass {
-
-  private:
-    /**
-     * @brief Constructor is hidden to enforce a single instance of this class
-     * through a singleton.
-     */
-    SequansControllerClass(){};
-
-    /**
-     * @brief Appends a byte to the transmit buffer. If the transmit buffer is
-     * full, this function will push out data to the modem to make space in the
-     * transmit buffer.
-     *
-     * @return false if operation timed out.
-     */
-    bool appendDataToTransmitBuffer(const uint8_t data);
 
   public:
     /**
@@ -60,8 +43,10 @@ class SequansControllerClass {
     /**
      * @brief Sets up the pins for TX, RX, RTS and CTS of the serial interface
      * towards the LTE module.
+     *
+     * @return True if the modem reported with the SYSSTAR URC.
      */
-    void begin(void);
+    bool begin(void);
 
     /**
      * @return True if begin has already been called.
@@ -85,11 +70,10 @@ class SequansControllerClass {
     bool isRxReady(void);
 
     /**
-     * @brief Writes a data buffer to the modem.
+     * @brief Will clear the receive buffer, will just set the ring buffer tail
+     * and head indices to the same position, not issue any further reads.
      */
-    void writeBytes(const uint8_t* data,
-                    const size_t buffer_size,
-                    const bool append_carriage_return = false);
+    void clearReceiveBuffer(void);
 
     /**
      * @return -1 if failed to read or read value if else.
@@ -97,20 +81,45 @@ class SequansControllerClass {
     int16_t readByte(void);
 
     /**
-     * @brief Will clear the receive buffer, will just set the ring buffer tail
-     * and head indices to the same position, not issue any further reads.
+     * @brief Writes a data buffer to the modem. This does not check any
+     * response from the modem (for that functionality, see #writeCommand).
+     *
+     * @return false if the modem is was not ready to accept all data.
      */
-    void clearReceiveBuffer(void);
+    bool writeBytes(const uint8_t* data,
+                    const size_t buffer_size,
+                    const bool append_carriage_return = false);
+    /**
+     * @brief Writes a string to the modem (with optinal formatting). This does
+     * not check any response from the modem (for that functionality, see
+     * #writeCommand).
+     *
+     * @return false if the modem is was not ready to accept all data.
+     */
+    bool writeString(const char* str,
+                     const bool append_carriage_return = false,
+                     ...);
 
     /**
-     * @brief Writes an AT command in the form of a string to the LTE module. If
-     * a timeout occurs, the command will be sent again until timeout doesn't
-     * occur.
+     * @brief Flash string version of #writeString.
+     */
+    bool writeString(const __FlashStringHelper* str,
+                     const bool append_carriage_return = false,
+                     ...);
+
+    /**
+     * @brief Writes an AT command in the form of a string to the modem. The
+     * command can be a formatted string. In that case, arguments has to be
+     * passed for the formatting. If the command fails, it will retry
+     * #COMMAND_NUM_RETRIES before giving up. The difference between this and
+     * #writeBytes is the retry mechanism and the return value of a response.
      *
      * @note A carrige return is not needed for the command as it is appended.
      *
+     * @param command The AT command to write.
      * @param result_buffer Result will be placed in this buffer if not NULL.
      * @param result_buffer_size Size of the result buffer.
+     * @param ... Optional arguments for the command.
      *
      * @return The following status codes:
      * - OK if read was successfull and resultw as terminated by OK.
@@ -120,7 +129,16 @@ class SequansControllerClass {
      */
     ResponseResult writeCommand(const char* command,
                                 char* result_buffer             = NULL,
-                                const size_t result_buffer_size = 0);
+                                const size_t result_buffer_size = 0,
+                                ...);
+
+    /**
+     * @brief Flash string version of #writeCommand.
+     */
+    ResponseResult writeCommand(const __FlashStringHelper* command,
+                                char* result_buffer             = NULL,
+                                const size_t result_buffer_size = 0,
+                                ...);
 
     /**
      * @brief Reads a response after e.g. an AT command, will try to read until
@@ -153,8 +171,8 @@ class SequansControllerClass {
      *
      * @param response The AT command response.
      * @param index Index of value to extract.
-     * @param buffer Destination buffer for value.
-     * @param buffer_size Destination buffer size.
+     * @param destination_buffer Destination buffer for value.
+     * @param destination_buffer_size Destination buffer size.
      * @param start_character Start character of the data or NULL if none.
      * Default is URC_IDENTIFIER_END_CHARACTER, which specifies the end of the
      * identifier and the start of data.
@@ -164,8 +182,8 @@ class SequansControllerClass {
     bool extractValueFromCommandResponse(
         char* response,
         const uint8_t index,
-        char* buffer,
-        const size_t buffer_size,
+        char* destination_buffer,
+        const size_t destination_buffer_size,
         const char start_character = URC_IDENTIFIER_END_CHARACTER);
 
     /**
@@ -185,9 +203,21 @@ class SequansControllerClass {
                           const bool clear_data = true);
 
     /**
+     * @brief Flash string version of #registerCallback.
+     */
+    bool registerCallback(const __FlashStringHelper* urc_identifier,
+                          void (*urc_callback)(char*),
+                          const bool clear_data = true);
+
+    /**
      * @brief Unregister callback for a given URC identifier.
      */
     void unregisterCallback(const char* urc_identifier);
+
+    /**
+     * @brief Flash string version of #unregisterCallback.
+     */
+    void unregisterCallback(const __FlashStringHelper* urc_identifier);
 
     /**
      * @brief Waits for a given URC.
@@ -196,13 +226,30 @@ class SequansControllerClass {
      * @param out_buffer The data payload from the URC.
      * @param out_buffer_size Size of the output buffer for the URC.
      * @param timeout_ms How long the waiting period is.
+     * @param action Action to do while waiting (blinking LED for example). The
+     * action can be used to prematurely exit the waiting period (if it returns
+     * false).
+     * @param action_interval_ms Interval between calling @p action.
      *
-     * @return true if URC was retrieved before the timeout.
+     * @return true if URC was retrieved before the timeout or before the @p
+     * action prematurely aborted the waiting.
      */
     bool waitForURC(const char* urc_identifier,
-                    char* out_buffer               = NULL,
-                    const uint16_t out_buffer_size = URC_DATA_BUFFER_SIZE,
-                    const uint64_t timeout_ms      = WAIT_FOR_URC_TIMEOUT_MS);
+                    char* out_buffer                  = NULL,
+                    const uint16_t out_buffer_size    = URC_DATA_BUFFER_SIZE,
+                    const uint32_t timeout_ms         = WAIT_FOR_URC_TIMEOUT_MS,
+                    void (*action)(void)              = NULL,
+                    const uint32_t action_interval_ms = 0);
+
+    /**
+     * @brief Flash string version of #waitForURC.
+     */
+    bool waitForURC(const __FlashStringHelper* urc_identifier,
+                    char* out_buffer                  = NULL,
+                    const uint16_t out_buffer_size    = URC_DATA_BUFFER_SIZE,
+                    const uint32_t timeout_ms         = WAIT_FOR_URC_TIMEOUT_MS,
+                    void (*action)(void)              = NULL,
+                    const uint32_t action_interval_ms = 0);
 
     /**
      * @brief Sets the power saving mode for the Sequans modem.
@@ -239,6 +286,64 @@ class SequansControllerClass {
      * data again.
      */
     void stopCriticalSection(void);
+
+  private:
+    /**
+     * @brief Constructor is hidden to enforce a single instance of this class
+     * through a singleton.
+     */
+    SequansControllerClass(){};
+
+    /**
+     * @brief See #writeString. This function is meant to be internal and the
+     * #writeString functions call this with the additional flag for
+     * whether the string is stored in program memory or not.
+     */
+    bool writeString(const char* str,
+                     const bool append_carriage_return,
+                     const bool is_flash_string,
+                     va_list args);
+
+    /**
+     * @brief See #writeCommand. This function is meant to be internal and the
+     * #writeCommand functions call this with the additional flag for
+     * whether the command is stored in program memory or not.
+     */
+    ResponseResult writeCommand(const char* command,
+                                char* result_buffer,
+                                const size_t result_buffer_size,
+                                const bool is_flash_string,
+                                va_list args);
+
+    /**
+     * @brief See #registerCallback. This function is meant to be internal and
+     * the #registerCallback functions call this with the additional flag for
+     * whether the URC identifier is stored in program memory or not.
+     */
+    bool registerCallback(const char* urc_identifier,
+                          void (*urc_callback)(char*),
+                          const bool clear_data,
+                          const bool is_flash_string);
+    /**
+     * @brief See #unregisterCallback. This function is meant to be internal and
+     * the #unregisterCallback functions call this with the additional flag for
+     * whether the URC identifier is stored in program memory or not.
+     */
+    void unregisterCallback(const char* urc_identifier,
+                            const bool is_flash_string);
+
+    /**
+     * @brief See #waitForURC. This function is meant to be internal and the
+     * #waitForURC functions call this with the additional flag for whether the
+     * URC identifier is stored in program memory or not.
+     */
+    bool waitForURC(const char* urc_identifier,
+                    char* out_buffer,
+                    const uint16_t out_buffer_size,
+                    const uint32_t timeout_ms,
+                    void (*action)(void),
+                    const uint32_t action_interval_ms,
+                    const bool is_flash_string);
 };
 
 extern SequansControllerClass SequansController;

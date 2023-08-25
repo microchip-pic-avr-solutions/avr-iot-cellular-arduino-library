@@ -15,33 +15,33 @@ void setup() {
     LedCtrl.startupCycle();
 
     Log.begin(115200);
-    Log.info("Starting HTTP example");
+    Log.info(F("Starting HTTP example"));
 
     // Start LTE modem and connect to the operator
     if (!Lte.begin()) {
-        Log.error("Failed to connect to the operator");
+        Log.error(F("Failed to connect to the operator"));
         return;
     }
 
-    Log.infof("Connected to operator: %s\r\n", Lte.getOperator().c_str());
+    Log.infof(F("Connected to operator: %s\r\n"), Lte.getOperator().c_str());
 
     // --- HTTP ---
 
-    Log.info("---- Testing HTTP ----");
+    Log.info(F("---- Testing HTTP ----"));
 
     if (!HttpClient.configure(DOMAIN, 80, false)) {
-        Log.info("Failed to configure http client\r\n");
+        Log.info(F("Failed to configure http client\r\n"));
     }
 
-    Log.info("Configured to HTTP");
+    Log.info(F("Configured to HTTP"));
 
     HttpResponse response = HttpClient.get("/get");
-    Log.infof("GET - HTTP status code: %u, data size: %u\r\n",
+    Log.infof(F("GET - HTTP status code: %u, data size: %u\r\n"),
               response.status_code,
               response.data_size);
 
     response = HttpClient.post("/post", "{\"hello\": \"world\"}");
-    Log.infof("POST - HTTP status code: %u, data size: %u\r\n",
+    Log.infof(F("POST - HTTP status code: %u, data size: %u\r\n"),
               response.status_code,
               response.data_size);
 
@@ -49,7 +49,7 @@ void setup() {
     String body = HttpClient.readBody(response.data_size + 16);
 
     if (body != "") {
-        Log.infof("Body: %s\r\n", body.c_str());
+        Log.infof(F("Body: %s\r\n"), body.c_str());
     }
 }
 

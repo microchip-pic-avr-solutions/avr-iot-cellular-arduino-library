@@ -13,12 +13,12 @@ static void printCertificate(const uint8_t* certificate, const size_t size) {
         ECC608.base64EncodeCertificate(certificate, size, buffer, &buffer_size);
 
     if (status != ATCA_SUCCESS) {
-        Log.errorf("Failed to encode into base64: %x\r\n", status);
+        Log.errorf(F("Failed to encode into base64: %x\r\n"), status);
         return;
     }
 
     Log.rawf(
-        "-----BEGIN CERTIFICATE-----\r\n%s\r\n-----END CERTIFICATE-----\r\n",
+        F("-----BEGIN CERTIFICATE-----\r\n%s\r\n-----END CERTIFICATE-----\r\n"),
         buffer);
 }
 
@@ -28,12 +28,12 @@ void setup() {
     ATCA_STATUS atca_status = ECC608.begin();
 
     if (atca_status != ATCA_SUCCESS) {
-        Log.errorf("Failed to initialize ECC608, status code: 0x%X\r\n",
+        Log.errorf(F("Failed to initialize ECC608, status code: 0x%X\r\n"),
                    atca_status);
         return;
     }
 
-    Log.info("Initialized ECC\r\n");
+    Log.info(F("Initialized ECC\r\n"));
 
     // Extract the max size of the certificates first
 
@@ -45,8 +45,8 @@ void setup() {
     if ((atca_cert_status = ECC608.getRootCertificateSize(
              &max_root_certificate_size)) != ATCACERT_E_SUCCESS) {
 
-        Log.errorf("Failed to get root certificate's max size, status code: "
-                   "0x%X\r\n",
+        Log.errorf(F("Failed to get root certificate's max size, status code: "
+                     "0x%X\r\n"),
                    atca_cert_status);
         return;
     }
@@ -54,18 +54,20 @@ void setup() {
     if ((atca_cert_status = ECC608.getSignerCertificateSize(
              &max_signer_certificate_size)) != ATCACERT_E_SUCCESS) {
 
-        Log.errorf("Failed to get signer certificate's max size, status code: "
-                   "0x%X\r\n",
-                   atca_cert_status);
+        Log.errorf(
+            F("Failed to get signer certificate's max size, status code: "
+              "0x%X\r\n"),
+            atca_cert_status);
         return;
     }
 
     if ((atca_cert_status = ECC608.getDeviceCertificateSize(
              &max_device_certificate_size)) != ATCACERT_E_SUCCESS) {
 
-        Log.errorf("Failed to get device certificate's max size, status code: "
-                   "0x%X\r\n",
-                   atca_cert_status);
+        Log.errorf(
+            F("Failed to get device certificate's max size, status code: "
+              "0x%X\r\n"),
+            atca_cert_status);
         return;
     }
 
@@ -81,19 +83,19 @@ void setup() {
 
     size_t root_certificate_size = certificate_buffer_size;
 
-    Log.raw("\r\n\r\n");
+    Log.raw(F("\r\n\r\n"));
 
     if ((atca_cert_status = ECC608.getRootCertificate(
              certificate_buffer,
              &root_certificate_size)) != ATCACERT_E_SUCCESS) {
 
-        Log.errorf("Failed to get root certificate, status code: "
-                   "0x%X\r\n",
+        Log.errorf(F("Failed to get root certificate, status code: "
+                     "0x%X\r\n"),
                    atca_cert_status);
         return;
     } else {
 
-        Log.info("Printing root certificate...\r\n");
+        Log.info(F("Printing root certificate...\r\n"));
         printCertificate(certificate_buffer, root_certificate_size);
     }
 
@@ -107,13 +109,13 @@ void setup() {
              certificate_buffer,
              &signer_certificate_size)) != ATCACERT_E_SUCCESS) {
 
-        Log.errorf("Failed to get signer certificate, status code: "
-                   "0x%X\r\n",
+        Log.errorf(F("Failed to get signer certificate, status code: "
+                     "0x%X\r\n"),
                    atca_cert_status);
         return;
     } else {
 
-        Log.info("Printing signer certificate...\r\n");
+        Log.info(F("Printing signer certificate...\r\n"));
         printCertificate(certificate_buffer, signer_certificate_size);
     }
 
@@ -121,19 +123,19 @@ void setup() {
 
     size_t device_certificate_size = max_device_certificate_size;
 
-    Log.raw("\r\n\r\n");
+    Log.raw(F("\r\n\r\n"));
 
     if ((atca_cert_status = ECC608.getDeviceCertificate(
              certificate_buffer,
              &device_certificate_size)) != ATCACERT_E_SUCCESS) {
 
-        Log.errorf("Failed to get device certificate, status code: "
-                   "0x%X\r\n",
+        Log.errorf(F("Failed to get device certificate, status code: "
+                     "0x%X\r\n"),
                    atca_cert_status);
         return;
     } else {
 
-        Log.info("Printing device certificate...\r\n");
+        Log.info(F("Printing device certificate...\r\n"));
         printCertificate(certificate_buffer, device_certificate_size);
     }
 }

@@ -30,11 +30,11 @@ void setup() {
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
-    Log.info("Starting MQTT with username and password example");
+    Log.info(F("Starting MQTT with username and password example"));
 
     // Establish LTE connection
     if (!Lte.begin()) {
-        Log.error("Failed to connect to operator");
+        Log.error(F("Failed to connect to operator"));
 
         // Halt here
         while (1) {}
@@ -50,27 +50,15 @@ void setup() {
                          MOSQUITTO_USERNAME,
                          MOSQUITTO_PASSWORD)) {
 
-        Log.infof("Connecting to broker");
-        while (!MqttClient.isConnected()) {
-            Log.rawf(".");
-            LedCtrl.toggle(Led::CON);
-            delay(500);
-        }
-
-        Log.rawf(" OK!\r\n");
-
         if (MqttClient.subscribe(MQTT_SUB_TOPIC)) {
-            Log.infof("Subscribed to %s\r\n", MQTT_SUB_TOPIC);
+            Log.infof(F("Subscribed to %s\r\n"), MQTT_SUB_TOPIC);
         } else {
-            Log.error("Failed to subscribe to topic");
+            Log.error(F("Failed to subscribe to topic"));
 
             // Halt here
             while (1) {}
         }
     } else {
-        Log.rawf("\r\n");
-        Log.error("Failed to connect to broker");
-
         // Halt here
         while (1) {}
     }
@@ -84,10 +72,11 @@ void setup() {
             MqttClient.publish(MQTT_PUB_TOPIC, message_to_publish.c_str());
 
         if (publishedSuccessfully) {
-            Log.infof("Published message: %s\r\n", message_to_publish.c_str());
+            Log.infof(F("Published message: %s\r\n"),
+                      message_to_publish.c_str());
             counter++;
         } else {
-            Log.error("Failed to publish");
+            Log.error(F("Failed to publish"));
         }
 
         delay(2000);
@@ -98,7 +87,7 @@ void setup() {
         // messages, so anything other than that means that there was a new
         // message
         if (message != "") {
-            Log.infof("Got new message: %s\r\n", message.c_str());
+            Log.infof(F("Got new message: %s\r\n"), message.c_str());
         }
 
         delay(2000);
