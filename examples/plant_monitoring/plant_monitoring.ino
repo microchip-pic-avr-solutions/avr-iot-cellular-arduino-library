@@ -19,7 +19,7 @@
 #include <lte.h>
 #include <mqtt_client.h>
 
-#define DEVICE_ID     "device_id"
+#define DEVICE_ID     "<name your plant monitoring system here>"
 #define AWS_PUB_TOPIC "sensorData"
 
 // Define whether you want to use power save (not available on all operators),
@@ -40,31 +40,31 @@ Adafruit_VEML7700 veml = Adafruit_VEML7700();
  */
 bool setupSensors() {
     if (!seesaw.begin(0x36)) {
-        Log.error("Adafruit seesaw not found.");
+        Log.error(F("Adafruit seesaw not found."));
         return false;
     }
 
     if (!aht.begin(&Wire1)) {
-        Log.error("Adafruit AHT not found.");
+        Log.error(F("Adafruit AHT not found."));
         return false;
     }
 
     if (!veml.begin(&Wire1)) {
-        Log.error("Adafruit VEML7700 not found.");
+        Log.error(F("Adafruit VEML7700 not found."));
         return false;
     }
 
     // We want to shutdown the onboard sensors to save power as they are not
     // used
     if (Mcp9808.begin()) {
-        Log.error("Could not start MCP9808.");
+        Log.error(F("Could not start MCP9808."));
         return false;
     }
 
     Mcp9808.shutdown();
 
     if (Veml3328.begin()) {
-        Log.error("Could not start VEML3328.");
+        Log.error(F("Could not start VEML3328."));
         return false;
     }
 
@@ -78,7 +78,7 @@ void setup() {
     LedCtrl.startupCycle();
 
     Log.begin(115200);
-    Log.info("Starting up plant monitoring example\r\n");
+    Log.info(F("Starting up plant monitoring example\r\n"));
 
     if (!setupSensors()) {
         while (1) {}
@@ -86,8 +86,9 @@ void setup() {
 
 #if defined(USE_POWER_SAVE) && !defined(USE_POWER_DOWN)
     // Configure power save. Here we set to sleep for 30 minutes
-    LowPower.configurePeriodicPowerSave(PowerSaveModePeriodMultiplier::MINUTES,
-                                        1);
+    LowPower.configurePeriodicPowerSave(
+        PowerSaveModePeriodMultiplier::ONE_MINUTE,
+        1);
 #elif !defined(USE_POWER_SAVE) && defined(USE_POWER_DOWN)
     // Configure power down. Note that here we don't need to preconfigure the
     // time to power down
@@ -145,22 +146,19 @@ void loop() {
         // Attempt to connect to the operator
         if (!Lte.begin()) {
             return;
-        }
-
-        // Attempt to connect to AWS
-        if (MqttClient.beginAWS()) {
-
-            Log.infof("Connecting to AWS");
-
-            while (!MqttClient.isConnected()) {
-                Log.rawf(".");
-                delay(500);
-            }
-
-            Log.rawf(" OK!\r\n");
         } else {
-            Log.error("Failed to configure MqttClient for AWS");
-            while (1) {}
+            Log.infof(F("Connected to operator %s\r\n"),
+                      Lte.getOperator().c_str());
+        }
+    }
+
+    if (Lte.isConnected()) {
+        // Check if we are connected to the cloud. If not, attempt to connect
+        if (!MqttClient.isConnected()) {
+            if (!MqttClient.beginAWS()) {
+                Log.error(F("Failed to connect to AWS."));
+                return;
+            }
         }
     }
 
@@ -170,20 +168,20 @@ void loop() {
     static char data[512] = "";
 
     if (retrieveData(data, sizeof(data)) > sizeof(data)) {
-        Log.error("Data buffer too small.");
+        Log.error(F("Data buffer too small."));
         while (1) {}
     }
 
-    /*
-    Log.infof("Publishing data: %s\r\n", data);
+    Log.infof(F("Publishing data: %s\r\n"), data);
     if (!MqttClient.publish(AWS_PUB_TOPIC, data)) {
-        Log.warn("Failed to publish data");
+        Log.warn(F("Failed to publish data"));
     }
-    */
 
 #if defined(USE_POWER_SAVE) && !defined(USE_POWER_DOWN)
+    Log.info(F("Power saving..."));
     LowPower.powerSave();
 #elif !defined(USE_POWER_SAVE) && defined(USE_POWER_DOWN)
+    Log.info(F("Powering down..."));
     // Power down for 1 minute
     LowPower.powerDown(60);
 #elif defined(USE_POWER_SAVE) && defined(USE_POWER_DOWN)
