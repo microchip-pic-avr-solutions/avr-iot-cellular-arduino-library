@@ -13,6 +13,7 @@
 typedef struct {
     uint16_t status_code;
     uint32_t data_size;
+    uint16_t curl_error_code;
 } HttpResponse;
 
 class HttpClientClass {
