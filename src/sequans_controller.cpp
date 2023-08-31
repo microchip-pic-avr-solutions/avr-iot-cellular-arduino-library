@@ -903,13 +903,11 @@ bool SequansControllerClass::extractValueFromCommandResponse(
     const size_t destination_buffer_size,
     const char start_character) {
 
-    // We need a copy in order to not modify the original
-    size_t rcp_size = strlen(response) + 1;
-    char response_copy[rcp_size];
-    strncpy(response_copy, response, rcp_size);
-
-    // Safe guard ourselves
-    response_copy[rcp_size - 1] = '\0';
+    // We need a copy in order to not modify the original. This copy will
+    // include the null termination.
+    const size_t response_size        = strlen(response) + 1;
+    char response_copy[response_size] = "";
+    strcpy(response_copy, response);
 
     char* data;
 
@@ -1034,13 +1032,9 @@ bool SequansControllerClass::registerCallback(const char* urc_identifier,
         if (urcs[i].identifier_length == 0) {
 
             if (is_flash_string) {
-                strncpy_P((char*)urcs[i].identifier,
-                          urc_identifier,
-                          URC_IDENTIFIER_BUFFER_SIZE);
+                strcpy_P((char*)urcs[i].identifier, urc_identifier);
             } else {
-                strncpy((char*)urcs[i].identifier,
-                        urc_identifier,
-                        URC_IDENTIFIER_BUFFER_SIZE);
+                strcpy((char*)urcs[i].identifier, urc_identifier);
             }
 
             urcs[i].identifier_length = urc_identifier_length;

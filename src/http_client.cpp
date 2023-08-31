@@ -287,33 +287,27 @@ HttpResponse HttpClientClass::post(const char* endpoint,
 
     switch (content_type) {
     case CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED:
-        strncpy_P(content_type_buffer,
-                  HTTP_CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED,
-                  sizeof(content_type_buffer));
+        strcpy_P(content_type_buffer,
+                 HTTP_CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED);
         break;
 
     case CONTENT_TYPE_APPLICATION_OCTET_STREAM:
-        strncpy_P(content_type_buffer,
-                  HTTP_CONTENT_TYPE_APPLICATION_OCTET_STREAM,
-                  sizeof(content_type_buffer));
+        strcpy_P(content_type_buffer,
+                 HTTP_CONTENT_TYPE_APPLICATION_OCTET_STREAM);
         break;
 
     case CONTENT_TYPE_MULTIPART_FORM_DATA:
-        strncpy_P(content_type_buffer,
-                  HTTP_CONTENT_TYPE_APPLICATION_MULTIPART_FORM_DATA,
-                  sizeof(content_type_buffer));
+        strcpy_P(content_type_buffer,
+                 HTTP_CONTENT_TYPE_APPLICATION_MULTIPART_FORM_DATA);
         break;
 
     case CONTENT_TYPE_APPLICATION_JSON:
-        strncpy_P(content_type_buffer,
-                  HTTP_CONTENT_TYPE_APPLICATION_APPLICATION_JSON,
-                  sizeof(content_type_buffer));
+        strcpy_P(content_type_buffer,
+                 HTTP_CONTENT_TYPE_APPLICATION_APPLICATION_JSON);
         break;
 
     default:
-        strncpy_P(content_type_buffer,
-                  HTTP_CONTENT_TYPE_TEXT_PLAIN,
-                  sizeof(content_type_buffer));
+        strcpy_P(content_type_buffer, HTTP_CONTENT_TYPE_TEXT_PLAIN);
         break;
     }
 

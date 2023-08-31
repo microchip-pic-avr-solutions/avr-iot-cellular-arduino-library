@@ -120,7 +120,12 @@ static void internalDisconnectCallback(char* urc_data) {
 
 static void internalOnReceiveCallback(char* urc_data) {
 
+    // The incoming urc_data is a buffer of maximum URC_DATA_BUFFER_SIZE (from
+    // the SequansController)
     strncpy(urc_buffer, urc_data, URC_DATA_BUFFER_SIZE);
+
+    // Safe guard ourselves
+    urc_buffer[URC_DATA_BUFFER_SIZE] = '\0';
 
     const bool got_topic = SequansController.extractValueFromCommandResponse(
         urc_buffer,
