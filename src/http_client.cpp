@@ -149,7 +149,9 @@ static HttpResponse waitForResponse(const uint32_t timeout_ms) {
             if (got_shutdown_callback) {
                 if (shutdown_error_code != 0) {
                     Log.errorf(
-                        F("HTTP request failed with cURL error code: %d\r\n"),
+                        F("HTTP request failed with curl error code: %d. "
+                          "Please refer to libcurl's error codes for more "
+                          "information.\r\n"),
                         shutdown_error_code);
                 }
 
