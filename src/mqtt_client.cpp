@@ -726,6 +726,7 @@ bool MqttClientClass::publish(const char* topic,
                                       timeout_ms)) {
         Log.warn(F("Timed out waiting for publish confirmation. Consider "
                    "increasing timeout for publishing\r\n"));
+        LedCtrl.off(Led::DATA, true);
         return false;
     }
 
@@ -741,6 +742,7 @@ bool MqttClientClass::publish(const char* topic,
 
         Log.error(
             F("Failed to retrieve status code from publish notification"));
+        LedCtrl.off(Led::DATA, true);
         return false;
     }
 

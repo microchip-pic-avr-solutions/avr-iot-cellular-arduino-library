@@ -13,7 +13,7 @@
 #include <mqtt_client.h>
 
 const char MQTT_PUB_TOPIC_FMT[] PROGMEM = "devices/%s/messages/events/";
-const char MQTT_SUB_TOPIC_FMT[] PROGMEM = "%s/messages/devicebound/#";
+const char MQTT_SUB_TOPIC_FMT[] PROGMEM = "devices/%s/messages/events/";
 
 static char mqtt_sub_topic[128];
 static char mqtt_pub_topic[128];

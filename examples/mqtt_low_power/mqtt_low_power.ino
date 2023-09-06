@@ -77,9 +77,6 @@ static uint32_t counter = 0;
 
 void loop() {
 
-    Mcp9808.wake();
-    Veml3328.wake();
-
     // If we're not using PSM, all connections will be terminated when power
     // down is issued, so we need to re-establish s connection
 #if !USE_PSM
@@ -113,5 +110,9 @@ void loop() {
 #endif
 
     Log.info(F("Woke up!"));
+
+    Mcp9808.wake();
+    Veml3328.wake();
+
     delay(10000);
 }

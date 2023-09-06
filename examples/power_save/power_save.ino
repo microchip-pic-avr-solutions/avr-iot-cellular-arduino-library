@@ -78,7 +78,12 @@ void setup() {
     Mcp9808.shutdown();
 
     // Connecting to the network might fail, so we just retry
-    while (!Lte.begin()) {}
+    if (!Lte.begin()) {
+        Log.error(F("Failed to connect to operator"));
+
+        // Halt here
+        while (true) {}
+    }
 
     Log.infof(F("Connected to operator: %s\r\n"), Lte.getOperator().c_str());
 }

@@ -310,7 +310,7 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
             },
             {
-                "expectation": "\\[INFO\\] Connecting to AWS.{0,}OK!"
+                "expectation": "\\[INFO\\] Connecting to MQTT broker.{0,}OK!"
             },
             {
                 "expectation": "\\[INFO\\] Published message"
@@ -345,7 +345,7 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
             },
             {
-                "expectation": "\\[INFO\\] Connecting to Azure IoT Hub.{0,}OK!"
+                "expectation": "\\[INFO\\] Connecting to MQTT broker.{0,}OK!"
             },
             {
                 "expectation": "\\[INFO\\] Published message"
@@ -371,13 +371,13 @@ def example_test_data():
         ],
         "mqtt_custom_broker": [
             {
-                "expectation": "\\[INFO\\] Starting MQTT with custom broker example (polling mode)"
+                "expectation": "\\[INFO\\] Starting MQTT with custom broker"
             },
             {
                 "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
             },
             {
-                "expectation": "\\[INFO\\] Connecting to broker.{0,}OK!"
+                "expectation": "\\[INFO\\] Connecting to MQTT broker.{0,}OK!"
             },
             {
                 "expectation": "\\[INFO\\] Published message: Hello world: (\\d{1,})"
@@ -410,7 +410,7 @@ def example_test_data():
             },
             {
                 "timeout": 90,
-                "expectation": "\\[INFO\\] Connecting to broker.{0,}OK!"
+                "expectation": "\\[INFO\\] Connecting to MQTT broker.{0,}OK!"
             },
             {
                 "expectation": "\\[INFO\\] Published message: \\d{1,}"
@@ -427,7 +427,7 @@ def example_test_data():
             },
             {
                 "timeout": 90,
-                "expectation": "\\[INFO\\] Connecting to broker.{0,}OK!"
+                "expectation": "\\[INFO\\] Connecting to MQTT broker.{0,}OK!"
             },
             {
                 "expectation": "\\[INFO\\] Published message: \\d{1,}"
@@ -451,7 +451,7 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
             },
             {
-                "expectation": "\\[INFO\\] Connecting to broker.{0,}OK!"
+                "expectation": "\\[INFO\\] Connecting to MQTT broker.{0,}OK!"
             },
             {
                 "expectation": "\\[INFO\\] Subscribed to mchp_topic"
@@ -495,7 +495,7 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Not connected to broker. Attempting to connect!"
             },
             {
-                "expectation": "\\[INFO\\] Connecting to broker.{0,}OK!"
+                "expectation": "\\[INFO\\] Connecting to MQTT broker.{0,}OK!"
             },
             {
                 "repeat": 5,
@@ -671,9 +671,9 @@ def program(request, backend):
         os.mkdir(build_directory)
 
     compilation_return_code = subprocess.run(
-        ["arduino-cli", "compile", f"{sketch_path}", "-b", f"{BOARD_CONFIG}", "--output-dir", f"{build_directory}"], shell=True).returncode
+        ["arduino-cli", "compile", f"{sketch_path}", "-b", f"{BOARD_CONFIG}", "--build-path", f"{build_directory}"], shell=True).returncode
 
-    assert compilation_return_code == 0, f"{example_name} failed to compile"
+    assert compilation_return_code == 0, f"{example_name} failed to compile, return code: {compilation_return_code}"
 
     hex_file = build_directory / f"{os.path.basename(sketch_path)}.hex"
 
@@ -783,19 +783,23 @@ def test_https_with_header(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)
 
 
+def test_mqtt_aws(request, backend, session_config, example_test_data):
+    run_test(request, backend, session_config, example_test_data)
+
+
+def test_mqtt_azure(request, backend, session_config, example_test_data):
+    run_test(request, backend, session_config, example_test_data)
+
+
+def test_mqtt_custom_broker(request, backend, session_config, example_test_data):
+    run_test(request, backend, session_config, example_test_data)
+
+
 def test_mqtt_low_power(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)
 
 
 def test_mqtt_password_authentication(request, backend, session_config, example_test_data):
-    run_test(request, backend, session_config, example_test_data)
-
-
-def test_mqtt_polling(request, backend, session_config, example_test_data):
-    run_test(request, backend, session_config, example_test_data)
-
-
-def test_mqtt_polling_aws(request, backend, session_config, example_test_data):
     run_test(request, backend, session_config, example_test_data)
 
 

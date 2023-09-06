@@ -28,7 +28,7 @@ void setup() {
     LedCtrl.begin();
     LedCtrl.startupCycle();
 
-    Log.info(F("Starting MQTT with custom broker example (polling mode)"));
+    Log.info(F("Starting MQTT with custom broker"));
 
     // Establish LTE connection
     if (!Lte.begin()) {
