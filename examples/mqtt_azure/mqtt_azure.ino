@@ -13,7 +13,7 @@
 #include <mqtt_client.h>
 
 const char MQTT_PUB_TOPIC_FMT[] PROGMEM = "devices/%s/messages/events/";
-const char MQTT_SUB_TOPIC_FMT[] PROGMEM = "devices/%s/messages/events/";
+const char MQTT_SUB_TOPIC_FMT[] PROGMEM = "devices/%s/messages/devicebound/#";
 
 static char mqtt_sub_topic[128];
 static char mqtt_pub_topic[128];
@@ -34,20 +34,15 @@ bool initTopics() {
         ECC608.readProvisionItem(AZURE_DEVICE_ID, device_id, &device_id_length);
 
     if (status != ATCA_SUCCESS) {
-        Log.errorf(
-            F("Could not retrieve device ID from the ECC, error code: %X\r\n"),
-            status);
+        Log.errorf(F("Could not retrieve device ID from the ECC, error code: "
+                     "%X. Please provision the device with the provision "
+                     "example sketch.\r\n"),
+                   status);
         return false;
     }
 
-    snprintf_P(mqtt_sub_topic,
-               sizeof(mqtt_sub_topic),
-               MQTT_SUB_TOPIC_FMT,
-               device_id);
-    snprintf_P(mqtt_pub_topic,
-               sizeof(mqtt_pub_topic),
-               MQTT_PUB_TOPIC_FMT,
-               device_id);
+    sprintf_P(mqtt_sub_topic, MQTT_SUB_TOPIC_FMT, device_id);
+    sprintf_P(mqtt_pub_topic, MQTT_PUB_TOPIC_FMT, device_id);
 
     return true;
 }

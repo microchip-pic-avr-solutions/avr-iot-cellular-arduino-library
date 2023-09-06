@@ -351,19 +351,10 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Published message"
             },
             {
-                "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
-            },
-            {
                 "expectation": "\\[INFO\\] Published message"
             },
             {
-                "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
-            },
-            {
                 "expectation": "\\[INFO\\] Published message"
-            },
-            {
-                "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
             },
             {
                 "expectation": "\\[INFO\\] Closing MQTT connection"
