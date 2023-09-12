@@ -86,7 +86,7 @@ class MqttClientClass {
      * this function short.
      */
     __attribute__((deprecated(
-        "onConnectionStatusChange is deprecated as of version 1.3.7 as "
+        "onConnectionStatusChange is deprecated as of version 1.3.8 as "
         "MqttClient.begin() is now blocking and does not support "
         "connected callback anymore (it will not be called by the "
         "library). please use onDisconnect instead"))) void
