@@ -57,7 +57,7 @@ class MqttClientClass {
                const char* host,
                const uint16_t port,
                const bool use_tls,
-               const size_t keep_alive   = 60,
+               const uint16_t keep_alive = 1200,
                const bool use_ecc        = true,
                const char* username      = "",
                const char* password      = "",
@@ -67,12 +67,12 @@ class MqttClientClass {
     /**
      * @brief Will configure and connect to the provisioned AWS broker.
      */
-    bool beginAWS();
+    bool beginAWS(const uint16_t keep_alive = 1200);
 
     /**
      * @brief Will configure and connect to the provisioned Azure broker.
      */
-    bool beginAzure();
+    bool beginAzure(const uint16_t keep_alive = 1200);
 
     /**
      * @brief Disconnects from the broker and resets the state in the MQTT

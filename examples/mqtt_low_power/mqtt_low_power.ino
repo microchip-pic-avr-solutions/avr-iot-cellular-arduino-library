@@ -13,7 +13,7 @@
 #include <mqtt_client.h>
 #include <veml3328.h>
 
-#define USE_PSM false
+#define USE_PSM true
 
 static char mqtt_pub_topic[128];
 
@@ -56,7 +56,7 @@ void setup() {
 #if USE_PSM
     LowPower.configurePeriodicPowerSave(
         PowerSaveModePeriodMultiplier::ONE_MINUTE,
-        1);
+        3);
 #else
     LowPower.configurePowerDown();
 #endif
@@ -65,8 +65,11 @@ void setup() {
 
     // If we're using PSM, we only need to connect to the MQTT broker at the
     // beginning, since the connection will remain active
+    //
+    // Here we also set the keep alive to 3 minutes to match the sleep period
+    // for PSM
 #if USE_PSM
-    MqttClient.beginAWS();
+    MqttClient.beginAWS(180);
 #endif
 
     Mcp9808.begin();

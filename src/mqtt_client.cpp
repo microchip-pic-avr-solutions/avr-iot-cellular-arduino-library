@@ -261,7 +261,7 @@ static bool generateSigningCommand(char* data, char* command_buffer) {
     return true;
 }
 
-bool MqttClientClass::beginAWS() {
+bool MqttClientClass::beginAWS(const uint16_t keep_alive) {
 
     ATCA_STATUS status = ECC608.begin();
 
@@ -312,13 +312,13 @@ bool MqttClientClass::beginAWS() {
                        (char*)(endpoint),
                        8883,
                        true,
-                       60,
+                       keep_alive,
                        true,
                        "",
                        "");
 }
 
-bool MqttClientClass::beginAzure() {
+bool MqttClientClass::beginAzure(const uint16_t keep_alive) {
 
     ATCA_STATUS status = ECC608.begin();
 
@@ -379,14 +379,21 @@ bool MqttClientClass::beginAzure() {
                hostname,
                device_id);
 
-    return this->begin(device_id, hostname, 8883, true, 60, true, username, "");
+    return this->begin(device_id,
+                       hostname,
+                       8883,
+                       true,
+                       keep_alive,
+                       true,
+                       username,
+                       "");
 }
 
 bool MqttClientClass::begin(const char* client_id,
                             const char* host,
                             const uint16_t port,
                             const bool use_tls,
-                            const size_t keep_alive,
+                            const uint16_t keep_alive,
                             const bool use_ecc,
                             const char* username,
                             const char* password,
