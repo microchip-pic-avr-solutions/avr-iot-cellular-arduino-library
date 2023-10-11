@@ -3,7 +3,7 @@
  * the ATECC608 cryptographic chip on the AVR-Iot Cellular mini. Please make
  * sure your board is provisioned first with the provision sketch.
  *
- * With Azure, we use a wildcare for subscription, so we need to enable a
+ * With Azure, we use a wildcard for subscription, so we need to enable a
  * callback for the received messages so that we can grab the specific topic.
  */
 
