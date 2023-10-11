@@ -9,7 +9,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define MQTT_TOPIC_MAX_LENGTH 128
+#define MQTT_TOPIC_MAX_LENGTH (384)
 
 typedef enum { AT_MOST_ONCE = 0, AT_LEAST_ONCE, EXACTLY_ONCE } MqttQoS;
 

@@ -2,6 +2,9 @@
  * @brief This example demonstrates how to connect to the Azure IoT Hub using
  * the ATECC608 cryptographic chip on the AVR-Iot Cellular mini. Please make
  * sure your board is provisioned first with the provision sketch.
+ *
+ * With Azure, we use a wildcare for subscription, so we need to enable a
+ * callback for the received messages so that we can grab the specific topic.
  */
 
 #include <Arduino.h>
@@ -17,6 +20,19 @@ const char MQTT_SUB_TOPIC_FMT[] PROGMEM = "devices/%s/messages/devicebound/#";
 
 static char mqtt_sub_topic[128];
 static char mqtt_pub_topic[128];
+
+static volatile bool got_message_event = false;
+static char message_topic[384];
+static volatile uint16_t message_length = 0;
+
+static void onReceive(const char* topic,
+                      const uint16_t length,
+                      __attribute__((unused)) const int32_t id) {
+    strcpy(message_topic, topic);
+    message_length = length;
+
+    got_message_event = true;
+}
 
 bool initTopics() {
     ATCA_STATUS status = ECC608.begin();
@@ -67,6 +83,7 @@ void setup() {
     // Attempt to connect to Azure
     if (MqttClient.beginAzure()) {
         MqttClient.subscribe(mqtt_sub_topic);
+        MqttClient.onReceive(onReceive);
     } else {
         while (1) {}
     }
@@ -83,15 +100,19 @@ void setup() {
             Log.error(F("Failed to publish\r\n"));
         }
 
-        delay(2000);
+        if (got_message_event) {
 
-        String message = MqttClient.readMessage(mqtt_sub_topic);
+            String message = MqttClient.readMessage(message_topic,
+                                                    message_length);
 
-        // Read message will return an empty string if there were no new
-        // messages, so anything other than that means that there were a
-        // new message
-        if (message != "") {
-            Log.infof(F("Got new message: %s\r\n"), message.c_str());
+            // Read message will return an empty string if there were no new
+            // messages, so anything other than that means that there were a
+            // new message
+            if (message != "") {
+                Log.infof(F("Got new message: %s\r\n"), message.c_str());
+            }
+
+            got_message_event = false;
         }
 
         delay(2000);
