@@ -1,3 +1,9 @@
+# 1.3.9
+
+# Changes
+* `mqtt_azure.ino` example sketch now uses callbacks for receiving messages, so that the wilcard subscription is handled properly
+
+
 # 1.3.8
 
 ## Features
