@@ -13,29 +13,15 @@
 #include <mqtt_client.h>
 #include <veml3328.h>
 
-#define USE_PSM true
+#define USE_PSM false
 
-static char mqtt_pub_topic[128];
-
-bool initMQTTTopics() {
-    ECC608.begin();
-
-    // Find the thing ID and set the publish and subscription topics
-    uint8_t thingName[128];
-    size_t thingNameLen = sizeof(thingName);
-
-    // -- Get the thingname
-    ATCA_STATUS status =
-        ECC608.readProvisionItem(AWS_THINGNAME, thingName, &thingNameLen);
-    if (status != ATCA_SUCCESS) {
-        Log.error(F("Could not retrieve thingname from the ECC"));
-        return false;
-    }
-
-    sprintf_P(mqtt_pub_topic, PSTR("%s/sensors"), thingName);
-
-    return true;
-}
+#define MQTT_THING_NAME "someuniquemchp"
+#define MQTT_BROKER     "test.mosquitto.org"
+#define MQTT_PUB_TOPIC  "testtopic"
+#define MQTT_PORT       1883
+#define MQTT_USE_TLS    false
+#define MQTT_USE_ECC    false
+#define MQTT_KEEPALIVE  180
 
 void setup() {
     Log.begin(115200);
@@ -43,13 +29,6 @@ void setup() {
     LedCtrl.startupCycle();
 
     Log.info(F("Starting MQTT with low power"));
-
-    // First we retrieve the topics we're going to publish to, here using the
-    // ECC thingname with AWS
-    if (initMQTTTopics() == false) {
-        Log.error(F("Unable to initialize the MQTT topics. Stopping..."));
-        while (1) {}
-    }
 
     // Configure low power depending on whether to use power save mode or just a
     // complete power down.
@@ -69,7 +48,12 @@ void setup() {
     // Here we also set the keep alive to 3 minutes to match the sleep period
     // for PSM
 #if USE_PSM
-    MqttClient.beginAWS(180);
+    MqttClient.begin(MQTT_THING_NAME,
+                     MQTT_BROKER,
+                     MQTT_PORT,
+                     MQTT_USE_TLS,
+                     MQTT_KEEPALIVE,
+                     MQTT_USE_ECC);
 #endif
 
     Mcp9808.begin();
@@ -83,14 +67,19 @@ void loop() {
     // If we're not using PSM, all connections will be terminated when power
     // down is issued, so we need to re-establish s connection
 #if !USE_PSM
-    MqttClient.beginAWS();
+    MqttClient.begin(MQTT_THING_NAME,
+                     MQTT_BROKER,
+                     MQTT_PORT,
+                     MQTT_USE_TLS,
+                     MQTT_KEEPALIVE,
+                     MQTT_USE_ECC);
 #endif
 
     char message_to_publish[8] = {0};
     sprintf(message_to_publish, "%lu", counter);
 
     bool published_successfully =
-        MqttClient.publish(mqtt_pub_topic, message_to_publish, AT_LEAST_ONCE);
+        MqttClient.publish(MQTT_PUB_TOPIC, message_to_publish, AT_LEAST_ONCE);
 
     if (published_successfully) {
         Log.infof(F("Published message: %s.\r\n"), message_to_publish);
