@@ -179,7 +179,6 @@ static HttpResponse waitForResponse(const uint32_t timeout_ms) {
  * @param data_length Length of payload.
  * @param method POST(0) or PUT(1).
  * @param header Optional header.
- * @param header_length Length of header.
  * @param timeout_ms Timeout in milliseconds for the transmission.
  */
 static HttpResponse
@@ -187,10 +186,9 @@ sendData(const char* endpoint,
          const uint8_t* data,
          const uint32_t data_length,
          const uint8_t method,
-         const uint8_t* header        = NULL,
-         const uint32_t header_length = 0,
-         const char* content_type     = "",
-         const uint32_t timeout_ms    = HTTP_DEFAULT_TIMEOUT_MS) {
+         const char* header        = NULL,
+         const char* content_type  = "",
+         const uint32_t timeout_ms = HTTP_DEFAULT_TIMEOUT_MS) {
 
     LedCtrl.on(Led::CON, true);
 
@@ -245,13 +243,11 @@ sendData(const char* endpoint,
  * @param endpoint Destination of retrieve, part after host name in URL.
  * @param method GET(0), HEAD(1) or DELETE(2).
  * @param header Optional header.
- * @param header_length Length of header.
  * @param timeout_ms Timeout in milliseconds for the query.
  */
 static HttpResponse queryData(const char* endpoint,
                               const uint8_t method,
                               const uint8_t* header,
-                              const uint32_t header_length,
                               const uint32_t timeout_ms) {
 
     LedCtrl.on(Led::CON, true);
@@ -345,12 +341,15 @@ HttpResponse HttpClientClass::post(const char* endpoint,
         break;
     }
 
+    char header[header_length + 1] = "";
+    strncpy(header, (const char*)header_buffer, header_length);
+    header[header_length] = '\0';
+
     return sendData(endpoint,
                     data_buffer,
                     data_length,
                     HTTP_POST_METHOD,
-                    header_buffer,
-                    header_length,
+                    header,
                     content_type_buffer,
                     timeout_ms);
 }
@@ -375,12 +374,16 @@ HttpResponse HttpClientClass::put(const char* endpoint,
                                   const uint8_t* header_buffer,
                                   const uint32_t header_length,
                                   const uint32_t timeout_ms) {
+
+    char header[header_length + 1] = "";
+    strncpy(header, (const char*)header_buffer, header_length);
+    header[header_length] = '\0';
+
     return sendData(endpoint,
                     data_buffer,
                     data_length,
                     HTTP_PUT_METHOD,
-                    header_buffer,
-                    header_length,
+                    header,
                     "",
                     timeout_ms);
 }
@@ -400,21 +403,13 @@ HttpResponse HttpClientClass::put(const char* endpoint,
 HttpResponse HttpClientClass::get(const char* endpoint,
                                   const char* header,
                                   const uint32_t timeout_ms) {
-    return queryData(endpoint,
-                     HTTP_GET_METHOD,
-                     (uint8_t*)header,
-                     strlen(header),
-                     timeout_ms);
+    return queryData(endpoint, HTTP_GET_METHOD, (uint8_t*)header, timeout_ms);
 }
 
 HttpResponse HttpClientClass::head(const char* endpoint,
                                    const char* header,
                                    const uint32_t timeout_ms) {
-    return queryData(endpoint,
-                     HTTP_HEAD_METHOD,
-                     (uint8_t*)header,
-                     strlen(header),
-                     timeout_ms);
+    return queryData(endpoint, HTTP_HEAD_METHOD, (uint8_t*)header, timeout_ms);
 }
 
 HttpResponse HttpClientClass::del(const char* endpoint,
@@ -423,7 +418,6 @@ HttpResponse HttpClientClass::del(const char* endpoint,
     return queryData(endpoint,
                      HTTP_DELETE_METHOD,
                      (uint8_t*)header,
-                     strlen(header),
                      timeout_ms);
 }
 

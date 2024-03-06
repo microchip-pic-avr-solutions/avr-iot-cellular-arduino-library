@@ -175,7 +175,7 @@ ECC608Class::writeProvisionData(const size_t number_of_provision_items,
                    32;
 
     if (payload_size > slot_size) {
-        return ATCA_INVALID_LENGTH;
+        return ATCA_INVALID_SIZE;
     }
 
     // Now we can build the payload data which includes the headers and the
@@ -256,6 +256,13 @@ int ECC608Class::getSignerCertificateSize(size_t* size) {
 }
 
 int ECC608Class::getSignerCertificate(uint8_t* certificate, size_t* size) {
+
+    const ATCA_STATUS status = atcab_wakeup();
+
+    if (status != ATCA_SUCCESS) {
+        return -99;
+    }
+
     return tng_atcacert_read_signer_cert(certificate, size);
 }
 

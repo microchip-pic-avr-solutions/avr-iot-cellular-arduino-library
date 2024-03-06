@@ -1142,7 +1142,8 @@ static ATCA_STATUS constructCSR(char* pem, size_t* pem_size) {
         .cert_elements       = NULL,
         .cert_elements_count = 0,
         .cert_template       = csr,
-        .cert_template_size  = length};
+        .cert_template_size  = length,
+        .ca_cert_def         = NULL};
 
     return (ATCA_STATUS)atcacert_create_csr_pem(&csr_definition, pem, pem_size);
 }
@@ -1672,7 +1673,7 @@ void otherServiceMqttProvision() {
 
         while (!requestAndSaveToNVM(
             F("Please paste in the CA certificate and press enter. It "
-              "should be on the follwing form:\r\n"
+              "should be on the following form:\r\n"
               "-----BEGIN CERTIFICATE-----\r\n"
               "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA==\r\n"
               "-----END CERTIFICATE-----\r\n"),
@@ -1775,7 +1776,7 @@ void otherServiceMqttProvision() {
                 while (!requestAndSaveToNVM(
                     F("Please paste in the public key certificate provide by "
                       "your broker after having signed the CSR\r\nand press "
-                      "enter. It should be on the follwing form:\r\n"
+                      "enter. It should be on the following form:\r\n"
                       "-----BEGIN CERTIFICATE-----\r\n"
                       "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA=="
                       "\r\n"
@@ -1870,7 +1871,7 @@ void otherServiceMqttProvision() {
             while (!requestAndSaveToNVM(
                 F("Please paste in the public key certificate and press "
                   "enter. It "
-                  "should be on the follwing form:\r\n"
+                  "should be on the following form:\r\n"
                   "-----BEGIN CERTIFICATE-----\r\n"
                   "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA==\r\n"
                   "-----END CERTIFICATE-----\r\n"),
@@ -2001,7 +2002,7 @@ void provisionHttp() {
         while (!requestAndSaveToNVM(
             F("Please paste in the CA certificate and press enter. It "
               "should "
-              "be on the follwing form:\r\n"
+              "be on the following form:\r\n"
               "-----BEGIN CERTIFICATE-----\r\n"
               "MIIDXTCCAkWgAwIBAgIJAJC1[...]j3tCx2IUXVqRs5mlSbvA=="
               "\r\n"

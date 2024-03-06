@@ -109,7 +109,7 @@ void setup() {
  */
 size_t retrieveData(char* data, const size_t data_capacity) {
     // Get air metrics
-    StaticJsonDocument<50> air_data;
+    JsonDocument air_data;
     sensors_event_t humidity, temperature;
     aht.getEvent(&humidity, &temperature);
 
@@ -118,16 +118,16 @@ size_t retrieveData(char* data, const size_t data_capacity) {
     air_data["Illumination"] = veml.readLux();
 
     // Get soil metrics
-    StaticJsonDocument<25> soil_data;
+    JsonDocument soil_data;
     const float moisture_level = 100 * ((float)seesaw.touchRead(0) / 1023);
     soil_data["Moisture"]      = moisture_level;
 
     // Get device metrics
-    StaticJsonDocument<25> device_data;
+    JsonDocument device_data;
     device_data["SupplyVoltage"] = LowPower.getSupplyVoltage();
 
     // Build data payload
-    StaticJsonDocument<200> payload;
+    JsonDocument payload;
     payload["Device_ID"] = DEVICE_ID;
     payload["Air"]       = air_data;
     payload["Soil"]      = soil_data;

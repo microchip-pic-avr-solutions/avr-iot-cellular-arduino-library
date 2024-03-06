@@ -11,4 +11,4 @@ fi
 echo "Compiling..."
 
 # Extra args appended to the end, e.g. --clean by the $1 flag
-arduino-cli compile "$TARGET" -b $BOARD_CONFIG --build-path "$SCRIPTPATH/../build" $1
+arduino-cli compile "$TARGET" -b $BOARD_CONFIG --build-path "$SCRIPTPATH/../build" --warnings all $1

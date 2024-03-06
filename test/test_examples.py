@@ -319,16 +319,25 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
             },
             {
-                "expectation": "\\[INFO\\] Published message"
-            },
-            {
-                "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
+                "expectation": "\r\n"
             },
             {
                 "expectation": "\\[INFO\\] Published message"
             },
             {
                 "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
+            },
+            {
+                "expectation": "\r\n"
+            },
+            {
+                "expectation": "\\[INFO\\] Published message"
+            },
+            {
+                "expectation": "\\[INFO\\] Got new message: \\{\\\"light\\\": 9, \\\"temp\\\": 9\\}"
+            },
+            {
+                "expectation": "\r\n"
             },
             {
                 "expectation": "\\[INFO\\] Closing MQTT connection"
@@ -377,16 +386,25 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
             },
             {
-                "expectation": "\\[INFO\\] Published message: Hello world: (\\d{1,})"
-            },
-            {
-                "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
+                "expectation": "\r\n"
             },
             {
                 "expectation": "\\[INFO\\] Published message: Hello world: (\\d{1,})"
             },
             {
                 "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
+            },
+            {
+                "expectation": "\r\n"
+            },
+            {
+                "expectation": "\\[INFO\\] Published message: Hello world: (\\d{1,})"
+            },
+            {
+                "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
+            },
+            {
+                "expectation": "\r\n"
             },
             {
                 "expectation": "\\[INFO\\] Closing MQTT connection"
@@ -454,16 +472,25 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
             },
             {
-                "expectation": "\\[INFO\\] Published message: Hello world: (\\d{1,})"
-            },
-            {
-                "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
+                "expectation": "\r\n"
             },
             {
                 "expectation": "\\[INFO\\] Published message: Hello world: (\\d{1,})"
             },
             {
                 "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
+            },
+            {
+                "expectation": "\r\n"
+            },
+            {
+                "expectation": "\\[INFO\\] Published message: Hello world: (\\d{1,})"
+            },
+            {
+                "expectation": "\\[INFO\\] Got new message: Hello world: (\\d{1,})"
+            },
+            {
+                "expectation": "\r\n"
             },
             {
                 "expectation": "\\[INFO\\] Closing MQTT connection"
@@ -662,7 +689,7 @@ def program(request, backend):
         os.mkdir(build_directory)
 
     compilation_return_code = subprocess.run(
-        ["arduino-cli", "compile", f"{sketch_path}", "-b", f"{BOARD_CONFIG}", "--build-path", f"{build_directory}"], shell=True).returncode
+        ["arduino-cli", "compile", f"{sketch_path}", "-b", f"{BOARD_CONFIG}", "--build-path", f"{build_directory}", "--warnings", "all"], shell=True).returncode
 
     assert compilation_return_code == 0, f"{example_name} failed to compile, return code: {compilation_return_code}"
 

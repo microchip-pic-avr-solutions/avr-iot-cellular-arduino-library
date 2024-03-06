@@ -88,7 +88,7 @@ class ECC608Class {
      * @param data_sizes [in] Array of the data sizes for each provisioning
      * item.
      *
-     * @return ATCA_STATUS error code. Will return ATCA_INVALID_LENGTH if the
+     * @return ATCA_STATUS error code. Will return ATCA_INVALID_SIZE if the
      * size of the data in total is greater than the slot size. If the read back
      * data does not match the written content, ATCA_ASSERT_FAILURE will be
      * returned.

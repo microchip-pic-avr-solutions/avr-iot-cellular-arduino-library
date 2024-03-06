@@ -95,8 +95,8 @@ void resetInterrupt(void) {
 void disconnectedFromNetwork(void) { event_flags |= NETWORK_DISCONN_FLAG; }
 void disconnectedFromBroker(void) { event_flags |= BROKER_DISCONN_FLAG; }
 
-void receivedMessage(const char* topic,
-                     const uint16_t msg_length,
+void receivedMessage(__attribute__((unused)) const char* topic,
+                     __attribute__((unused)) const uint16_t msg_length,
                      const int32_t msg_id) {
 
     received_message_identifiers_head = (received_message_identifiers_head +
@@ -143,7 +143,7 @@ void startStreamTimer() {
 
 void stopStreamTimer() { TCA0.SINGLE.CTRLA = 0; }
 
-static StaticJsonDocument<256> doc;
+static JsonDocument doc;
 
 void decodeMessage(const char* message) {
     DeserializationError error = deserializeJson(doc, message);
@@ -182,12 +182,12 @@ void decodeMessage(const char* message) {
 
         if (strcmp_P(target_led, PSTR("USER")) == 0) {
             led = Led::USER;
-        } else if (strcmp(target_led, "ERROR") == 0) {
+        } else if (strcmp_P(target_led, PSTR("ERROR")) == 0) {
             led = Led::ERROR;
         } else {
             Log.errorf(F("Invalid LED value provided, "
                          "led provided = %s\r\n"),
-                       led);
+                       target_led);
             return;
         }
 

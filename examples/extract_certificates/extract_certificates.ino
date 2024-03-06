@@ -28,7 +28,7 @@ void setup() {
     ATCA_STATUS atca_status = ECC608.begin();
 
     if (atca_status != ATCA_SUCCESS) {
-        Log.errorf(F("Failed to initialize ECC608, status code: 0x%X\r\n"),
+        Log.errorf(F("Failed to initialize ECC608, status code: %d\r\n"),
                    atca_status);
         return;
     }
@@ -46,7 +46,7 @@ void setup() {
              &max_root_certificate_size)) != ATCACERT_E_SUCCESS) {
 
         Log.errorf(F("Failed to get root certificate's max size, status code: "
-                     "0x%X\r\n"),
+                     "%d\r\n"),
                    atca_cert_status);
         return;
     }
@@ -54,20 +54,18 @@ void setup() {
     if ((atca_cert_status = ECC608.getSignerCertificateSize(
              &max_signer_certificate_size)) != ATCACERT_E_SUCCESS) {
 
-        Log.errorf(
-            F("Failed to get signer certificate's max size, status code: "
-              "0x%X\r\n"),
-            atca_cert_status);
+        Log.errorf(F("Failed to get signer certificate's max size, status "
+                     "code: %d\r\n"),
+                   atca_cert_status);
         return;
     }
 
     if ((atca_cert_status = ECC608.getDeviceCertificateSize(
              &max_device_certificate_size)) != ATCACERT_E_SUCCESS) {
 
-        Log.errorf(
-            F("Failed to get device certificate's max size, status code: "
-              "0x%X\r\n"),
-            atca_cert_status);
+        Log.errorf(F("Failed to get device certificate's max size, status "
+                     "code: %d\r\n"),
+                   atca_cert_status);
         return;
     }
 
@@ -90,7 +88,7 @@ void setup() {
              &root_certificate_size)) != ATCACERT_E_SUCCESS) {
 
         Log.errorf(F("Failed to get root certificate, status code: "
-                     "0x%X\r\n"),
+                     "%d\r\n"),
                    atca_cert_status);
         return;
     } else {
@@ -110,7 +108,7 @@ void setup() {
              &signer_certificate_size)) != ATCACERT_E_SUCCESS) {
 
         Log.errorf(F("Failed to get signer certificate, status code: "
-                     "0x%X\r\n"),
+                     "%d\r\n"),
                    atca_cert_status);
         return;
     } else {

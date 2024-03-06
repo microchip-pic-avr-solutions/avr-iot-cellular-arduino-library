@@ -108,7 +108,7 @@ ATCA_STATUS calib_sha_base(ATCADevice device, uint8_t mode, uint16_t length, con
 
         if ((data_out != NULL) && (packet.data[ATCA_COUNT_IDX] > 4))
         {
-            if (packet.data[ATCA_COUNT_IDX] - ATCA_PACKET_OVERHEAD > *data_out_size)
+            if ((size_t) (packet.data[ATCA_COUNT_IDX] - ATCA_PACKET_OVERHEAD) > (size_t) *data_out_size)
             {
                 status = ATCA_SMALL_BUFFER;
                 break;

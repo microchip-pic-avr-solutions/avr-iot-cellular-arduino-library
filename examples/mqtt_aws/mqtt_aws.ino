@@ -90,7 +90,7 @@ void setup() {
         if (published_successfully) {
             Log.info(F("Published message"));
         } else {
-            Log.error(F("Failed to publish\r\n"));
+            Log.error(F("Failed to publish"));
         }
 
         delay(2000);

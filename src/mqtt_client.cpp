@@ -109,7 +109,7 @@ static void (*receive_callback)(const char* topic,
                                 const uint16_t message_length,
                                 const int32_t message_id) = NULL;
 
-static void internalDisconnectCallback(char* urc_data) {
+static void internalDisconnectCallback(__attribute__((unused)) char* urc_data) {
     connected_to_broker = false;
     LedCtrl.off(Led::CON, true);
 

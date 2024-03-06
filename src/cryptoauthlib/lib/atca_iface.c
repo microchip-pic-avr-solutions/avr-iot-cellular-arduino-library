@@ -465,7 +465,7 @@ uint8_t ifacecfg_get_address(ATCAIfaceCfg * cfg)
 ATCA_STATUS ifacecfg_set_address(
     ATCAIfaceCfg * cfg,     /**< [in] Interface configuration structure to update */
     uint8_t addr,           /**< [in] Desired address */
-    ATCAKitType kitiface    /**< [in] Optional parameter to set the kit iface type */
+    __attribute__((unused)) ATCAKitType kitiface    /**< [in] Optional parameter to set the kit iface type */
 )
 {
     ATCA_STATUS status = ATCA_BAD_PARAM;
