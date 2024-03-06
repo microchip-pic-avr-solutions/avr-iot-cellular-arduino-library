@@ -1,6 +1,13 @@
+# 1.3.10
+
+## Chages
+* Use `JsonDocument` instead of the deprecated `StaticJsonDocument` from ArduinoJson in `sandbox.ino` and `plant_monitoring.ino`
+* Correct some compiler warnings and typos
+
+
 # 1.3.9
 
-# Changes
+## Changes
 * `mqtt_azure.ino` example sketch now uses callbacks for receiving messages, so that the wilcard subscription is handled properly
 
 
