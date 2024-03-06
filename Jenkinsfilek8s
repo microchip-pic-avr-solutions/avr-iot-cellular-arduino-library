@@ -46,6 +46,7 @@
                 steps {
                     sh 'arduino-cli core update-index --additional-urls "http://drazzy.com/package_drazzy.com_index.json"'
                     sh 'arduino-cli core install --additional-urls "http://drazzy.com/package_drazzy.com_index.json" DxCore:megaavr'
+                    sh 'arduino-cli lib update-index'
                     sh 'arduino-cli lib install ArduinoJson'
                     sh 'arduino-cli lib install "Adafruit GPS Library"'
                     sh 'arduino-cli lib install "Adafruit AHTX0"'
