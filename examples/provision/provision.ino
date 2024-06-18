@@ -12,6 +12,8 @@
 #include "security_profile.h"
 #include "sequans_controller.h"
 
+#include "types.h"
+
 #include "cryptoauthlib/lib/atcacert/atcacert_client.h"
 #include "cryptoauthlib/lib/atcacert/atcacert_def.h"
 #include "cryptoauthlib/lib/cryptoauthlib.h"
@@ -2046,6 +2048,170 @@ void provisionHttp() {
     askInputQuestion(F("Press enter to return to the main menu"), nullptr, 0);
 }
 
+bool queryOperatingMode(OperatingMode* operating_mode) {
+
+    char mode_buffer[32] = "";
+
+    const ResponseResult result = SequansController.writeCommand(
+        F("AT+SQNMODEACTIVE?"),
+        mode_buffer,
+        sizeof(mode_buffer));
+
+    if (result != ResponseResult::OK) {
+        SerialModule.println(F("Failed to query operating mode"));
+        return false;
+    }
+
+    char raw_mode_buffer[8] = "";
+
+    const bool extracted = SequansController.extractValueFromCommandResponse(
+        mode_buffer,
+        0,
+        raw_mode_buffer,
+        sizeof(raw_mode_buffer));
+
+    if (!extracted) {
+        SerialModule.println(
+            F("Failed to extract operating mode from command response"));
+        return false;
+    }
+
+    char* endptr   = NULL;
+    const int mode = strtol(raw_mode_buffer, &endptr, 10);
+
+    if (*endptr != '\0') {
+        SerialModule.printf(F("Conversion error, non-convertible part: %s\n"),
+                            endptr);
+        return false;
+    }
+
+    *operating_mode = static_cast<OperatingMode>(mode);
+
+    return true;
+}
+
+void provisionOperatingMode() {
+
+    SerialModule.println("\r\n");
+
+    // ------------------------------------------------------------------------
+    //                      Step 1: Check modem version
+    // ------------------------------------------------------------------------
+
+    char version_result_buffer[64] = "";
+    ResponseResult result          = SequansController.writeCommand(
+        "ATI1",
+        version_result_buffer,
+        sizeof(version_result_buffer));
+
+    if (result != ResponseResult::OK) {
+        SerialModule.printf(
+            F("Failed to retrieve modem firmware version.\r\n"));
+        return;
+    }
+
+    // Dual mode FW is version 8.2, whereas single mode is 8.0. We expect output
+    // on the following form:
+    //
+    // UE8.x.x.x
+    // LR8.x.x.x-xxxxx
+    //
+    const char* prefix = "UE";
+    const char* start  = strstr(version_result_buffer, prefix);
+
+    if (start == NULL) {
+        SerialModule.printf(
+            F("Failed to retrieve modem firmware version.\r\n"));
+        return;
+    }
+
+    start += strlen(prefix);
+
+    int major = 0;
+    int minor = 0;
+    int patch = 0;
+    int build = 0;
+    const size_t items_parsed =
+        sscanf(start, "%d.%d.%d.%d", &major, &minor, &patch, &build);
+
+    if (items_parsed != 4) {
+        SerialModule.printf(
+            F("Failed to retrieve modem firmware version.\r\n"));
+        return;
+    }
+
+    if (!(major == 8 && minor == 2)) {
+        SerialModule.printf(
+            F("Current modem version %d.%d.%d.%d does not "
+              "support dual mode (NB-IoT + LTE-M). You need to upgrade the "
+              "modem firmware.\r\nHead "
+              "to iot.microchip.com/docs/arduino/userguide/sequans_modem for "
+              "instructions.\r\n"),
+            major,
+            minor,
+            patch,
+            build);
+        return;
+    }
+
+    // ------------------------------------------------------------------------
+    //                      Step 2: Change mode
+    // ------------------------------------------------------------------------
+
+    const uint8_t mode = askNumberedQuestion(
+        F("Select mode:\r\n1: LTE-M\r\n2: NB-IoT\r\nPlease choose (press "
+          "enter "
+          "when done): "),
+        1,
+        2);
+
+    SerialModule.println("\r\n");
+    SerialModule.println(F("Writing configuration..."));
+
+    result =
+        SequansController.writeCommand(F("AT+SQNMODEACTIVE=%d"), NULL, 0, mode);
+
+    if (result != ResponseResult::OK) {
+        SerialModule.println(F("Failed to change operating mode"));
+        return;
+    }
+
+    // ------------------------------------------------------------------------
+    //                      Step 3: Reset and validate
+    // ------------------------------------------------------------------------
+
+    SequansController.writeCommand(F("AT^RESET"));
+
+    if (!SequansController.waitForURC("SYSSTART", NULL, 0, 6000)) {
+        SerialModule.println(F("Modem did not wake up after reset!"));
+        return;
+    }
+
+    OperatingMode operating_mode = OperatingMode::Unknown;
+    const bool success           = queryOperatingMode(&operating_mode);
+
+    if (!success) {
+        SerialModule.println(F("Failed to query operating mode after reset"));
+        return;
+    }
+
+    SerialModule.printf(F("Operating mode is now: "));
+
+    switch (operating_mode) {
+    case OperatingMode::LteM:
+        SerialModule.printf(F("LTE-M\r\n"));
+        break;
+
+    case OperatingMode::NbIoT:
+        SerialModule.printf(F("NB-IoT\r\n"));
+        break;
+
+    default:
+        SerialModule.printf(F("Unknown. This should not happen!\r\n"));
+        break;
+    }
+}
+
 void setup() {
     LedCtrl.begin();
     LedCtrl.startupCycle();
@@ -2068,12 +2234,13 @@ void loop() {
           "strings well.\r\n"));
 
     const uint8_t provision_type = askNumberedQuestion(
-        F("Method to provision\r\n"
+        F("Method to provision:\r\n"
           "1: MQTT\r\n"
           "2: HTTP\r\n"
+          "3: Operating mode (NB-IoT or LTE-M)\r\n"
           "Please choose (press enter when done): "),
         1,
-        2);
+        3);
 
     switch (provision_type) {
     case 1:
@@ -2082,6 +2249,14 @@ void loop() {
 
     case 2:
         provisionHttp();
+        break;
+
+    case 3:
+        provisionOperatingMode();
+        // Dummy question to make sure user reads error messages (if any)
+        askInputQuestion(F("\r\nPress enter to return to the main menu"),
+                         nullptr,
+                         0);
         break;
 
     default:
