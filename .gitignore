@@ -1,9 +1,11 @@
 .ccls
-build/
+.cache/
+.pytest_cache/
 .ccls-cache
 .vscode/c_cpp_properties.json
 .vscode/arduino.json
 deploy_sandbox
+build/
 builds
 lib/cryptoauth/cryptoauthlib
 lib/cryptoauth/build48
