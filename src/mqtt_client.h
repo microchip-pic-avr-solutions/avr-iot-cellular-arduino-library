@@ -42,7 +42,7 @@ class MqttClientClass {
      * is utilised, the modem will wake up every @p keep_alive to ping the
      * broker regardless of the sleeping time.
      * @param use_ecc Optional: Whether to use the ECC for signing messages. If
-     * not used, the private key has to be stored on the LTE modem and the
+     * not used, the private key has to be stored on the modem and the
      * security profile has to be be set up to not use external hardware
      * cryptographic engine.
      * @param username Optional: Username for authentication.

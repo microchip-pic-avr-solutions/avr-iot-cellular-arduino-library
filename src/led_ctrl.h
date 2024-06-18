@@ -20,7 +20,7 @@ class LedCtrlClass {
     /**
      * @brief Singleton instance.
      */
-    static LedCtrlClass &instance(void) {
+    static LedCtrlClass& instance(void) {
         static LedCtrlClass instance;
         return instance;
     }
@@ -29,14 +29,14 @@ class LedCtrlClass {
      * @brief Starts the LED control module.
      *
      * @param manual_control Set to true if the system should *not* modify the
-     * leds automatically (for example when the LTE modem is connected).
+     * leds automatically (for example when the modem is connected).
      */
     void begin();
 
     /**
      * @brief Start the LED control module in manual mode. In manual mode, the
      * system should *not* modify the LEDs automatically (for example when the
-     * LTE modem is connected).
+     * modem is connected).
      *
      */
     void beginManual();

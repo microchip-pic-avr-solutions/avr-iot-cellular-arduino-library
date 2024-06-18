@@ -119,7 +119,7 @@ void connectLTE() {
 
     Lte.onDisconnect(disconnectedFromNetwork);
 
-    // Start LTE modem and wait until we are connected to the operator.
+    // Start modem and wait until we are connected to the operator.
     // If initialization fails, we just retry in the loop
     while (!Lte.begin()) {}
 

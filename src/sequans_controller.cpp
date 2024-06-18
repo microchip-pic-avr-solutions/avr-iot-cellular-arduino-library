@@ -502,11 +502,11 @@ bool SequansControllerClass::begin(void) {
     pinConfigure(RX_PIN, PIN_DIR_INPUT | PIN_INPUT_ENABLE);
 
     // Request to send (RTS) and clear to send (CTS) are the control lines
-    // on the UART line. From the configuration the MCU and the LTE modem is
+    // on the UART line. From the configuration the MCU and the modem is
     // in, we control the RTS line from the MCU to signalize if we can
-    // process more data or not from the LTE modem. The CTS line is
-    // controlled from the LTE modem and gives us the ability to know
-    // whether the LTE modem can receive more data or if we have to wait.
+    // process more data or not from the modem. The CTS line is
+    // controlled from the modem and gives us the ability to know
+    // whether the modem can receive more data or if we have to wait.
     //
     // Both pins are active low.
 
@@ -514,7 +514,7 @@ bool SequansControllerClass::begin(void) {
     digitalWrite(RTS_PIN, HIGH);
 
     // Clear to send is input and we want interrupts on both edges to know
-    // when the LTE modem has changed the state of the line.
+    // when the modem has changed the state of the line.
     pinConfigure(CTS_PIN,
                  PIN_DIR_INPUT | PIN_PULLUP_ON | PIN_INT_CHANGE |
                      PIN_INPUT_ENABLE);

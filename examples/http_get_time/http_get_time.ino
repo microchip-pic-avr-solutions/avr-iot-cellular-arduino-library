@@ -28,7 +28,7 @@ void setup() {
     Log.begin(115200);
     Log.info(F("Starting HTTP Get Time Example\r\n"));
 
-    // Start LTE modem and connect to the operator
+    // Start modem and connect to the operator
     if (!Lte.begin()) {
         Log.error(F("Failed to connect to operator"));
         return;

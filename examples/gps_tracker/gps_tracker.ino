@@ -193,7 +193,7 @@ void setup() {
     Log.info(F("Starting AVR-IoT Cellular Adafruit GPS example"));
 
     // We configure the low power module for power down configuration, where
-    // the LTE modem and the CPU will be powered down
+    // the modem and the CPU will be powered down
     LowPower.configurePowerDown();
 
     // Make sure sensors are turned off
