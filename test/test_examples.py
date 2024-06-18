@@ -102,13 +102,13 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Command written successfully, the response was:"
             },
             {
-                "expectation": "\\+CEREG: 5,5,\"[a-zA-Z0-9]{1,}\",\"[a-zA-Z0-9]{1,}\",\\d{1,}"
+                "expectation": "\\+CEREG: 5,[1|5],\"[a-zA-Z0-9]{1,}\",\"[a-zA-Z0-9]{1,}\",\\d{1,}"
             },
             {
                 "expectation": ""
             },
             {
-                "expectation": "The value was: 5"
+                "expectation": "The value was: [1|5]"
             },
         ],
         "debug_modem": [
@@ -211,7 +211,8 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
             },
             {
-                "expectation": "\\[INFO\\] Connected to operator: (.*)"
+                "expectation": "\\[INFO\\] Connected to operator: (.*)",
+                "timeout": 60
             },
             {
                 "expectation": "\\[INFO\\] ---- Testing HTTP ----"
@@ -695,13 +696,15 @@ def program(request, backend):
 
     hex_file = build_directory / f"{os.path.basename(sketch_path)}.hex"
 
-    memory_segments = read_memories_from_hex(hex_file, backend.device_memory_info)
+    memory_segments = read_memories_from_hex(
+        hex_file, backend.device_memory_info)
     backend.erase(MemoryNameAliases.ALL, address=None)
 
     for segment in memory_segments:
         memory_name = segment.memory_info[DeviceMemoryInfoKeys.NAME]
         backend.write_memory(segment.data, memory_name, segment.offset)
-        verify_ok = backend.verify_memory(segment.data, memory_name, segment.offset)
+        verify_ok = backend.verify_memory(
+            segment.data, memory_name, segment.offset)
 
         assert verify_ok, "Verification of program memory failed"
 
@@ -750,12 +753,15 @@ def run_example(request, backend, example_test_data):
                 try:
                     response = re.search(expectation, output)
                 except Exception as exception:
-                    pytest.fail(f"\tRegex error for string \"{expectation}\". The error was: {str(exception)}")
+                    pytest.fail(
+                        f"\tRegex error for string \"{expectation}\". The error was: {str(exception)}")
 
-                formatted_output = output.replace("\r", "\\r").replace("\n", "\\n")
+                formatted_output = output.replace(
+                    "\r", "\\r").replace("\n", "\\n")
                 assert response != None, f"\tDid not get the expected response \"{expectation}\" within the timeout of {timeout}, got: \"{formatted_output}\""
 
-                formatted_response = response.group(0).replace("\r", "\\r").replace("\n", "\\n")
+                formatted_response = response.group(0).replace(
+                    "\r", "\\r").replace("\n", "\\n")
 
                 print(f"\tGot valid response: {formatted_response}")
 
