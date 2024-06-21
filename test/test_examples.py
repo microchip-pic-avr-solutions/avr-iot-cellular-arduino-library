@@ -419,7 +419,7 @@ def example_test_data():
                 "expectation": "\\[INFO\\] Connecting to operator.{0,}OK!"
             },
             {
-                "timeout": 90,
+                "timeout": 120,
                 "expectation": "\\[INFO\\] Connecting to MQTT broker.{0,}OK!"
             },
             {

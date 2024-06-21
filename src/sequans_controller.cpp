@@ -559,6 +559,9 @@ bool SequansControllerClass::begin(void) {
 bool SequansControllerClass::isInitialized(void) { return initialized; }
 
 void SequansControllerClass::end(void) {
+    writeCommand(F("AT+SQNSSHDN"));
+    clearReceiveBuffer();
+
     HWSERIALAT.CTRLA = 0;
     HWSERIALAT.CTRLB = 0;
     HWSERIALAT.CTRLC = 0;

@@ -299,7 +299,7 @@ void LteClass::end(void) {
 
         // Wait for the CEREG URC after disconnect so that the modem doesn't
         // have any pending URCs and won't prevent going to sleep
-        const TimeoutTimer timeout_timer(2000);
+        const TimeoutTimer timeout_timer(10000);
         while (isConnected() && !timeout_timer.hasTimedOut()) {}
 
         SequansController.unregisterCallback(FV(CEREG_CALLBACK));
