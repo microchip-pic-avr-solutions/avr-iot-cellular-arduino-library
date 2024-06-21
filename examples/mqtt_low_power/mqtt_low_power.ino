@@ -53,7 +53,10 @@ void setup() {
                      MQTT_PORT,
                      MQTT_USE_TLS,
                      MQTT_KEEPALIVE,
-                     MQTT_USE_ECC);
+                     MQTT_USE_ECC,
+                     "",
+                     "",
+                     90'000);
 #endif
 
     Mcp9808.begin();
@@ -72,7 +75,10 @@ void loop() {
                      MQTT_PORT,
                      MQTT_USE_TLS,
                      MQTT_KEEPALIVE,
-                     MQTT_USE_ECC);
+                     MQTT_USE_ECC,
+                     "",
+                     "",
+                     90'000);
 #endif
 
     char message_to_publish[8] = {0};

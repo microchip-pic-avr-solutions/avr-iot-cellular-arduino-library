@@ -61,7 +61,7 @@ class MqttClientClass {
                const bool use_ecc        = true,
                const char* username      = "",
                const char* password      = "",
-               const size_t timeout_ms   = 30000,
+               const uint32_t timeout_ms = 30000,
                const bool print_messages = true);
 
     /**

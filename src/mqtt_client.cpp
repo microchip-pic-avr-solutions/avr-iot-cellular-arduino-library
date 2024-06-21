@@ -397,7 +397,7 @@ bool MqttClientClass::begin(const char* client_id,
                             const bool use_ecc,
                             const char* username,
                             const char* password,
-                            const size_t timeout_ms,
+                            const uint32_t timeout_ms,
                             const bool print_messages) {
 
     if (!Lte.isConnected()) {
