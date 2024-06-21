@@ -1,6 +1,19 @@
+# 1.3.11
+
+## Features
+
+* NB-IoT support: Option to switch from LTE-M to NB-IoT in the provision sketch (and vice versa)
+* The library now includes a SMS example sketch for sending SMS 
+
+
+## Bugfixes
+
+* Use `AT+SQNSHDN` during SequansController.end() to shutdown the modem faster and not preventing power down sleep mode
+
+
 # 1.3.10
 
-## Chages
+## Changes
 * Use `JsonDocument` instead of the deprecated `StaticJsonDocument` from ArduinoJson in `sandbox.ino` and `plant_monitoring.ino`
 * Correct some compiler warnings and typos
 
