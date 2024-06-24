@@ -97,7 +97,7 @@
                     // Clone the deploy tool
                     stage('GitHub-Setup') {
                         steps {
-                            sh "git clone ${env.DEPLOY_TOOL_URL}"
+                            sh "git clone --branch 1.6.0 ${env.DEPLOY_TOOL_URL}"
                             sh "pip3 install PyGithub atlassian-python-api jsonschema packaging lxml"
                         }
                     }
